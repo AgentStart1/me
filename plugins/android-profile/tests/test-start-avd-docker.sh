@@ -37,7 +37,7 @@ trap cleanup EXIT
 HOME_DIR="${TMP_DIR}/android-home"
 SDK_HOME="${TMP_DIR}/android-sdk"
 AVD_HOME="${TMP_DIR}/custom-avd-home"
-PROFILE_PATH="${TMP_DIR}/android.profile"
+PROFILE_PATH="${TMP_DIR}/mobile.profile"
 EMULATOR_ARGS_LOG="${TMP_DIR}/emulator-args.log"
 EMULATOR_ENV_LOG="${TMP_DIR}/emulator-env.log"
 EMULATOR_CONFIG_LOG="${TMP_DIR}/emulator-config.log"

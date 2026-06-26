@@ -17,7 +17,11 @@ description: 使用随附的 Android SDK 和 AVD 配置脚本安装 Android SDK 
 - `scripts/start-avd.sh`
 - `scripts/profile-utils.sh`
 - `tests/test-start-avd-docker.sh`
-- `profiles/android.profile`
+- `profiles/mobile.profile`
+- `profiles/watch.profile`
+- `profiles/tablet.profile`
+- `profiles/desktop.profile`
+- `profiles/tv.profile`
 
 ## 工作流
 
@@ -30,13 +34,13 @@ ANDROID_HOME=${ANDROID_HOME:-$HOME/android-sdk} ./scripts/install-sdk.sh
 创建已配置的 AVD：
 
 ```bash
-./scripts/create-avd.sh ./profiles/android.profile
+./scripts/create-avd.sh ./profiles/mobile.profile
 ```
 
 启动已配置的模拟器：
 
 ```bash
-./scripts/start-avd.sh ./profiles/android.profile
+./scripts/start-avd.sh ./profiles/mobile.profile
 ```
 
 从仓库根目录运行假命令冒烟测试：
@@ -48,7 +52,7 @@ tests/test-start-avd-docker.sh
 ## 配置规则
 
 - 使用非默认配置时，将配置路径作为第一个参数传入。
-- 如果未传入配置路径，`create-avd.sh` 和 `start-avd.sh` 会使用 `${ANDROID_PROFILE:-${ANDROID_PROFILE_DIR:-$HOME/android-profiles}/android.profile}`。
+- 如果未传入配置路径，`create-avd.sh` 和 `start-avd.sh` 会使用 `${ANDROID_PROFILE:-${ANDROID_PROFILE_DIR:-$HOME/android-profiles}/mobile.profile}`。
 - 添加或检查 `EMULATOR_FLAG_*` 和 `EMULATOR_VALUE_*` 条目时，使用官方模拟器命令行参考：https://developer.android.google.cn/studio/run/emulator-commandline
 - `SYS_IMG_PKG` 必须是 Android 系统镜像包前缀，不包含 ABI 后缀。
 - 脚本会根据运行时架构追加 ABI：`x86_64` 使用 `x86_64`，`aarch64` 使用 `arm64-v8a`。

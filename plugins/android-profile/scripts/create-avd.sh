@@ -8,7 +8,7 @@ ANDROID_PROFILE_ARG="${1:-}"
 if [ -n "$ANDROID_PROFILE_ARG" ]; then
     ANDROID_PROFILE="$ANDROID_PROFILE_ARG"
 else
-    ANDROID_PROFILE="${ANDROID_PROFILE:-${PROFILE_DIR}/android.profile}"
+    ANDROID_PROFILE="${ANDROID_PROFILE:-${PROFILE_DIR}/mobile.profile}"
 fi
 
 # shellcheck source=/dev/null

@@ -10,7 +10,7 @@ AVDMANAGER_VALUE_path=
 # single underscores are preserved. For example:
 # EMULATOR_CONFIG_hw__gpu__enabled=yes
 # EMULATOR_CONFIG_hw__ramSize=4G
-EMULATOR_CONFIG_disk__dataPartition__size=10G
+EMULATOR_CONFIG_disk__dataPartition__size=50G
 
 # Display
 EMULATOR_DISPLAY=:0
