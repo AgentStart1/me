@@ -19,6 +19,9 @@ build_emulator_args() {
     local -n args_ref="$1"
 
     args_ref=(-avd "$AVD_NAME")
+    if [ "${WIPE_DATA_ON_START:-false}" = true ]; then
+        args_ref+=("-wipe-data")
+    fi
     append_args_from_env args_ref EMULATOR -
 }
 
@@ -41,6 +44,14 @@ ADB="$(resolve_android_tool adb)"
 EMULATOR="$(resolve_android_tool emulator)"
 
 AVD_CONFIG_PATH="$(resolve_avd_config_path "$AVD_NAME")"
+WIPE_DATA_ON_START=false
+if [ -f "$AVD_CONFIG_PATH" ] && [ -n "${EMULATOR_CONFIG_disk__dataPartition__size:-}" ]; then
+    CURRENT_DATA_PARTITION_SIZE="$(read_emulator_config_value "$AVD_CONFIG_PATH" "disk.dataPartition.size" || true)"
+    if [ "$CURRENT_DATA_PARTITION_SIZE" != "$EMULATOR_CONFIG_disk__dataPartition__size" ]; then
+        WIPE_DATA_ON_START=true
+        echo "AVD data partition size changed from '${CURRENT_DATA_PARTITION_SIZE:-unset}' to '${EMULATOR_CONFIG_disk__dataPartition__size}'; emulator will start with -wipe-data."
+    fi
+fi
 apply_emulator_config "$AVD_CONFIG_PATH"
 
 echo "Starting emulator..."
@@ -48,7 +59,7 @@ echo "Starting emulator..."
 export DISPLAY="${EMULATOR_DISPLAY:-:1}"
 
 AVD_HOME="$(resolve_android_avd_home)"
-rm -f "${AVD_HOME}"/*.avd/*.lock
+rm -rf "${AVD_HOME}"/*.avd/*.lock
 
 declare -a emulator_args
 build_emulator_args emulator_args

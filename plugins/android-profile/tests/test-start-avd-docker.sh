@@ -56,6 +56,7 @@ cat > "${AVD_HOME}/docker-test-avd.avd/config.ini" <<'CONFIG'
 hw.gpu.enabled=no
 hw.gpu.mode=auto
 hw.accelerometer_uncalibrated=yes
+disk.dataPartition.size=2G
 duplicate.key=old-first
 duplicate.key=old-second
 CONFIG
@@ -151,6 +152,7 @@ grep -q "Starting emulator..." "$START_AVD_OUT"
 grep -q "Emulator process has exited." "$START_AVD_OUT"
 grep -q -- "-avd" "$EMULATOR_ARGS_LOG"
 grep -q "docker-test-avd" "$EMULATOR_ARGS_LOG"
+grep -q -- "-wipe-data" "$EMULATOR_ARGS_LOG"
 grep -q -- "-no-audio" "$EMULATOR_ARGS_LOG"
 grep -q -- "-no-snapshot" "$EMULATOR_ARGS_LOG"
 grep -q -- "-gpu" "$EMULATOR_ARGS_LOG"
@@ -179,6 +181,23 @@ fi
 
 if [ -e "${AVD_HOME}/docker-test-avd.avd/stale.lock" ]; then
     echo "Error: stale AVD lock file was not removed." >&2
+    exit 1
+fi
+
+if ! HOME="$HOME_DIR" \
+    EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" \
+    EMULATOR_ENV_LOG="$EMULATOR_ENV_LOG" \
+    EMULATOR_CONFIG_LOG="$EMULATOR_CONFIG_LOG" \
+    ADB_ARGS_LOG="$ADB_ARGS_LOG" \
+    bash "${PLUGIN_DIR}/scripts/start-avd.sh" "$PROFILE_PATH" > "$START_AVD_OUT" 2> "$START_AVD_ERR"; then
+    echo "Error: second start-avd.sh run failed." >&2
+    cat "$START_AVD_OUT" >&2
+    cat "$START_AVD_ERR" >&2
+    exit 1
+fi
+
+if grep -q -- "-wipe-data" "$EMULATOR_ARGS_LOG"; then
+    echo "Error: -wipe-data was unexpectedly passed after data partition size matched." >&2
     exit 1
 fi
 

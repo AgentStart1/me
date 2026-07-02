@@ -235,6 +235,26 @@ resolve_avd_config_path() {
     printf '%s\n' "${avd_dir}/config.ini"
 }
 
+read_emulator_config_value() {
+    local config_path="$1"
+    local target_key="$2"
+
+    if [ ! -f "$config_path" ]; then
+        return 1
+    fi
+
+    TARGET_KEY="$target_key" awk -F= '
+        $1 == ENVIRON["TARGET_KEY"] {
+            print substr($0, index($0, "=") + 1)
+            found = 1
+            exit
+        }
+        END {
+            exit found ? 0 : 1
+        }
+    ' "$config_path"
+}
+
 apply_emulator_config() {
     local config_path="$1"
     local -a config_vars
