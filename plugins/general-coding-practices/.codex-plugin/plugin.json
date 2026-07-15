@@ -1,34 +1,32 @@
 {
   "name": "general-coding-practices",
-  "version": "0.1.0+codex.20260615100000",
-  "description": "General coding project practices for diagnosing problems before adding fallbacks or workarounds.",
+  "version": "0.1.0+codex.20260715151415",
+  "description": "General coding project collaboration rules and engineering practices.",
   "author": {
     "name": "Local Coding Practices"
   },
   "license": "MIT",
   "keywords": [
     "coding",
+    "collaboration",
     "debugging",
-    "root-cause",
-    "fallback",
-    "best-practices"
+    "formatting",
+    "linting",
+    "privacy",
+    "root-cause"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "General Coding Practices",
-    "shortDescription": "Find root causes before adding fallbacks.",
-    "longDescription": "Guides Codex to identify the essential root cause of coding problems before deciding whether fallback behavior, guards, retries, defaults, or workarounds are warranted.",
+    "shortDescription": "Follow project collaboration and coding rules.",
+    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, run formatting and static checks, use appropriate dependencies, and identify root causes before adding fallbacks or workarounds.",
     "developerName": "Local Coding Practices",
     "category": "Developer Tools",
-    "capabilities": [
-      "Code Review",
-      "Code Generation",
-      "Debugging"
-    ],
+    "capabilities": ["Code Review", "Code Generation", "Debugging"],
     "defaultPrompt": [
-      "Debug this failure and find the root cause.",
-      "Fix this bug without adding unnecessary fallback behavior.",
-      "Review whether this fallback is justified by the root cause."
+      "Plan this coding change and ask for approval before implementation.",
+      "Fix this bug by finding the root cause first.",
+      "Review this change for duplicated code, privacy-safe examples, linting, and formatting."
     ],
     "brandColor": "#2563EB"
   }
