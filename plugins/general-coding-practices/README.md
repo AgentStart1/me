@@ -1,11 +1,11 @@
 # General Coding Practices Plugin
 
-This Codex plugin provides a skill for diagnosing root causes before adding fallbacks or workarounds.
+This Codex plugin provides a skill for project collaboration rules and general coding practices.
 
 ## Contents
 
 - `.codex-plugin/plugin.json` declares the plugin.
-- `skills/root-cause-before-fallback/SKILL.md` contains the root-cause-first guidance.
+- `skills/project-collaboration-rules/SKILL.md` contains the project collaboration and coding-practice guidance.
 
 ## Local Marketplace Entry
 
