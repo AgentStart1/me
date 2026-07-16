@@ -1,6 +1,6 @@
 {
   "name": "general-coding-practices",
-  "version": "0.1.0+codex.20260715151415",
+  "version": "0.1.0+codex.20260716055735",
   "description": "General coding project collaboration rules and engineering practices.",
   "author": {
     "name": "Local Coding Practices"
@@ -22,7 +22,11 @@
     "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, run formatting and static checks, use appropriate dependencies, and identify root causes before adding fallbacks or workarounds.",
     "developerName": "Local Coding Practices",
     "category": "Developer Tools",
-    "capabilities": ["Code Review", "Code Generation", "Debugging"],
+    "capabilities": [
+      "Code Review",
+      "Code Generation",
+      "Debugging"
+    ],
     "defaultPrompt": [
       "Plan this coding change and ask for approval before implementation.",
       "Fix this bug by finding the root cause first.",

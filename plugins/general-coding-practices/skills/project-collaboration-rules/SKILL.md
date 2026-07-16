@@ -13,6 +13,7 @@ For coding tasks in this project, follow these rules:
 - Do not put personal private information in code, tests, fixtures, docs, examples, or commit messages. Use placeholders for real emails, phone numbers, addresses, and similar data.
 - Avoid duplicated code. Reuse existing helpers and patterns, or introduce a suitable abstraction when it meaningfully reduces duplication.
 - Ensure the project has static analysis and formatting configured. After code changes, run the relevant formatter and checks, and report any checks that could not be run.
+- Ensure changed code has appropriate test coverage. After making changes, run the corresponding tests and report any tests that could not be run.
 - Implement the correct solution even when that requires adding an appropriate dependency.
 
 When investigating bugs, regressions, flaky behavior, unexpected output, build errors, test failures, or unclear implementation problems:
