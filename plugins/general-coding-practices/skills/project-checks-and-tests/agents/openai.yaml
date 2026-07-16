@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Checks and Tests"
+  short_description: "Run relevant checks and tests."
+  default_prompt: "Update this project and run the relevant checks and tests."

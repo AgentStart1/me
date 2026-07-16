@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kotlin Project Rules"
+  short_description: "Prefer coroutine-first Kotlin code."
+  default_prompt: "Implement this Kotlin change with coroutine-first concurrency decisions."

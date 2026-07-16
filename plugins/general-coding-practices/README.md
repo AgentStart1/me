@@ -1,11 +1,15 @@
 # General Coding Practices Plugin
 
-This Codex plugin provides a skill for project collaboration rules and general coding practices.
+This Codex plugin provides focused skills for project collaboration, verification, rule-file maintenance, root-cause-first debugging, and Kotlin project guidance.
 
 ## Contents
 
 - `.codex-plugin/plugin.json` declares the plugin.
-- `skills/project-collaboration-rules/SKILL.md` contains the project collaboration and coding-practice guidance.
+- `skills/project-collaboration-rules/SKILL.md` contains collaboration, privacy, duplication, and dependency guidance.
+- `skills/project-checks-and-tests/SKILL.md` contains formatter, static-check, and test-coverage guidance.
+- `skills/project-rule-file-maintenance/SKILL.md` contains guidance for keeping `AGENTS.md`, `CLAUDE.md`, and similar project instruction files current.
+- `skills/root-cause-before-fallback/SKILL.md` contains root-cause-first debugging guidance.
+- `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine and threading guidance.
 
 ## Local Marketplace Entry
 
