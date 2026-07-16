@@ -1,6 +1,6 @@
 # me
 
-一个本地 Codex Android 插件合集。当前包含 Android SDK/AVD 配置脚本、RecyclerView 最佳实践 skill，以及通用编码实践 skill。
+一个本地 Codex Android 插件合集。当前包含 Android SDK/AVD 配置脚本、Appium 设备锁、RecyclerView 最佳实践 skill，以及通用编码实践 skill。
 
 ## 包结构
 
@@ -10,6 +10,9 @@
 - `plugins/android-profile/tests/`：冒烟测试脚本。
 - `plugins/android-profile/profiles/android.profile`：默认 Android 模拟器配置。
 - `plugins/android-profile/skills/android-profile/SKILL.md`：面向 Codex 的使用说明。
+- `plugins/android-appium-device-lock/.codex-plugin/plugin.json`：Appium 设备锁插件清单文件。
+- `plugins/android-appium-device-lock/scripts/adb-device-lock.sh`：基于 adb 的设备端文件锁脚本。
+- `plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md`：面向 Codex 的 Appium 设备锁使用说明。
 - `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`：RecyclerView 最佳实践插件清单文件。
 - `plugins/recyclerview-best-practice/skills/`：RecyclerView adapter、diff、paging、sentinel ViewHolder 等实践说明。
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`：通用编码实践插件清单文件。
@@ -27,6 +30,7 @@ codex plugin marketplace add https://github.com/storytellerF/me
 
 ```bash
 codex plugin add android-profile@me
+codex plugin add android-appium-device-lock@me
 codex plugin add recyclerview-best-practice@me
 codex plugin add general-coding-practices@me
 ```
@@ -39,6 +43,7 @@ codex plugin add general-coding-practices@me
 
 ```markdown
 @plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
+@plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 ```
 
@@ -46,6 +51,7 @@ codex plugin add general-coding-practices@me
 
 ```markdown
 @/path/to/me/plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
+@/path/to/me/plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 ```
 
