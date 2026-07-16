@@ -1,59 +1,65 @@
 # me
 
-一个本地 Codex Android 插件合集。当前包含 Android SDK/AVD 配置脚本、RecyclerView 最佳实践 skill，以及通用编码实践 skill。
+A local Codex Android plugin collection. It currently includes Android SDK/AVD setup scripts, an Appium device lock, RecyclerView best-practice skills, and general coding-practice skills.
 
-## 包结构
+## Package Structure
 
-- `.agents/plugins/marketplace.json`：仓库内的 `me` Codex marketplace 条目。
-- `plugins/android-profile/.codex-plugin/plugin.json`：插件清单文件。
-- `plugins/android-profile/scripts/`：Android SDK、AVD 和模拟器脚本。
-- `plugins/android-profile/tests/`：冒烟测试脚本。
-- `plugins/android-profile/profiles/android.profile`：默认 Android 模拟器配置。
-- `plugins/android-profile/skills/android-profile/SKILL.md`：面向 Codex 的使用说明。
-- `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`：RecyclerView 最佳实践插件清单文件。
-- `plugins/recyclerview-best-practice/skills/`：RecyclerView adapter、diff、paging、sentinel ViewHolder 等实践说明。
-- `plugins/general-coding-practices/.codex-plugin/plugin.json`：通用编码实践插件清单文件。
-- `plugins/general-coding-practices/skills/`：先找根因再加 fallback 的实践说明。
+- `.agents/plugins/marketplace.json`: the in-repo `me` Codex marketplace entry.
+- `plugins/android-profile/.codex-plugin/plugin.json`: Android Profile plugin manifest.
+- `plugins/android-profile/scripts/`: Android SDK, AVD, and emulator scripts.
+- `plugins/android-profile/tests/`: smoke test scripts.
+- `plugins/android-profile/profiles/android.profile`: default Android emulator profile.
+- `plugins/android-profile/skills/android-profile/SKILL.md`: Codex-facing Android Profile instructions.
+- `plugins/android-appium-device-lock/.codex-plugin/plugin.json`: Appium device lock plugin manifest.
+- `plugins/android-appium-device-lock/scripts/adb-device-lock.sh`: adb-based device-side file lock script.
+- `plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md`: Codex-facing Appium device lock instructions.
+- `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
+- `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
+- `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
+- `plugins/general-coding-practices/skills/`: practice instructions for finding root causes before adding fallbacks.
 
-## 安装
+## Installation
 
-将此 GitHub 仓库添加为 Codex 插件 marketplace：
+Add this GitHub repository as a Codex plugin marketplace:
 
 ```bash
 codex plugin marketplace add https://github.com/storytellerF/me
 ```
 
-从该 marketplace 安装插件：
+Install plugins from the marketplace:
 
 ```bash
 codex plugin add android-profile@me
+codex plugin add android-appium-device-lock@me
 codex plugin add recyclerview-best-practice@me
 codex plugin add general-coding-practices@me
 ```
 
-安装后启动一个新的 Codex 线程，以便加载插件 skill。
+Start a new Codex thread after installation so the plugin skills are loaded.
 
 ### Claude Code
 
-在目标项目中创建 `CLAUDE.md`，引用本仓库中需要的 skill 文件：
+Create a `CLAUDE.md` file in the target project and reference the skills needed from this repository:
 
 ```markdown
 @plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
+@plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 ```
 
-或者将本仓库克隆到本地后，在目标项目的 `CLAUDE.md` 中用绝对路径引用：
+Alternatively, clone this repository locally and reference the skill files with absolute paths from the target project's `CLAUDE.md`:
 
 ```markdown
 @/path/to/me/plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
+@/path/to/me/plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 ```
 
-Claude Code 会在对话开始时自动加载这些指引。
+Claude Code loads these instructions automatically when a conversation starts.
 
-## 直接使用脚本
+## Running Scripts Directly
 
-也可以在插件根目录下直接运行打包好的脚本：
+You can also run the bundled scripts directly from the plugin root:
 
 ```bash
 cd plugins/android-profile
@@ -62,36 +68,36 @@ ANDROID_HOME=$HOME/android-sdk ./scripts/install-sdk.sh
 ./scripts/start-avd.sh ./profiles/android.profile
 ```
 
-自定义 profile 可以直接定义 Android 标准路径变量 `ANDROID_HOME`、
-`ANDROID_AVD_HOME` 和 `ANDROID_USER_HOME`。脚本会先加载 profile，再查找 SDK
-工具和 AVD 文件。仓库随附的 `profiles/android.profile` 不预设这些路径。
+Custom profiles may define standard Android path variables directly, including `ANDROID_HOME`, `ANDROID_AVD_HOME`, and `ANDROID_USER_HOME`. The scripts load the profile first, then locate SDK tools and AVD files. The bundled `profiles/android.profile` does not preset these paths.
 
-在仓库根目录下使用假的模拟器命令运行 `start-avd.sh` 冒烟测试：
+Run the `start-avd.sh` smoke test with fake emulator commands from the repository root:
 
 ```bash
 plugins/android-profile/tests/test-start-avd-docker.sh
 ```
 
-## 宿主机模拟器供虚拟机访问
+## Host Emulator Access From a VM
 
-如果 Android 模拟器运行在宿主机上，而需要从虚拟机中访问宿主机的 ADB 端口，还需要在宿主机上添加端口转发和防火墙规则。以下示例假设虚拟机网段为 `192.168.80.0/24`，宿主机在该虚拟网络中的地址为 `192.168.80.1`：
+If the Android emulator runs on the host machine and a VM needs to access the host ADB port, add port forwarding and firewall rules on the host. This example assumes the VM subnet is `192.168.80.0/24` and the host address on that virtual network is `192.168.80.1`:
 
 ```powershell
 netsh interface portproxy add v4tov4 listenaddress=192.168.80.1 listenport=5555 connectaddress=127.0.0.1 connectport=5555
 netsh advfirewall firewall add rule name="Android Emulator ADB 5555" dir=in action=allow protocol=TCP localport=5555 remoteip=192.168.80.0/24
 ```
 
-需要确保配置存在 
+Confirm the port proxy entry exists:
+
 ```shell
 netsh interface portproxy show all
 ```
 
-确保真的在监听 
-```
+Confirm the host is listening:
+
+```shell
 netstat -ano | findstr "192.168.80.1:5555"
 ```
 
-如果没有在监听需要重启服务
+If it is not listening, restart the service:
 
 ```shell
 net stop iphlpsvc
