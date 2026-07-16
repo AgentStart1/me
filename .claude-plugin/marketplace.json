@@ -17,6 +17,15 @@
       "category": "Productivity"
     },
     {
+      "name": "android-appium-device-lock",
+      "source": "./plugins/android-appium-device-lock",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
       "name": "recyclerview-best-practice",
       "source": "./plugins/recyclerview-best-practice",
       "policy": {
