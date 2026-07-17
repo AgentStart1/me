@@ -27,6 +27,7 @@ When adding a new plugin, also register it in `.agents/plugins/marketplace.json`
 @plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
 @plugins/recyclerview-best-practice/skills/recyclerview-sentinel-viewholder/SKILL.md
 @plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md
+@plugins/general-coding-practices/skills/project-readme-maintenance/SKILL.md
 @plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
 @plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md

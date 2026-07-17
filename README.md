@@ -16,7 +16,7 @@ A local Codex Android plugin collection. It currently includes Android SDK/AVD s
 - `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
 - `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
-- `plugins/general-coding-practices/skills/`: project collaboration, verification, rule-file maintenance, root-cause-first debugging, and Kotlin project practice instructions.
+- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, and Kotlin project practice instructions.
 
 ## Installation
 
@@ -45,6 +45,7 @@ Create a `CLAUDE.md` file in the target project and reference the skills needed 
 @plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
 @plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
 @plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md
+@plugins/general-coding-practices/skills/project-readme-maintenance/SKILL.md
 @plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
 @plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
@@ -57,6 +58,7 @@ Alternatively, clone this repository locally and reference the skill files with 
 @/path/to/me/plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
 @/path/to/me/plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md
+@/path/to/me/plugins/general-coding-practices/skills/project-readme-maintenance/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
