@@ -1,6 +1,6 @@
 {
   "name": "general-coding-practices",
-  "version": "0.1.0+codex.20260717131325",
+  "version": "0.1.0+codex.20260718075039",
   "description": "General coding project collaboration rules and engineering practices.",
   "author": {
     "name": "Local Coding Practices"
@@ -10,7 +10,9 @@
     "coding",
     "collaboration",
     "debugging",
+    "file-organization",
     "formatting",
+    "immutability",
     "kotlin",
     "linting",
     "privacy",
@@ -22,7 +24,7 @@
   "interface": {
     "displayName": "General Coding Practices",
     "shortDescription": "Follow project collaboration and coding rules.",
-    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, proactively maintain README and project rule files such as AGENTS.md, run formatting and static checks, use appropriate dependencies, identify root causes before adding fallbacks or workarounds, and make coroutine-first concurrency decisions in Kotlin projects instead of defaulting to Java thread or blocking synchronization patterns.",
+    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, split large code files by feature or responsibility, proactively maintain README and project rule files such as AGENTS.md, run formatting and static checks, use appropriate dependencies, identify root causes before adding fallbacks or workarounds, and make coroutine-first, immutable-by-default decisions in Kotlin projects instead of defaulting to Java thread, blocking synchronization, or mutable var patterns.",
     "developerName": "Local Coding Practices",
     "category": "Developer Tools",
     "capabilities": [
