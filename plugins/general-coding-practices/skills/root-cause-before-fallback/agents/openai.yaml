@@ -1,0 +1,4 @@
+interface:
+  display_name: "Root Cause Before Fallback"
+  short_description: "Find root causes before fallbacks."
+  default_prompt: "Debug this issue by finding the root cause before adding a fallback."

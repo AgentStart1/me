@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Rule File Maintenance"
+  short_description: "Keep project instruction files current."
+  default_prompt: "Update project instruction files for this convention change."
