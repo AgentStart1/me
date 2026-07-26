@@ -23,7 +23,13 @@ Build clients around a unidirectional state flow: asynchronous work produces imm
 - Use lifecycle-aware collection. Start and stop observation with the visible UI lifecycle; do not keep a view or screen alive through a long-lived collector.
 - Publish complete immutable snapshots. Avoid exposing mutable collections or state that the UI can mutate.
 
-## Kotlin/Android default
+## Observable transformation scheduling
+
+Keep non-trivial work in an observable pipeline off the UI scheduler on every client platform. This includes `map`, filtering, flattening, combining streams, sorting, grouping, parsing, formatting, and mapping domain data to UI models. Use the platform's upstream/background scheduling operator or executor, and switch to the UI scheduler only at the rendering boundary.
+
+Verify the scheduling semantics of the framework in use: some operators affect only upstream work, and hot streams may retain the scheduler on which they were created. Do not assume that observing a stream on the UI thread makes earlier transformations safe.
+
+## Kotlin/Android example
 
 ```kotlin
 data class ProfileUiState(
@@ -73,7 +79,8 @@ val uiState: StateFlow<FeedUiState> = repository.observeFeed()
 ## Review checklist
 
 - Identify every expensive or blocking operation reachable from a UI callback, render function, or main-thread collector; move it to a structured asynchronous boundary.
-- Inspect observable pipelines as well as callbacks: ensure non-trivial `map` and related Flow operators execute upstream of an appropriate `flowOn` (or an equivalent background scheduler).
+- Inspect observable pipelines on every client platform as well as callbacks: ensure non-trivial transformations execute on an appropriate background scheduler or executor, upstream of the UI-observation boundary.
+- For Kotlin Flow specifically, ensure non-trivial operators are upstream of an appropriate `flowOn`; use the platform-equivalent scheduling mechanism for other observable frameworks.
 - Verify cancellation follows the screen, ViewModel, or feature lifecycle.
 - Ensure a background result cannot update a destroyed or inactive UI directly; publish state and let lifecycle-aware observation render it.
 - Separate persistent state from one-off effects, and define loading, empty, content, and failure states.
