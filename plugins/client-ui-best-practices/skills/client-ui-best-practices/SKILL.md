@@ -3,7 +3,7 @@ name: client-ui-best-practices
 description: Use for client UI work, reviews, refactors, or bug fixes involving Android Views, Compose, iOS/UIKit/SwiftUI, desktop UI, or other main-thread event-loop frameworks. Keep the UI/main thread limited to view-tree mutation and rendering work; move business logic, I/O, data transforms, and long-running computation to structured asynchronous work; expose UI-ready state and one-time events through observable state such as StateFlow and SharedFlow.
 ---
 
-# Client UI Threading
+# Client UI Best Practices
 
 Build clients around a unidirectional state flow: asynchronous work produces immutable UI state; the UI observes it and renders on its required UI thread.
 
@@ -19,6 +19,7 @@ Build clients around a unidirectional state flow: asynchronous work produces imm
 - Model durable screen data as an immutable `UiState` exposed as `StateFlow<UiState>` (or the platform's equivalent observable state).
 - Model one-time effects—navigation, snackbar/toast, permission request, or external action—as a separate `SharedFlow<UiEffect>` or event stream. Do not encode a consumable event in persistent state.
 - Let the ViewModel, presenter, or controller own asynchronous work and transform domain results into UI-ready state. Keep views declarative: observe, render, and send intents.
+- Treat operators on observable data as real work. Run `map`, `filter`, `flatMap*`, `combine`, sorting, grouping, parsing, and other non-trivial transformations off the UI thread, even when the final state is observed by the UI.
 - Use lifecycle-aware collection. Start and stop observation with the visible UI lifecycle; do not keep a view or screen alive through a long-lived collector.
 - Publish complete immutable snapshots. Avoid exposing mutable collections or state that the UI can mutate.
 
@@ -55,9 +56,24 @@ class ProfileViewModel(
 
 Collect `uiState` and `effects` using lifecycle-aware APIs, then perform view mutation or Compose rendering in the collector. Prefer injecting dispatchers when testability or dispatcher selection is meaningful; use `Dispatchers.IO` for blocking I/O and `Dispatchers.Default` for CPU-bound work.
 
+For Kotlin Flow, place `flowOn` after the upstream transformations that need a background dispatcher and before `stateIn`, `shareIn`, or collection. `flowOn` changes only operators above it; it does not move downstream collectors or already-hot `StateFlow`/`SharedFlow` work.
+
+```kotlin
+val uiState: StateFlow<FeedUiState> = repository.observeFeed()
+    .map { items -> items.sortedByDescending(Item::updatedAt).map(Item::toUiModel) }
+    .map { models -> FeedUiState(items = models) }
+    .flowOn(Dispatchers.Default)
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = FeedUiState(),
+    )
+```
+
 ## Review checklist
 
 - Identify every expensive or blocking operation reachable from a UI callback, render function, or main-thread collector; move it to a structured asynchronous boundary.
+- Inspect observable pipelines as well as callbacks: ensure non-trivial `map` and related Flow operators execute upstream of an appropriate `flowOn` (or an equivalent background scheduler).
 - Verify cancellation follows the screen, ViewModel, or feature lifecycle.
 - Ensure a background result cannot update a destroyed or inactive UI directly; publish state and let lifecycle-aware observation render it.
 - Separate persistent state from one-off effects, and define loading, empty, content, and failure states.
