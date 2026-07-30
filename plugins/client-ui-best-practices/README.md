@@ -5,7 +5,7 @@ This Codex plugin provides client UI threading and state-driven rendering guidan
 ## Contents
 
 - `.codex-plugin/plugin.json` declares the plugin.
-- `skills/client-ui-threading/SKILL.md` defines the main-thread, asynchronous work, and observable-state practices.
+- `skills/client-ui-best-practices/SKILL.md` defines main-thread boundaries, asynchronous work, observable-state practices, and development-time enforcement for Android, Apple, desktop, and browser UI event loops.
 
 ## Local Marketplace Entry
 

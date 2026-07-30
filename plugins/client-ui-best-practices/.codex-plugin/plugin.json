@@ -1,6 +1,6 @@
 {
   "name": "client-ui-best-practices",
-  "version": "0.1.0+codex.20260726014648",
+  "version": "0.1.0+codex.20260730011446",
   "description": "Client UI threading and state-driven rendering practices.",
   "author": {
     "name": "Local developer"
