@@ -43,9 +43,10 @@ Start a new Codex thread after installation so the plugin skills are loaded.
 
 ### Agent prompts
 
-The Codex plugin flow in this repository does not install custom agent prompt files automatically;
-install them separately from a clone of this repository. Claude Code can also load the same prompts
-directly from each plugin's root `agents/` directory.
+The Codex plugin flow in this repository does not install custom agent files automatically;
+install them separately from a clone of this repository. Claude Code loads the Markdown agents
+from each plugin's root `agents/` directory; the installer converts those same prompts into Codex
+TOML agents with top-level model and reasoning settings.
 
 ```bash
 # Install globally for Codex.
@@ -55,8 +56,9 @@ directly from each plugin's root `agents/` directory.
 ./scripts/install-agents.sh --target both --scope project --project-dir "$PWD"
 ```
 
-Use `--dry-run` to inspect the copy list first. The installer copies the same Claude-compatible
-Markdown prompts to `.codex/agents` and/or `.claude/agents`; it does not copy conversation history.
+Use `--dry-run` to inspect the install list first. Codex receives generated `.toml` files under
+`.codex/agents`, while Claude receives the source Markdown under `.claude/agents`; it does not copy
+conversation history.
 
 ### Claude Code
 

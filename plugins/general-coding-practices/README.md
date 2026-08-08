@@ -14,8 +14,9 @@ This Codex plugin provides focused skills for project collaboration, README main
 - `skills/repository-delivery/SKILL.md` coordinates upstream sync, PR/CI, release, and infrastructure work.
 - `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine and threading guidance.
 
-Agent prompts are stored in the plugin-root `agents/` directory alongside `skills/`. They include a recommended
-Codex model as a routing hint and use `model: inherit` for Claude compatibility.
+Agent prompts are stored in the plugin-root `agents/` directory alongside `skills/`. Their Markdown
+frontmatter configures Claude with `model` and `effort`; the `Codex routing:` metadata is promoted by
+the installer to top-level `model` and `model_reasoning_effort` in Codex TOML files.
 
 ## Local Marketplace Entry
 
