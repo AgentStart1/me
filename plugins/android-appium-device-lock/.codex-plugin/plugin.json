@@ -1,6 +1,6 @@
 {
   "name": "android-appium-device-lock",
-  "version": "0.1.0+codex.20260716160000",
+  "version": "0.1.0+codex.20260808112641",
   "description": "Serialize Android Appium and end-to-end test runs with a device-side adb file lock.",
   "author": {
     "name": "Local Android Practices"
