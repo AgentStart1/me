@@ -1,6 +1,6 @@
 {
   "name": "general-coding-practices",
-  "version": "0.1.0+codex.20260808081743",
+  "version": "0.1.0+codex.20260808114753",
   "description": "General coding project collaboration rules and engineering practices.",
   "author": {
     "name": "Local Coding Practices"
@@ -19,13 +19,15 @@
     "privacy",
     "project-rules",
     "readme",
-    "root-cause"
+    "root-cause",
+    "repository-delivery",
+    "subagents"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "General Coding Practices",
     "shortDescription": "Follow project collaboration and coding rules.",
-    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, proactively maintain README and project rule files such as AGENTS.md, run formatting and static checks, use appropriate dependencies, identify root causes before adding fallbacks or workarounds, and make coroutine-first, immutable-by-default decisions in Kotlin projects instead of defaulting to Java thread, blocking synchronization, or mutable var patterns.",
+    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, proactively maintain README, project rules, and colocated agent prompts, coordinate repository sync and PR/CI delivery, run formatting and static checks, use appropriate dependencies, identify root causes before adding fallbacks or workarounds, and make coroutine-first, immutable-by-default decisions in Kotlin projects instead of defaulting to Java thread, blocking synchronization, or mutable var patterns.",
     "developerName": "Local Coding Practices",
     "category": "Developer Tools",
     "capabilities": [
@@ -36,9 +38,7 @@
     "defaultPrompt": [
       "Plan this coding change and ask for approval before implementation.",
       "Fix this bug by finding the root cause first.",
-      "Review this change for duplicated code, privacy-safe examples, linting, and formatting.",
-      "Update the project README for this user-facing change.",
-      "Implement this Kotlin change with coroutine-first concurrency decisions."
+      "Use $repository-delivery to inspect a CI or upstream-sync task."
     ],
     "brandColor": "#2563EB"
   }

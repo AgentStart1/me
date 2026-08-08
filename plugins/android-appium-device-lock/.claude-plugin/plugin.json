@@ -1,0 +1,8 @@
+{
+  "name": "android-appium-device-lock",
+  "description": "Serialize Android Appium, UIAutomator, Espresso, and adb test runs that share one device.",
+  "author": {
+    "name": "Local Android Practices"
+  },
+  "version": "0.1.0+codex.20260808114753"
+}

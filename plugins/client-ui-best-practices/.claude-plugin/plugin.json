@@ -1,0 +1,8 @@
+{
+  "name": "client-ui-best-practices",
+  "description": "Keep client UI rendering on the UI thread and move business work into structured asynchronous state flows.",
+  "author": {
+    "name": "Local developer"
+  },
+  "version": "0.1.0+codex.20260808114753"
+}
