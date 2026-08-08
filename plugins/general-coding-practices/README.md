@@ -1,6 +1,6 @@
 # General Coding Practices Plugin
 
-This Codex plugin provides focused skills for project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, and Kotlin project guidance.
+This Codex plugin provides focused skills for project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, repository delivery, and Kotlin project guidance. Each owning skill may also contain portable Claude-compatible agent prompts.
 
 ## Contents
 
@@ -10,7 +10,11 @@ This Codex plugin provides focused skills for project collaboration, README main
 - `skills/project-checks-and-tests/SKILL.md` contains formatter, static-check, and test-coverage guidance.
 - `skills/project-rule-file-maintenance/SKILL.md` contains guidance for keeping `AGENTS.md`, `CLAUDE.md`, and similar project instruction files current.
 - `skills/root-cause-before-fallback/SKILL.md` contains root-cause-first debugging guidance.
+- `skills/repository-delivery/SKILL.md` coordinates upstream sync, PR/CI, release, and infrastructure work.
 - `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine and threading guidance.
+
+Agent prompts are stored in the `agents/` directory beside each skill. They include a recommended
+Codex model as a routing hint and use `model: inherit` for Claude compatibility.
 
 ## Local Marketplace Entry
 

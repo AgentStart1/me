@@ -14,3 +14,9 @@ Keep project guidance files aligned with the conventions future agents and contr
 - Keep guidance concise and actionable. Prefer commands, paths, and concrete conventions over broad advice.
 - Do not duplicate the same rule across multiple files unless each consumer actually needs it.
 - If the project has multiple instruction files, keep their guidance consistent or explain intentional differences.
+
+## Delegated agent
+
+Use `agents/documentation-and-rules-maintainer.md` for a focused audit of `AGENTS.md`, `CLAUDE.md`,
+`.cursorrules`, and related guidance after changing workflows or agent prompts. It should report
+which file is canonical, what references are stale, and the smallest consistent update.

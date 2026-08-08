@@ -146,3 +146,9 @@ val uiState: StateFlow<FeedUiState> = repository.observeFeed()
 - Ensure a background result cannot update a destroyed or inactive UI directly; publish state and let lifecycle-aware observation render it.
 - Separate persistent state from one-off effects, and define loading, empty, content, and failure states.
 - Test state transitions, cancellation, error propagation, and that rendering receives UI-ready data without extra work.
+
+## Delegated agent
+
+For a cross-platform UI review or a refactor touching scheduling and state ownership, use
+`agents/client-ui-architecture-reviewer.md`. Ask it to inspect the complete call path and return
+actionable findings before delegating edits.

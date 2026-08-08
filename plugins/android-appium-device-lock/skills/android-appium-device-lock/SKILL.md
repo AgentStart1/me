@@ -62,3 +62,9 @@ npm run test:appium
 ## Bundled Resource
 
 - `scripts/adb-device-lock.sh`: deterministic adb lock helper with `acquire`, `release`, and `run` commands.
+
+## Delegated agent
+
+Use `agents/android-e2e-operator.md` for device-backed Appium, UIAutomator, Espresso, or adb
+verification. The agent must acquire this skill's device lock before changing device state and must
+prefer deterministic fixtures over live services or real-world routes.
