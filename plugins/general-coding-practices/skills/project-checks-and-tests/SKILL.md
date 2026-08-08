@@ -14,3 +14,9 @@ For implementation work, keep verification tied to the actual changed surface.
 - Run the relevant formatter, lint, typecheck, static analysis, or build checks configured by the project.
 - If a relevant check or test cannot be run, report what was skipped and why.
 - Do not run unrelated expensive suites by default when a narrower project-supported command gives useful coverage.
+
+## Delegated agent
+
+Use `../../agents/test-verification-agent.md` when verification can run independently of implementation.
+Give it the changed surface and expected command family; require a concise report of commands run,
+failures, skipped checks, and remaining risk.

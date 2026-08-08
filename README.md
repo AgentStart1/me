@@ -6,6 +6,7 @@ A local Codex Android plugin collection. It currently includes Android SDK/AVD s
 
 - `.agents/plugins/marketplace.json`: the in-repo `me` Codex marketplace entry.
 - `plugins/android-profile/.codex-plugin/plugin.json`: Android Profile plugin manifest.
+- `plugins/*/.claude-plugin/plugin.json`: Claude Code plugin manifests for plugins that ship custom agents.
 - `plugins/android-profile/scripts/`: Android SDK, AVD, and emulator scripts.
 - `plugins/android-profile/tests/`: smoke test scripts.
 - `plugins/android-profile/profiles/android.profile`: default Android emulator profile.
@@ -16,7 +17,10 @@ A local Codex Android plugin collection. It currently includes Android SDK/AVD s
 - `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
 - `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
-- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, and Kotlin project practice instructions.
+- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, repository delivery, and Kotlin project practice instructions.
+- `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
+- `agents/`: prompts specific to maintaining this plugin collection.
+- `scripts/install-agents.sh`: manually copy prompts into Codex or Claude agent directories.
 
 ## Installation
 
@@ -36,6 +40,25 @@ codex plugin add general-coding-practices@me
 ```
 
 Start a new Codex thread after installation so the plugin skills are loaded.
+
+### Agent prompts
+
+The Codex plugin flow in this repository does not install custom agent files automatically;
+install them separately from a clone of this repository. Claude Code loads the Markdown agents
+from each plugin's root `agents/` directory; adjacent `codex-routing.toml` files hold Codex model
+metadata, and the installer combines both sources into Codex TOML agents.
+
+```bash
+# Install globally for Codex.
+./scripts/install-agents.sh --target codex --scope global
+
+# Or install for the current project in both supported layouts.
+./scripts/install-agents.sh --target both --scope project --project-dir "$PWD"
+```
+
+Use `--dry-run` to inspect the install list first. Codex receives generated `.toml` files under
+`.codex/agents`, while Claude receives the source Markdown under `.claude/agents`; it does not copy
+conversation history.
 
 ### Claude Code
 
