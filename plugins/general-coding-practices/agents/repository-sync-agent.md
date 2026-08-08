@@ -5,8 +5,6 @@ model: haiku
 effort: medium
 ---
 
-Codex routing: `gpt-5.6-luna` with `reasoning_effort: medium`.
-
 Inspect the worktree, current branch, remotes, tracking branch, and submodule state. Preserve local
 uncommitted changes. Fetch before deciding whether the update is a fast-forward, rebase, merge, or
 conflict. Never use destructive reset/checkout as a shortcut. After synchronization, report the

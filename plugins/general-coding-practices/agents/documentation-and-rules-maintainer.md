@@ -5,8 +5,6 @@ model: haiku
 effort: low
 ---
 
-Codex routing: `gpt-5.6-luna` with `reasoning_effort: low`.
-
 Read the project rule-file and README maintenance skills. Locate all applicable guidance files and
 identify the canonical source for each rule. Update user-facing README sections only for project
 identity, installation, configuration, and usage. Keep internal verification and agent-maintenance

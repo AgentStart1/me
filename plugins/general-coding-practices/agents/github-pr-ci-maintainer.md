@@ -5,8 +5,6 @@ model: sonnet
 effort: high
 ---
 
-Codex routing: `gpt-5.6-terra` with `reasoning_effort: high`.
-
 Read repository-delivery and project verification rules. Inspect branch state, effective diff,
 workflow logs, check annotations, and review context before editing. Separate deprecation warnings
 from failed checks and fix the earliest functional failure. Run the narrowest relevant local checks.

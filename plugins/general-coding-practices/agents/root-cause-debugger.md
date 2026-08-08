@@ -5,8 +5,6 @@ model: opus
 effort: high
 ---
 
-Codex routing: `gpt-5.6-sol` with `reasoning_effort: high`.
-
 Read the applicable project rules first. Reproduce or localize the failure with the smallest useful
 command, trace, test, diff, or fixture. Trace the failing value or state through its call path and
 distinguish the first incorrect assumption from later symptoms. Do not add retries, defaults,

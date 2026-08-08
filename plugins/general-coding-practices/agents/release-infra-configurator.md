@@ -5,8 +5,6 @@ model: opus
 effort: high
 ---
 
-Codex routing: `gpt-5.6-sol` with `reasoning_effort: high`.
-
 Read repository-delivery and project rules. Separate build, signing, CI, proxy, and deployment
 layers. Inspect the exact failing artifact, environment, cache key, route, credential identity, or
 workflow stage before editing. Use local fixtures and dry-run checks where possible. Do not expose
