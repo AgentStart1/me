@@ -1,10 +1,11 @@
 # General Coding Practices Plugin
 
-This Codex plugin provides focused skills for project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, repository delivery, and Kotlin project guidance. Each owning skill may also contain portable Claude-compatible agent prompts.
+This Codex plugin provides focused skills for project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, repository delivery, and Kotlin project guidance. The plugin root also contains portable Claude-compatible agent prompts.
 
 ## Contents
 
 - `.codex-plugin/plugin.json` declares the plugin.
+- `.claude-plugin/plugin.json` declares the Claude Code plugin.
 - `skills/project-collaboration-rules/SKILL.md` contains collaboration, privacy, duplication, and dependency guidance.
 - `skills/project-readme-maintenance/SKILL.md` contains guidance for keeping README files focused on project information and usage.
 - `skills/project-checks-and-tests/SKILL.md` contains formatter, static-check, and test-coverage guidance.
@@ -13,7 +14,7 @@ This Codex plugin provides focused skills for project collaboration, README main
 - `skills/repository-delivery/SKILL.md` coordinates upstream sync, PR/CI, release, and infrastructure work.
 - `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine and threading guidance.
 
-Agent prompts are stored in the `agents/` directory beside each skill. They include a recommended
+Agent prompts are stored in the plugin-root `agents/` directory alongside `skills/`. They include a recommended
 Codex model as a routing hint and use `model: inherit` for Claude compatibility.
 
 ## Local Marketplace Entry

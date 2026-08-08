@@ -17,6 +17,6 @@ Keep project guidance files aligned with the conventions future agents and contr
 
 ## Delegated agent
 
-Use `agents/documentation-and-rules-maintainer.md` for a focused audit of `AGENTS.md`, `CLAUDE.md`,
+Use `../../agents/documentation-and-rules-maintainer.md` for a focused audit of `AGENTS.md`, `CLAUDE.md`,
 `.cursorrules`, and related guidance after changing workflows or agent prompts. It should report
 which file is canonical, what references are stale, and the smallest consistent update.

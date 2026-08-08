@@ -1,0 +1,8 @@
+{
+  "name": "general-coding-practices",
+  "description": "General coding collaboration, debugging, verification, repository delivery, and project guidance.",
+  "author": {
+    "name": "Local Coding Practices"
+  },
+  "version": "0.1.0+codex.20260808114753"
+}

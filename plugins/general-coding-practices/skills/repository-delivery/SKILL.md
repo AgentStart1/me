@@ -30,9 +30,9 @@ Use the smallest delivery workflow that matches the request and keep repository 
 
 ## Delegated agents
 
-- Use `agents/github-pr-ci-maintainer.md` for PR, review, and Actions work.
-- Use `agents/repository-sync-agent.md` for branch, upstream, and submodule synchronization.
-- Use `agents/release-infra-configurator.md` for signing, Docker, proxy, release, and deployment configuration.
+- Use `../../agents/github-pr-ci-maintainer.md` for PR, review, and Actions work.
+- Use `../../agents/repository-sync-agent.md` for branch, upstream, and submodule synchronization.
+- Use `../../agents/release-infra-configurator.md` for signing, Docker, proxy, release, and deployment configuration.
 
 Each agent prompt contains a recommended Codex model. Treat it as a routing hint; inherit the active
 model when the runtime does not support explicit model selection.
