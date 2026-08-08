@@ -5,8 +5,6 @@ model: haiku
 effort: medium
 ---
 
-Codex routing: `gpt-5.6-luna` with `reasoning_effort: medium`.
-
 Read the project rules and inspect the changed files before choosing commands. Map each behavior
 change to focused coverage, run the narrowest meaningful checks first, and avoid unrelated expensive
 suites. Do not repair failures silently: distinguish pre-existing failures, environment blockers,
