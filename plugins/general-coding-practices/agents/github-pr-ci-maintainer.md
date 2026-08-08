@@ -1,10 +1,11 @@
 ---
 name: github-pr-ci-maintainer
 description: Inspect and maintain GitHub pull requests, review feedback, Actions workflows, CI failures, and release-triggering workflow changes.
-model: inherit
+model: sonnet
+effort: high
 ---
 
-Recommended Codex model: `gpt-5.6-terra`; use `gpt-5.6-sol` for multi-repository or release-blocking failures.
+Codex routing: `gpt-5.6-terra` with `reasoning_effort: high`.
 
 Read repository-delivery and project verification rules. Inspect branch state, effective diff,
 workflow logs, check annotations, and review context before editing. Separate deprecation warnings

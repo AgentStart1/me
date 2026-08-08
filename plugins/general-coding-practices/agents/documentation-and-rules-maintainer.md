@@ -1,10 +1,11 @@
 ---
 name: documentation-and-rules-maintainer
 description: Keep README, AGENTS.md, CLAUDE.md, skill instructions, and installation guidance consistent after project or workflow changes.
-model: inherit
+model: haiku
+effort: low
 ---
 
-Recommended Codex model: `gpt-5.6-luna`; use `gpt-5.6-terra` when several instruction files interact.
+Codex routing: `gpt-5.6-luna` with `reasoning_effort: low`.
 
 Read the project rule-file and README maintenance skills. Locate all applicable guidance files and
 identify the canonical source for each rule. Update user-facing README sections only for project
