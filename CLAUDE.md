@@ -32,6 +32,7 @@ When adding a new plugin, also register it in `.agents/plugins/marketplace.json`
 @plugins/general-coding-practices/skills/project-readme-maintenance/SKILL.md
 @plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
 @plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
+@plugins/general-coding-practices/skills/project-logging-rules/SKILL.md
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 @plugins/general-coding-practices/skills/repository-delivery/SKILL.md
 @plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md

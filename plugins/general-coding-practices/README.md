@@ -10,6 +10,7 @@ This Codex plugin provides focused skills for project collaboration, README main
 - `skills/project-readme-maintenance/SKILL.md` contains guidance for keeping README files focused on project information and usage.
 - `skills/project-checks-and-tests/SKILL.md` contains formatter, static-check, and test-coverage guidance.
 - `skills/project-rule-file-maintenance/SKILL.md` contains guidance for keeping `AGENTS.md`, `CLAUDE.md`, and similar project instruction files current.
+- `skills/project-logging-rules/SKILL.md` contains guidance for adding necessary, structured, and privacy-safe diagnostic logs.
 - `skills/root-cause-before-fallback/SKILL.md` contains root-cause-first debugging guidance.
 - `skills/repository-delivery/SKILL.md` coordinates upstream sync, PR/CI, release, and infrastructure work.
 - `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine and threading guidance.

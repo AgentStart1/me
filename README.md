@@ -17,7 +17,7 @@ A local Codex Android plugin collection. It currently includes Android SDK/AVD s
 - `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
 - `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
-- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, repository delivery, and Kotlin project practice instructions.
+- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, logging, root-cause-first debugging, repository delivery, and Kotlin project practice instructions.
 - `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
 - `agents/`: prompts specific to maintaining this plugin collection.
 - `scripts/install-agents.sh`: manually copy prompts into Codex or Claude agent directories.
@@ -71,6 +71,7 @@ Create a `CLAUDE.md` file in the target project and reference the skills needed 
 @plugins/general-coding-practices/skills/project-readme-maintenance/SKILL.md
 @plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
 @plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
+@plugins/general-coding-practices/skills/project-logging-rules/SKILL.md
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 @plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
 ```
@@ -84,6 +85,7 @@ Alternatively, clone this repository locally and reference the skill files with 
 @/path/to/me/plugins/general-coding-practices/skills/project-readme-maintenance/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
+@/path/to/me/plugins/general-coding-practices/skills/project-logging-rules/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
 ```
