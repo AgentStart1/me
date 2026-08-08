@@ -17,6 +17,6 @@ For implementation work, keep verification tied to the actual changed surface.
 
 ## Delegated agent
 
-Use `agents/test-verification-agent.md` when verification can run independently of implementation.
+Use `../../agents/test-verification-agent.md` when verification can run independently of implementation.
 Give it the changed surface and expected command family; require a concise report of commands run,
 failures, skipped checks, and remaining risk.

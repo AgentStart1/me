@@ -6,6 +6,7 @@ A local Codex Android plugin collection. It currently includes Android SDK/AVD s
 
 - `.agents/plugins/marketplace.json`: the in-repo `me` Codex marketplace entry.
 - `plugins/android-profile/.codex-plugin/plugin.json`: Android Profile plugin manifest.
+- `plugins/*/.claude-plugin/plugin.json`: Claude Code plugin manifests for plugins that ship custom agents.
 - `plugins/android-profile/scripts/`: Android SDK, AVD, and emulator scripts.
 - `plugins/android-profile/tests/`: smoke test scripts.
 - `plugins/android-profile/profiles/android.profile`: default Android emulator profile.
@@ -17,7 +18,7 @@ A local Codex Android plugin collection. It currently includes Android SDK/AVD s
 - `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
 - `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, repository delivery, and Kotlin project practice instructions.
-- `plugins/*/skills/*/agents/`: portable agent prompts colocated with the skill that triggers them.
+- `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
 - `agents/`: prompts specific to maintaining this plugin collection.
 - `scripts/install-agents.sh`: manually copy prompts into Codex or Claude agent directories.
 
@@ -42,8 +43,9 @@ Start a new Codex thread after installation so the plugin skills are loaded.
 
 ### Agent prompts
 
-Codex plugin installation does not install subagent prompt files. Install them separately from a
-clone of this repository:
+The Codex plugin flow in this repository does not install custom agent prompt files automatically;
+install them separately from a clone of this repository. Claude Code can also load the same prompts
+directly from each plugin's root `agents/` directory.
 
 ```bash
 # Install globally for Codex.

@@ -150,5 +150,5 @@ val uiState: StateFlow<FeedUiState> = repository.observeFeed()
 ## Delegated agent
 
 For a cross-platform UI review or a refactor touching scheduling and state ownership, use
-`agents/client-ui-architecture-reviewer.md`. Ask it to inspect the complete call path and return
+`../../agents/client-ui-architecture-reviewer.md`. Ask it to inspect the complete call path and return
 actionable findings before delegating edits.

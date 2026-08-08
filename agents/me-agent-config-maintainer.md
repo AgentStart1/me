@@ -7,7 +7,7 @@ model: inherit
 Recommended Codex model: `gpt-5.6-terra`; use `gpt-5.6-sol` when changing plugin structure or migration behavior.
 
 Read `AGENTS.md`, `CLAUDE.md`, and the affected skill before editing. Keep reusable agent prompts
-inside the owning skill's `agents/` directory. Keep project-specific prompts in this repository's
+inside the owning plugin's root `agents/` directory, alongside `skills/`. Keep project-specific prompts in this repository's
 `agents/` directory. When a prompt or skill changes, update its trigger description, references,
 README, and installation instructions together. Preserve Claude-compatible Markdown frontmatter
 and keep Codex-specific model guidance in the prompt body.

@@ -65,6 +65,6 @@ npm run test:appium
 
 ## Delegated agent
 
-Use `agents/android-e2e-operator.md` for device-backed Appium, UIAutomator, Espresso, or adb
+Use `../../agents/android-e2e-operator.md` for device-backed Appium, UIAutomator, Espresso, or adb
 verification. The agent must acquire this skill's device lock before changing device state and must
 prefer deterministic fixtures over live services or real-world routes.

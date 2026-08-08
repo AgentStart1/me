@@ -15,6 +15,8 @@ This repository publishes Codex plugins. Each plugin lives under `plugins/<name>
 ```
 plugins/<name>/
   .codex-plugin/plugin.json    # Plugin manifest (name, version, description, interface)
+  .claude-plugin/plugin.json   # Claude Code plugin manifest
+  agents/<agent-name>.md       # Plugin-level custom agents
   skills/<skill-name>/SKILL.md # Skill instructions
   README.md                    # Plugin-level documentation
 ```
@@ -37,7 +39,7 @@ When adding a new plugin, also register it in `.agents/plugins/marketplace.json`
 
 ## Agent prompts
 
-Reusable prompts live beside their owning skills under `plugins/*/skills/*/agents/`. The repository
+Reusable prompts live at plugin root under `plugins/*/agents/`, alongside each plugin's `skills/` directory. The repository
 prompt at `agents/me-agent-config-maintainer.md` maintains these files, their triggers, and manual
-installation instructions. Claude Code and Codex require the prompts to be installed into their
-respective agent directories; installing a plugin does not install them automatically.
+installation instructions. Claude Code loads plugin-root agents; Codex requires the prompts to be
+installed into its agent directory because plugin installation does not install them automatically.

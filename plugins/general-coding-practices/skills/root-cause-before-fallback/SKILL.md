@@ -17,6 +17,6 @@ Fix the underlying problem before adding defensive layers.
 
 ## Delegated agent
 
-When the task spans multiple files, logs, or runtime layers, use `agents/root-cause-debugger.md` as
+When the task spans multiple files, logs, or runtime layers, use `../../agents/root-cause-debugger.md` as
 the delegated prompt. Keep the investigation read-only until the failure is localized, then return
 the evidence, root cause, smallest safe fix, and focused verification command to the parent agent.
