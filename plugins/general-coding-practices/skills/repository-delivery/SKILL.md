@@ -34,6 +34,10 @@ Use the smallest delivery workflow that matches the request and keep repository 
 - Use `../../agents/repository-sync-agent.md` for branch, upstream, and submodule synchronization.
 - Use `../../agents/release-infra-configurator.md` for signing, Docker, proxy, release, and deployment configuration.
 
+Spawn each delegated agent with `fork_turns: "none"`. Provide only the task-specific repository state,
+target, and relevant artifact or command output; pass a small explicit number of prior turns only when
+the delegated task depends on a specific recent decision.
+
 Each Markdown agent contains Claude `model`/`effort` frontmatter. Its adjacent
 `agents/codex-routing.toml` entry contains Codex `model` and `model_reasoning_effort`; the manual
 installer combines that metadata into top-level fields in `.toml` agent files.
