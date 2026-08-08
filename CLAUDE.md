@@ -8,7 +8,7 @@ This repository publishes Codex plugins. Each plugin lives under `plugins/<name>
 |--------|------|-------------|
 | android-profile | `plugins/android-profile/` | Android SDK/AVD/emulator profile scripts |
 | recyclerview-best-practice | `plugins/recyclerview-best-practice/` | RecyclerView adapter, diff, paging best practices |
-| general-coding-practices | `plugins/general-coding-practices/` | General coding and Kotlin project guidance |
+| general-coding-practices | `plugins/general-coding-practices/` | General coding, repository delivery, and Kotlin project guidance |
 
 ## Plugin Structure Convention
 
@@ -31,4 +31,13 @@ When adding a new plugin, also register it in `.agents/plugins/marketplace.json`
 @plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
 @plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
+@plugins/general-coding-practices/skills/repository-delivery/SKILL.md
 @plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
+@AGENTS.md
+
+## Agent prompts
+
+Reusable prompts live beside their owning skills under `plugins/*/skills/*/agents/`. The repository
+prompt at `agents/me-agent-config-maintainer.md` maintains these files, their triggers, and manual
+installation instructions. Claude Code and Codex require the prompts to be installed into their
+respective agent directories; installing a plugin does not install them automatically.
