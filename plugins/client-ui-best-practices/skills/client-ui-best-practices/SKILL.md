@@ -151,4 +151,5 @@ val uiState: StateFlow<FeedUiState> = repository.observeFeed()
 
 For a cross-platform UI review or a refactor touching scheduling and state ownership, use
 `../../agents/client-ui-architecture-reviewer.md`. Ask it to inspect the complete call path and return
-actionable findings before delegating edits.
+actionable findings before delegating edits. Spawn it with `fork_turns: "none"` and provide only the
+relevant UI surface, constraints, and review scope.
