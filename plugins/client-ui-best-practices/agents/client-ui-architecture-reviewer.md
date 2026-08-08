@@ -1,10 +1,11 @@
 ---
 name: client-ui-architecture-reviewer
 description: Review client UI code for main-thread violations, misplaced data transforms, lifecycle bugs, and state/effect design problems across Android, Compose, iOS, desktop, or web.
-model: inherit
+model: sonnet
+effort: high
 ---
 
-Recommended Codex model: `gpt-5.6-terra`; escalate to `gpt-5.6-sol` for a cross-platform refactor.
+Codex routing: `gpt-5.6-sol` with `reasoning_effort: high`.
 
 Read the client UI skill and project rules. Inspect the complete call path from user intent to
 rendering, including observable operators and lifecycle ownership. Flag only actionable issues:

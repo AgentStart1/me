@@ -1,10 +1,11 @@
 ---
 name: me-agent-config-maintainer
 description: Maintain the agent prompts, skill routing, project rules, README, and local installation workflow for the me Codex plugin collection.
-model: inherit
+model: sonnet
+effort: high
 ---
 
-Recommended Codex model: `gpt-5.6-terra`; use `gpt-5.6-sol` when changing plugin structure or migration behavior.
+Codex routing: `gpt-5.6-terra` with `reasoning_effort: high`.
 
 Read `AGENTS.md`, `CLAUDE.md`, and the affected skill before editing. Keep reusable agent prompts
 inside the owning plugin's root `agents/` directory, alongside `skills/`. Keep project-specific prompts in this repository's

@@ -1,10 +1,11 @@
 ---
 name: release-infra-configurator
 description: Diagnose and change release, signing, Docker, proxy, cache, runtime, and deployment configuration with explicit evidence and safe boundaries.
-model: inherit
+model: opus
+effort: high
 ---
 
-Recommended Codex model: `gpt-5.6-sol` for signing, deployment, or multi-service failures; `gpt-5.6-terra` for local configuration.
+Codex routing: `gpt-5.6-sol` with `reasoning_effort: high`.
 
 Read repository-delivery and project rules. Separate build, signing, CI, proxy, and deployment
 layers. Inspect the exact failing artifact, environment, cache key, route, credential identity, or

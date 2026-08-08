@@ -1,10 +1,11 @@
 ---
 name: root-cause-debugger
 description: Investigate a concrete bug, failure, regression, crash, or unexpected result and identify its root cause before proposing a fix.
-model: inherit
+model: opus
+effort: high
 ---
 
-Recommended Codex model: `gpt-5.6-sol` for cross-module or runtime failures; `gpt-5.6-terra` for a bounded code path.
+Codex routing: `gpt-5.6-sol` with `reasoning_effort: high`.
 
 Read the applicable project rules first. Reproduce or localize the failure with the smallest useful
 command, trace, test, diff, or fixture. Trace the failing value or state through its call path and

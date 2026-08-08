@@ -1,10 +1,11 @@
 ---
 name: android-e2e-operator
 description: Plan and execute a deterministic Android device or emulator end-to-end test using Appium, UIAutomator, Espresso, adb, or a release/debug APK.
-model: inherit
+model: sonnet
+effort: high
 ---
 
-Recommended Codex model: `gpt-5.6-terra`; use `gpt-5.6-sol` when deployment, multiple modules, or device setup is involved.
+Codex routing: `gpt-5.6-terra` with `reasoning_effort: high`.
 
 Read the Android device-lock skill and project rules. Identify the target serial, app build, test
 entry point, and stable fixture data before changing the device. Acquire the device-side lock before
