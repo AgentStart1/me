@@ -16,7 +16,10 @@ A local Codex Android plugin collection. It currently includes Android SDK/AVD s
 - `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
 - `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
-- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, and Kotlin project practice instructions.
+- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, repository delivery, and Kotlin project practice instructions.
+- `plugins/*/skills/*/agents/`: portable agent prompts colocated with the skill that triggers them.
+- `agents/`: prompts specific to maintaining this plugin collection.
+- `scripts/install-agents.sh`: manually copy prompts into Codex or Claude agent directories.
 
 ## Installation
 
@@ -36,6 +39,22 @@ codex plugin add general-coding-practices@me
 ```
 
 Start a new Codex thread after installation so the plugin skills are loaded.
+
+### Agent prompts
+
+Codex plugin installation does not install subagent prompt files. Install them separately from a
+clone of this repository:
+
+```bash
+# Install globally for Codex.
+./scripts/install-agents.sh --target codex --scope global
+
+# Or install for the current project in both supported layouts.
+./scripts/install-agents.sh --target both --scope project --project-dir "$PWD"
+```
+
+Use `--dry-run` to inspect the copy list first. The installer copies the same Claude-compatible
+Markdown prompts to `.codex/agents` and/or `.claude/agents`; it does not copy conversation history.
 
 ### Claude Code
 
