@@ -15,6 +15,7 @@
     "immutability",
     "kotlin",
     "linting",
+    "logging",
     "naming",
     "privacy",
     "project-rules",
@@ -27,7 +28,7 @@
   "interface": {
     "displayName": "General Coding Practices",
     "shortDescription": "Follow project collaboration and coding rules.",
-    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, proactively maintain README, project rules, and colocated agent prompts, coordinate repository sync and PR/CI delivery, run formatting and static checks, use appropriate dependencies, identify root causes before adding fallbacks or workarounds, and make coroutine-first, immutable-by-default decisions in Kotlin projects instead of defaulting to Java thread, blocking synchronization, or mutable var patterns.",
+    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, add necessary structured and privacy-safe diagnostic logs, proactively maintain README, project rules, and colocated agent prompts, coordinate repository sync and PR/CI delivery, run formatting and static checks, use appropriate dependencies, identify root causes before adding fallbacks or workarounds, and make coroutine-first, immutable-by-default decisions in Kotlin projects instead of defaulting to Java thread, blocking synchronization, or mutable var patterns.",
     "developerName": "Local Coding Practices",
     "category": "Developer Tools",
     "capabilities": [
