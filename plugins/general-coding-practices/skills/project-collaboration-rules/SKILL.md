@@ -8,6 +8,8 @@ description: Use for coding project work where Codex must follow collaboration r
 For coding tasks in this project, follow these rules:
 
 - Before making design decisions, choosing an implementation approach, or deleting/refactoring code, explain the proposed plan and wait for user approval.
+- Treat approval as applying only to the plan that was explicitly explained. Generic instructions such as "continue" do not approve design choices discovered later.
+- If inspection, compilation, tests, or static analysis reveals a new choice that changes module boundaries, dependencies, public APIs, data models, or architecture, pause. Explain the options, trade-offs, and recommendation, then wait for fresh approval before changing direction.
 - When changes can be split into multiple commits by independent concerns, ask whether the user wants separate commits before committing.
 - Do not include `Codex-Session` lines in commit messages.
 - Do not put personal private information in code, tests, fixtures, docs, examples, or commit messages. Use placeholders for real emails, phone numbers, addresses, and similar data.
