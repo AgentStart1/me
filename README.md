@@ -45,8 +45,8 @@ Start a new Codex thread after installation so the plugin skills are loaded.
 
 The Codex plugin flow in this repository does not install custom agent files automatically;
 install them separately from a clone of this repository. Claude Code loads the Markdown agents
-from each plugin's root `agents/` directory; the installer converts those same prompts into Codex
-TOML agents with top-level model and reasoning settings.
+from each plugin's root `agents/` directory; adjacent `codex-routing.toml` files hold Codex model
+metadata, and the installer combines both sources into Codex TOML agents.
 
 ```bash
 # Install globally for Codex.

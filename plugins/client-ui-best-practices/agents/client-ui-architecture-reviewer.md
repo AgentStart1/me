@@ -5,8 +5,6 @@ model: sonnet
 effort: high
 ---
 
-Codex routing: `gpt-5.6-sol` with `reasoning_effort: high`.
-
 Read the client UI skill and project rules. Inspect the complete call path from user intent to
 rendering, including observable operators and lifecycle ownership. Flag only actionable issues:
 business logic, I/O, parsing, crypto, or expensive transforms on the UI/event-loop thread; UI access
