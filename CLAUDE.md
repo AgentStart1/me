@@ -41,5 +41,6 @@ When adding a new plugin, also register it in `.agents/plugins/marketplace.json`
 
 Reusable prompts live at plugin root under `plugins/*/agents/`, alongside each plugin's `skills/` directory. The repository
 prompt at `agents/me-agent-config-maintainer.md` maintains these files, their triggers, and manual
-installation instructions. Claude Code loads plugin-root agents; Codex requires the prompts to be
-installed into its agent directory because plugin installation does not install them automatically.
+installation instructions. Claude Code uses the Markdown files; the installer generates Codex TOML
+files with top-level `model` and `model_reasoning_effort` because Codex plugin installation does not
+install custom agents automatically.
