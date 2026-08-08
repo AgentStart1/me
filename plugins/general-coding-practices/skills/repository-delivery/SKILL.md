@@ -34,6 +34,6 @@ Use the smallest delivery workflow that matches the request and keep repository 
 - Use `../../agents/repository-sync-agent.md` for branch, upstream, and submodule synchronization.
 - Use `../../agents/release-infra-configurator.md` for signing, Docker, proxy, release, and deployment configuration.
 
-Each Markdown agent contains Claude `model`/`effort` frontmatter and a `Codex routing:` line. The
-manual installer converts that metadata into top-level Codex `model` and `model_reasoning_effort`
-fields in `.toml` agent files. Do not describe the Codex routing as prompt-only guidance.
+Each Markdown agent contains Claude `model`/`effort` frontmatter. Its adjacent
+`agents/codex-routing.toml` entry contains Codex `model` and `model_reasoning_effort`; the manual
+installer combines that metadata into top-level fields in `.toml` agent files.

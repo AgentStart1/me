@@ -22,6 +22,24 @@ yaml_field() {
   ' "$prompt_file"
 }
 
+toml_agent_field() {
+  local agent_name="$1"
+  local field_name="$2"
+  local routing_file="$3"
+
+  awk -v agent_name="$agent_name" -v field_name="$field_name" '
+    $0 == "[agent.\"" agent_name "\"]" { in_agent = 1; next }
+    /^\[agent\./ { in_agent = 0 }
+    in_agent && $0 ~ "^" field_name "[[:space:]]*=" {
+      sub("^" field_name "[[:space:]]*=[[:space:]]*", "")
+      sub(/^\"/, "")
+      sub(/\"[[:space:]]*$/, "")
+      print
+      exit
+    }
+  ' "$routing_file"
+}
+
 toml_quote() {
   local value="$1"
   value="${value//\\/\\\\}"
@@ -32,17 +50,21 @@ toml_quote() {
 render_codex_agent() {
   local prompt_file="$1"
   local destination="$2"
-  local name description routing_line model reasoning_effort developer_instructions
+  local name description routing_file model reasoning_effort developer_instructions
 
   name="$(yaml_field name "$prompt_file")"
   description="$(yaml_field description "$prompt_file")"
-  routing_line="$(awk '/^Codex routing: / { print; exit }' "$prompt_file")"
-  model="$(printf '%s\n' "$routing_line" | sed -n 's/^Codex routing: `\([^`]*\)` with `reasoning_effort: \([^`]*\)`.*/\1/p')"
-  reasoning_effort="$(printf '%s\n' "$routing_line" | sed -n 's/^Codex routing: `\([^`]*\)` with `reasoning_effort: \([^`]*\)`.*/\2/p')"
+  routing_file="$(dirname -- "$prompt_file")/codex-routing.toml"
+  if [[ ! -f "$routing_file" ]]; then
+    printf 'Missing Codex routing metadata: %s\n' "$routing_file" >&2
+    exit 1
+  fi
+  model="$(toml_agent_field "$name" model "$routing_file")"
+  reasoning_effort="$(toml_agent_field "$name" model_reasoning_effort "$routing_file")"
   developer_instructions="$(awk '
     NR == 1 && $0 == "---" { in_frontmatter = 1; next }
     in_frontmatter && $0 == "---" { in_frontmatter = 0; next }
-    !in_frontmatter && $0 !~ /^Codex routing: / { print }
+    !in_frontmatter { print }
   ' "$prompt_file")"
 
   if [[ -z "$name" || -z "$description" || -z "$model" || -z "$reasoning_effort" ]]; then

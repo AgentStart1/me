@@ -5,8 +5,6 @@ model: sonnet
 effort: high
 ---
 
-Codex routing: `gpt-5.6-terra` with `reasoning_effort: high`.
-
 Read the Android device-lock skill and project rules. Identify the target serial, app build, test
 entry point, and stable fixture data before changing the device. Acquire the device-side lock before
 installing, clearing data, launching the app, starting Appium, or changing emulator state. Prefer

@@ -15,8 +15,8 @@ This Codex plugin provides focused skills for project collaboration, README main
 - `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine and threading guidance.
 
 Agent prompts are stored in the plugin-root `agents/` directory alongside `skills/`. Their Markdown
-frontmatter configures Claude with `model` and `effort`; the `Codex routing:` metadata is promoted by
-the installer to top-level `model` and `model_reasoning_effort` in Codex TOML files.
+frontmatter configures Claude with `model` and `effort`; adjacent `codex-routing.toml` metadata is
+promoted by the installer to top-level `model` and `model_reasoning_effort` in Codex TOML files.
 
 ## Local Marketplace Entry
 
