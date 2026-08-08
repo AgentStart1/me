@@ -19,4 +19,5 @@ For implementation work, keep verification tied to the actual changed surface.
 
 Use `../../agents/test-verification-agent.md` when verification can run independently of implementation.
 Give it the changed surface and expected command family; require a concise report of commands run,
-failures, skipped checks, and remaining risk.
+failures, skipped checks, and remaining risk. Spawn it with `fork_turns: "none"`; include only the
+changed surface, expected behavior, and relevant commands.

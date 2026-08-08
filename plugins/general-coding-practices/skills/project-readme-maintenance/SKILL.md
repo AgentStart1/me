@@ -20,4 +20,5 @@ Keep README files useful for people trying to understand and use the project.
 
 Use `../../agents/documentation-and-rules-maintainer.md` when a feature, plugin, installation flow, or
 agent workflow changes several user-facing files. Keep implementation details in rules or skill
-files and keep README content focused on what the project contains and how users operate it.
+files and keep README content focused on what the project contains and how users operate it. Spawn it
+with `fork_turns: "none"` and provide only the changed workflow and affected documentation paths.

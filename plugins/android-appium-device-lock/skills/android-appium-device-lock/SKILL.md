@@ -67,4 +67,5 @@ npm run test:appium
 
 Use `../../agents/android-e2e-operator.md` for device-backed Appium, UIAutomator, Espresso, or adb
 verification. The agent must acquire this skill's device lock before changing device state and must
-prefer deterministic fixtures over live services or real-world routes.
+prefer deterministic fixtures over live services or real-world routes. Spawn it with
+`fork_turns: "none"` and provide only the device, test, and fixture context it needs.
