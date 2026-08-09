@@ -1,10 +1,10 @@
 {
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "general-coding-practices",
   "description": "General coding collaboration, debugging, verification, repository delivery, and project guidance.",
   "author": {
     "name": "Local Coding Practices"
   },
   "version": "0.1.0+claude.20260809000000",
-  "agents": "./agents/",
-  "skills": "./skills/"
+  "skills": ["./skills/"]
 }
