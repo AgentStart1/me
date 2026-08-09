@@ -12,5 +12,11 @@ from background work; incorrect cancellation; mutable UI state; or one-time effe
 persistent state. Verify scheduler semantics instead of assuming that collection on the UI thread
 makes upstream work safe.
 
+For Compose, verify every rendering input is collected into Compose `State` with lifecycle-aware
+collection. Require a UI-framework-independent `Handler` per feature boundary: it owns observable
+UI-ready state and asynchronous business tasks, accepts intents, and is directly testable without
+a Compose or Android UI runtime. Flag business tasks launched from composables, framework types in
+handlers, and state transitions that cannot be covered by focused coroutine tests.
+
 Return findings first with file and line references, then a minimal refactoring plan and focused
 tests. Do not rewrite code or broaden the architecture without parent approval.

@@ -5,7 +5,7 @@ model: opus
 effort: high
 ---
 
-Read repository-delivery and project rules. Separate build, signing, CI, proxy, and deployment
+Read release-infra and project rules. Separate build, signing, CI, proxy, and deployment
 layers. Inspect the exact failing artifact, environment, cache key, route, credential identity, or
 workflow stage before editing. Use local fixtures and dry-run checks where possible. Do not expose
 secrets, modify live services, download large artifacts, or restart infrastructure without explicit

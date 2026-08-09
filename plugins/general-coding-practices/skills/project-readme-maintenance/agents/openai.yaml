@@ -1,4 +1,0 @@
-interface:
-  display_name: "Project README Maintenance"
-  short_description: "Keep project README usage-focused."
-  default_prompt: "Update the project README for this user-facing change."

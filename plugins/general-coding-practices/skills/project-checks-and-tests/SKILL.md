@@ -20,4 +20,6 @@ For implementation work, keep verification tied to the actual changed surface.
 Use `../../agents/test-verification-agent.md` when verification can run independently of implementation.
 Give it the changed surface and expected command family; require a concise report of commands run,
 failures, skipped checks, and remaining risk. Spawn it with `fork_turns: "none"`; include only the
-changed surface, expected behavior, and relevant commands.
+changed surface, expected behavior, and relevant commands. The parent must wait for the delegated
+agent's final report before reporting verification results or returning a final response; do not
+treat an active agent as completed.

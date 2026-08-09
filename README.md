@@ -1,6 +1,6 @@
 # me
 
-A local Codex Android plugin collection. It currently includes Android SDK/AVD setup scripts, an Appium device lock, RecyclerView best-practice skills, and general coding-practice/Kotlin project skills.
+A local Codex Android and client UI plugin collection. It currently includes Android SDK/AVD setup scripts, an Appium device lock, RecyclerView best-practice skills, client UI state/handler guidance, and general coding-practice/Kotlin project skills.
 
 ## Package Structure
 
@@ -13,11 +13,13 @@ A local Codex Android plugin collection. It currently includes Android SDK/AVD s
 - `plugins/android-profile/skills/android-profile/SKILL.md`: Codex-facing Android Profile instructions.
 - `plugins/android-appium-device-lock/.codex-plugin/plugin.json`: Appium device lock plugin manifest.
 - `plugins/android-appium-device-lock/scripts/adb-device-lock.sh`: adb-based device-side file lock script.
-- `plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md`: Codex-facing Appium device lock instructions.
+- `plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md`: Codex-facing Appium device lock instructions, including parent waiting for delegated device-verification reports.
 - `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
 - `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
-- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, logging, root-cause-first debugging, repository delivery, and Kotlin project practice instructions.
+- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, verification, rule-file maintenance, logging, root-cause-first debugging, repository delivery, Kotlin project practice instructions, and parent waiting for delegated-agent reports.
+- `plugins/client-ui-best-practices/.codex-plugin/plugin.json`: Client UI Best Practices plugin manifest.
+- `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, Compose state collection, handler-owned async work, and UI-free business test guidance.
 - `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
 - `agents/`: prompts specific to maintaining this plugin collection.
 - `scripts/install-agents.sh`: manually copy prompts into Codex or Claude agent directories.
@@ -37,6 +39,7 @@ codex plugin add android-profile@me
 codex plugin add android-appium-device-lock@me
 codex plugin add recyclerview-best-practice@me
 codex plugin add general-coding-practices@me
+codex plugin add client-ui-best-practices@me
 ```
 
 Start a new Codex thread after installation so the plugin skills are loaded.
@@ -74,6 +77,7 @@ Create a `CLAUDE.md` file in the target project and reference the skills needed 
 @plugins/general-coding-practices/skills/project-logging-rules/SKILL.md
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 @plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
+@plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
 ```
 
 Alternatively, clone this repository locally and reference the skill files with absolute paths from the target project's `CLAUDE.md`:
@@ -88,6 +92,7 @@ Alternatively, clone this repository locally and reference the skill files with 
 @/path/to/me/plugins/general-coding-practices/skills/project-logging-rules/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
+@/path/to/me/plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
 ```
 
 Claude Code loads these instructions automatically when a conversation starts.
