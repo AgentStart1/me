@@ -1,4 +1,0 @@
-interface:
-  display_name: "Project Logging Rules"
-  short_description: "Add useful, safe project logging"
-  default_prompt: "Use $project-logging-rules to add necessary diagnostic logging to this project."

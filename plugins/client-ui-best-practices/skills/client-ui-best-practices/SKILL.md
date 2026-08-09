@@ -18,10 +18,18 @@ Build clients around a unidirectional state flow: asynchronous work produces imm
 
 - Model durable screen data as an immutable `UiState` exposed as `StateFlow<UiState>` (or the platform's equivalent observable state).
 - Model one-time effects—navigation, snackbar/toast, permission request, or external action—as a separate `SharedFlow<UiEffect>` or event stream. Do not encode a consumable event in persistent state.
-- Let the ViewModel, presenter, or controller own asynchronous work and transform domain results into UI-ready state. Keep views declarative: observe, render, and send intents.
+- In Compose, collect every value that affects rendering into Compose `State`, normally with `collectAsStateWithLifecycle()`. Read that state during composition; do not read mutable domain objects or launch asynchronous work directly from a composable.
+- Encapsulate each screen or feature's observable state and asynchronous business tasks in a `Handler`. A `Handler` owns immutable state, accepts intents/actions, performs asynchronous work, and publishes UI-ready snapshots. It must not depend on Compose, Android views, or a UI lifecycle.
+- Let a ViewModel, presenter, or controller own or adapt the `Handler` to the screen lifecycle when necessary. Keep views declarative: observe, render, and send intents.
 - Treat operators on observable data as real work. Run `map`, `filter`, `flatMap*`, `combine`, sorting, grouping, parsing, and other non-trivial transformations off the UI thread, even when the final state is observed by the UI.
 - Use lifecycle-aware collection. Start and stop observation with the visible UI lifecycle; do not keep a view or screen alive through a long-lived collector.
 - Publish complete immutable snapshots. Avoid exposing mutable collections or state that the UI can mutate.
+
+### Handler boundary and tests
+
+A `Handler` is a platform-independent state holder and asynchronous task boundary, not a second name for a composable or a view. Expose read-only observable state and effects; keep mutation and coroutine launching private to the handler. Inject dispatchers, scopes, repositories, clocks, or other external dependencies that affect asynchronous behavior.
+
+This boundary makes business behavior testable without a UI runtime: instantiate the handler in a coroutine test, invoke its public intents, and assert the resulting state/effects. Test loading, success, failure, cancellation, and state-transition ordering there. Compose tests should only cover rendering, user-event wiring, and accessibility semantics.
 
 ## Observable transformation scheduling
 
@@ -88,7 +96,7 @@ Use Xcode's Main Thread Checker to catch UIKit/AppKit access from a background t
 - Qt: assert `!QThread::isMainThread()` on Qt 6.8+, or compare the current thread with the application thread on older versions.
 - Browser UI: observe `"longtask"` entries with `PerformanceObserver` and inspect the DevTools Performance trace; move CPU-intensive work to a Web Worker. Long Tasks report event-loop stalls, not semantic business-code violations.
 
-## Kotlin/Android example
+## Kotlin/Compose example
 
 ```kotlin
 data class ProfileUiState(
@@ -97,18 +105,20 @@ data class ProfileUiState(
     val error: String? = null,
 )
 
-class ProfileViewModel(
+class ProfileHandler(
     private val repository: ProfileRepository,
-) : ViewModel() {
+    private val scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher,
+) {
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState = _uiState.asStateFlow()
 
     private val _effects = MutableSharedFlow<ProfileEffect>()
     val effects = _effects.asSharedFlow()
 
-    fun refresh() = viewModelScope.launch {
+    fun refresh() = scope.launch {
         _uiState.update { it.copy(isLoading = true, error = null) }
-        runCatching { withContext(Dispatchers.IO) { repository.loadProfile() } }
+        runCatching { withContext(ioDispatcher) { repository.loadProfile() } }
             .onSuccess { profile ->
                 _uiState.update { it.copy(isLoading = false, profile = profile) }
             }
@@ -117,9 +127,36 @@ class ProfileViewModel(
             }
     }
 }
+
+@Composable
+fun ProfileRoute(handler: ProfileHandler) {
+    val state by handler.uiState.collectAsStateWithLifecycle()
+    ProfileScreen(
+        state = state,
+        onRefresh = handler::refresh,
+    )
+}
 ```
 
-Collect `uiState` and `effects` using lifecycle-aware APIs, then perform view mutation or Compose rendering in the collector. Prefer injecting dispatchers when testability or dispatcher selection is meaningful; use `Dispatchers.IO` for blocking I/O and `Dispatchers.Default` for CPU-bound work.
+Collect `uiState` and `effects` using lifecycle-aware APIs, then perform view mutation or Compose rendering in the collector. In Compose, `collectAsStateWithLifecycle()` creates the rendering `State`; a `LaunchedEffect` collector is appropriate for one-time effects. Prefer injecting dispatchers when testability or dispatcher selection is meaningful; use `Dispatchers.IO` for blocking I/O and `Dispatchers.Default` for CPU-bound work.
+
+The handler can be exercised in a coroutine test without Compose or Android instrumentation:
+
+```kotlin
+@Test
+fun refresh_publishesLoadedProfile() = runTest {
+    val handler = ProfileHandler(
+        repository = FakeProfileRepository(profile),
+        scope = this,
+        ioDispatcher = StandardTestDispatcher(testScheduler),
+    )
+
+    handler.refresh()
+    advanceUntilIdle()
+
+    assertEquals(ProfileUiState(profile = profile), handler.uiState.value)
+}
+```
 
 For Kotlin Flow, place `flowOn` after the upstream transformations that need a background dispatcher and before `stateIn`, `shareIn`, or collection. `flowOn` changes only operators above it; it does not move downstream collectors or already-hot `StateFlow`/`SharedFlow` work.
 
@@ -144,12 +181,16 @@ val uiState: StateFlow<FeedUiState> = repository.observeFeed()
 - For Kotlin Flow specifically, ensure non-trivial operators are upstream of an appropriate `flowOn`; use the platform-equivalent scheduling mechanism for other observable frameworks.
 - Verify cancellation follows the screen, ViewModel, or feature lifecycle.
 - Ensure a background result cannot update a destroyed or inactive UI directly; publish state and let lifecycle-aware observation render it.
+- For Compose, verify rendering inputs are Compose `State` collected from observable state and that composables do not own business tasks or mutable business data.
+- Verify each feature `Handler` owns the observable state and asynchronous task boundary, remains independent of UI framework types, and receives test-controllable asynchronous dependencies.
 - Separate persistent state from one-off effects, and define loading, empty, content, and failure states.
-- Test state transitions, cancellation, error propagation, and that rendering receives UI-ready data without extra work.
+- Test handler state transitions, cancellation, and error propagation without a UI runtime; separately test that rendering receives UI-ready data without extra work.
 
 ## Delegated agent
 
 For a cross-platform UI review or a refactor touching scheduling and state ownership, use
 `../../agents/client-ui-architecture-reviewer.md`. Ask it to inspect the complete call path and return
 actionable findings before delegating edits. Spawn it with `fork_turns: "none"` and provide only the
-relevant UI surface, constraints, and review scope.
+relevant UI surface, constraints, and review scope. The parent must wait for the delegated agent's
+final report before making edits or returning a final response; do not treat an active agent as
+completed.

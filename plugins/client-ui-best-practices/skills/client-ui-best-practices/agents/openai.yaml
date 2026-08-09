@@ -1,4 +1,0 @@
-interface:
-  display_name: "Client UI Best Practices"
-  short_description: "Keep UI work on the main thread"
-  default_prompt: "Use $client-ui-best-practices to refactor this client screen into state-driven UI rendering."

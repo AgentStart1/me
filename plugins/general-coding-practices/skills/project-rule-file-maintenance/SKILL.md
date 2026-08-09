@@ -20,4 +20,6 @@ Keep project guidance files aligned with the conventions future agents and contr
 Use `../../agents/documentation-and-rules-maintainer.md` for a focused audit of `AGENTS.md`, `CLAUDE.md`,
 `.cursorrules`, and related guidance after changing workflows or agent prompts. It should report
 which file is canonical, what references are stale, and the smallest consistent update. Spawn it with
-`fork_turns: "none"` and provide only the changed workflow and relevant guidance paths.
+`fork_turns: "none"` and provide only the changed workflow and relevant guidance paths. The parent
+must wait for the delegated agent's final report before editing dependent guidance or returning a
+final response; do not treat an active agent as completed.

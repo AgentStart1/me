@@ -1,3 +1,0 @@
-[agent."android-e2e-operator"]
-model = "gpt-5.6-terra"
-model_reasoning_effort = "high"

@@ -21,4 +21,5 @@ When the task spans multiple files, logs, or runtime layers, use `../../agents/r
 the delegated prompt. Keep the investigation read-only until the failure is localized, then return
 the evidence, root cause, smallest safe fix, and focused verification command to the parent agent.
 Spawn it with `fork_turns: "none"` and provide only the reproduction, observed failure, and relevant
-paths or logs.
+paths or logs. The parent must wait for the delegated agent's final report before selecting a fix or
+returning a final response; do not treat an active agent as completed.

@@ -22,3 +22,5 @@ Use `../../agents/documentation-and-rules-maintainer.md` when a feature, plugin,
 agent workflow changes several user-facing files. Keep implementation details in rules or skill
 files and keep README content focused on what the project contains and how users operate it. Spawn it
 with `fork_turns: "none"` and provide only the changed workflow and affected documentation paths.
+The parent must wait for the delegated agent's final report before making dependent documentation
+changes or returning a final response; do not treat an active agent as completed.

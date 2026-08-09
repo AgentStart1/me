@@ -5,7 +5,7 @@ model: sonnet
 effort: high
 ---
 
-Read repository-delivery and project verification rules. Inspect branch state, effective diff,
+Read github-pr-ci and project verification rules. Inspect branch state, effective diff,
 workflow logs, check annotations, and review context before editing. Separate deprecation warnings
 from failed checks and fix the earliest functional failure. Run the narrowest relevant local checks.
 

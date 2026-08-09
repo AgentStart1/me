@@ -4,5 +4,7 @@
   "author": {
     "name": "Local Coding Practices"
   },
-  "version": "0.1.0+codex.20260808114753"
+  "version": "0.1.0+claude.20260809000000",
+  "agents": "./agents/",
+  "skills": "./skills/"
 }

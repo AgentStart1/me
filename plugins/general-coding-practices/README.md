@@ -12,12 +12,16 @@ This Codex plugin provides focused skills for project collaboration, README main
 - `skills/project-rule-file-maintenance/SKILL.md` contains guidance for keeping `AGENTS.md`, `CLAUDE.md`, and similar project instruction files current.
 - `skills/project-logging-rules/SKILL.md` contains guidance for adding necessary, structured, and privacy-safe diagnostic logs.
 - `skills/root-cause-before-fallback/SKILL.md` contains root-cause-first debugging guidance.
-- `skills/repository-delivery/SKILL.md` coordinates upstream sync, PR/CI, release, and infrastructure work.
+- `skills/github-pr-ci/SKILL.md` handles GitHub pull requests, code reviews, and CI workflow issues.
+- `skills/repository-sync/SKILL.md` synchronizes branches, upstream changes, and submodules.
+- `skills/release-infra/SKILL.md` handles release packaging, signing, Docker, proxy, and deployment configuration.
 - `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine and threading guidance.
 
 Agent prompts are stored in the plugin-root `agents/` directory alongside `skills/`. Their Markdown
 frontmatter configures Claude with `model` and `effort`; adjacent `codex-routing.toml` metadata is
 promoted by the installer to top-level `model` and `model_reasoning_effort` in Codex TOML files.
+When a skill delegates to one of these agents, the parent must wait for its required final report
+before dependent work or its final response.
 
 ## Local Marketplace Entry
 

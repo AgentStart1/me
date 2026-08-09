@@ -1,4 +1,0 @@
-interface:
-  display_name: "Repository Delivery"
-  short_description: "Coordinate GitHub, sync, CI, and release work"
-  default_prompt: "Use $repository-delivery to coordinate repository sync, CI, PR, or release work."
