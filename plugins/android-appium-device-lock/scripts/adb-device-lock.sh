@@ -16,6 +16,7 @@ usage() {
 Usage:
   adb-device-lock.sh acquire [options]
   adb-device-lock.sh release [options]
+  adb-device-lock.sh renew [options]
   adb-device-lock.sh run [options] -- command [args...]
 
 Options:
@@ -192,6 +193,52 @@ release_lock() {
   printf "Released Android device lock at %s\n" "$LOCK_PATH" >&2
 }
 
+renew_lock() {
+  adb_cmd get-state >/dev/null
+
+  if ! remote_exists "$LOCK_PATH"; then
+    printf "No Android device lock exists at %s\n" "$LOCK_PATH" >&2
+    return 1
+  fi
+
+  local expected_token metadata actual_token
+  if [[ -n "$TOKEN_FILE" && -f "$TOKEN_FILE" ]]; then
+    expected_token="$(tr -d '\r\n' <"$TOKEN_FILE")"
+  else
+    printf "renew requires --token-file containing the owner token\n" >&2
+    return 2
+  fi
+
+  metadata="$(remote_read "$(lock_json_path)")"
+  actual_token="$(printf "%s" "$metadata" | extract_json_string owner_token || true)"
+  if [[ -z "$actual_token" || "$actual_token" != "$expected_token" ]]; then
+    printf "Refusing to renew Android device lock: owner token does not match\n" >&2
+    return 1
+  fi
+
+  local new_expires_at tmp_file
+  new_expires_at=$(( $(now_epoch) + MAX_TIMEOUT_SECONDS ))
+  tmp_file="$(mktemp)"
+  cat >"$tmp_file" <<JSON
+{
+  "project_dir": "$(json_escape "$(printf "%s" "$metadata" | extract_json_string project_dir)")",
+  "test_name": "$(json_escape "$(printf "%s" "$metadata" | extract_json_string test_name)")",
+  "requested_at_utc": "$(printf "%s" "$metadata" | extract_json_string requested_at_utc)",
+  "acquired_at_utc": "$(printf "%s" "$metadata" | extract_json_string acquired_at_utc)",
+  "max_timeout_seconds": $MAX_TIMEOUT_SECONDS,
+  "expires_at_epoch": $new_expires_at,
+  "host": "$(json_escape "$(printf "%s" "$metadata" | extract_json_string host)")",
+  "pid": $(printf "%s" "$metadata" | extract_json_number pid || echo 0),
+  "adb_serial": "$(json_escape "$SERIAL")",
+  "lock_path": "$(json_escape "$LOCK_PATH")",
+  "owner_token": "$(json_escape "$actual_token")"
+}
+JSON
+  adb_cmd push "$tmp_file" "$(lock_json_path)" >/dev/null
+  rm -f "$tmp_file"
+  printf "Renewed Android device lock at %s, expires at epoch %d\n" "$LOCK_PATH" "$new_expires_at" >&2
+}
+
 parse_args() {
   if [[ $# -lt 1 ]]; then
     usage >&2
@@ -252,6 +299,8 @@ parse_args() {
       acquire_lock ;;
     release)
       release_lock ;;
+    renew)
+      renew_lock ;;
     run)
       if [[ ${#COMMAND[@]} -eq 0 ]]; then
         printf "run requires a command after --\n" >&2
