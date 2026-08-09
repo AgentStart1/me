@@ -19,9 +19,9 @@ Build clients around a unidirectional state flow: asynchronous work produces imm
 - Model durable screen data as an immutable `UiState` exposed as `StateFlow<UiState>` (or the platform's equivalent observable state).
 - Model one-time effects—navigation, snackbar/toast, permission request, or external action—as a separate `SharedFlow<UiEffect>` or event stream. Do not encode a consumable event in persistent state.
 - In Compose, collect every value that affects rendering into Compose `State`, normally with `collectAsStateWithLifecycle()`. Read that state during composition; do not read mutable domain objects or launch asynchronous work directly from a composable.
-- Encapsulate each screen or feature's observable state and asynchronous business tasks in a `Handler`. A `Handler` owns immutable state, accepts intents/actions, performs asynchronous work, and publishes UI-ready snapshots. It must not depend on Compose, Android views, or a UI lifecycle.
-- Let a ViewModel, presenter, or controller own or adapt the `Handler` to the screen lifecycle when necessary. Keep views declarative: observe, render, and send intents.
-- Treat operators on observable data as real work. Run `map`, `filter`, `flatMap*`, `combine`, sorting, grouping, parsing, and other non-trivial transformations off the UI thread, even when the final state is observed by the UI.
+- Encapsulate each screen or feature's observable state and asynchronous business tasks in a `Handler`. A `Handler` owns immutable state, exposes methods for the view to call, performs asynchronous work, and publishes UI-ready snapshots. It must not depend on Compose, Android views, or a UI lifecycle.
+- Let a ViewModel, presenter, or controller own or adapt the `Handler` to the screen lifecycle when necessary. Keep views declarative: observe, render, and call handler methods directly—not through intent dispatching.
+- Treat operators on observable data as real work. Place `map`, `filter`, `flatMap*`, `combine`, sorting, grouping, parsing, and other non-trivial transformations upstream of `flowOn(Dispatchers.Default)` or equivalent, so they execute off the UI thread even when the downstream is collected on the UI thread.
 - Use lifecycle-aware collection. Start and stop observation with the visible UI lifecycle; do not keep a view or screen alive through a long-lived collector.
 - Publish complete immutable snapshots. Avoid exposing mutable collections or state that the UI can mutate.
 
@@ -29,7 +29,7 @@ Build clients around a unidirectional state flow: asynchronous work produces imm
 
 A `Handler` is a platform-independent state holder and asynchronous task boundary, not a second name for a composable or a view. Expose read-only observable state and effects; keep mutation and coroutine launching private to the handler. Inject dispatchers, scopes, repositories, clocks, or other external dependencies that affect asynchronous behavior.
 
-This boundary makes business behavior testable without a UI runtime: instantiate the handler in a coroutine test, invoke its public intents, and assert the resulting state/effects. Test loading, success, failure, cancellation, and state-transition ordering there. Compose tests should only cover rendering, user-event wiring, and accessibility semantics.
+This boundary makes business behavior testable without a UI runtime: instantiate the handler in a coroutine test, call its public methods, and assert the resulting state/effects. Test loading, success, failure, cancellation, and state-transition ordering there. Compose tests should only cover rendering, user-event wiring, and accessibility semantics.
 
 ## Observable transformation scheduling
 
