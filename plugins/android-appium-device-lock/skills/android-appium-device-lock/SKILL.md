@@ -45,6 +45,29 @@ trap 'plugins/android-appium-device-lock/scripts/adb-device-lock.sh release --to
 npm run test:appium
 ```
 
+For long-running test suites, renew the lock periodically to prevent expiry:
+
+```bash
+plugins/android-appium-device-lock/scripts/adb-device-lock.sh renew \
+  --token-file "$token_file"
+```
+
+Typical renew loop pattern:
+
+```bash
+# renew in background every 20 minutes (default lease is 30 min)
+(
+  while kill -0 "$$" 2>/dev/null; do
+    sleep 1200
+    plugins/android-appium-device-lock/scripts/adb-device-lock.sh renew \
+      --token-file "$token_file" || break
+  done
+) &
+RENEW_PID=$!
+trap 'kill "$RENEW_PID" 2>/dev/null; plugins/android-appium-device-lock/scripts/adb-device-lock.sh release --token-file "$token_file"' EXIT
+npm run test:long-suite
+```
+
 ## Integration Guidance
 
 - Put lock acquisition before `driver = webdriver.Remote(...)`, app install, app launch, or any step that changes device state.
@@ -63,4 +86,4 @@ npm run test:appium
 
 ## Bundled Resource
 
-- `scripts/adb-device-lock.sh`: deterministic adb lock helper with `acquire`, `release`, and `run` commands.
+- `scripts/adb-device-lock.sh`: deterministic adb lock helper with `acquire`, `release`, `renew`, and `run` commands.
