@@ -1,6 +1,8 @@
 ---
 name: project-rule-file-maintenance
 description: Use when project conventions, workflows, commands, architecture, tests, or agent guidance change and rule files such as AGENTS.md, CLAUDE.md, or .cursorrules may need updates.
+context: fork
+agent: documentation-and-rules-maintainer
 ---
 
 # Project Rule File Maintenance
@@ -14,12 +16,3 @@ Keep project guidance files aligned with the conventions future agents and contr
 - Keep guidance concise and actionable. Prefer commands, paths, and concrete conventions over broad advice.
 - Do not duplicate the same rule across multiple files unless each consumer actually needs it.
 - If the project has multiple instruction files, keep their guidance consistent or explain intentional differences.
-
-## Delegated agent
-
-Use `../../agents/documentation-and-rules-maintainer.md` for a focused audit of `AGENTS.md`, `CLAUDE.md`,
-`.cursorrules`, and related guidance after changing workflows or agent prompts. It should report
-which file is canonical, what references are stale, and the smallest consistent update. Spawn it with
-`fork_turns: "none"` and provide only the changed workflow and relevant guidance paths. The parent
-must wait for the delegated agent's final report before editing dependent guidance or returning a
-final response; do not treat an active agent as completed.

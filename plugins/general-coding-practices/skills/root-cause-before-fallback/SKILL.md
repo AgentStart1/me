@@ -1,6 +1,8 @@
 ---
 name: root-cause-before-fallback
 description: Use when investigating bugs, regressions, flaky behavior, unexpected output, build errors, test failures, crashes, performance anomalies, or unclear implementation problems where Codex should identify the root cause before adding fallbacks, guards, retries, defaults, or workarounds.
+context: fork
+agent: root-cause-debugger
 ---
 
 # Root Cause Before Fallback
@@ -14,12 +16,3 @@ Fix the underlying problem before adding defensive layers.
 - Add fallbacks, guards, retries, defaults, or workarounds only after deciding they are justified by the root cause.
 - Prefer fixes that remove the bad state or broken assumption over fixes that merely hide the symptom.
 - When a workaround is necessary, keep it narrow and document the condition that makes it necessary.
-
-## Delegated agent
-
-When the task spans multiple files, logs, or runtime layers, use `../../agents/root-cause-debugger.md` as
-the delegated prompt. Keep the investigation read-only until the failure is localized, then return
-the evidence, root cause, smallest safe fix, and focused verification command to the parent agent.
-Spawn it with `fork_turns: "none"` and provide only the reproduction, observed failure, and relevant
-paths or logs. The parent must wait for the delegated agent's final report before selecting a fix or
-returning a final response; do not treat an active agent as completed.
