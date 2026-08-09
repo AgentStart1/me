@@ -1,6 +1,8 @@
 ---
 name: client-ui-best-practices
 description: Use for client UI work, reviews, refactors, or bug fixes involving Android Views, Compose, iOS/UIKit/SwiftUI, desktop UI, or other main-thread event-loop frameworks. Keep the UI/main thread limited to view-tree mutation and rendering work; move business logic, I/O, data transforms, and long-running computation to structured asynchronous work; expose UI-ready state and one-time events through observable state such as StateFlow and SharedFlow.
+context: fork
+agent: client-ui-architecture-reviewer
 ---
 
 # Client UI Best Practices
@@ -185,12 +187,3 @@ val uiState: StateFlow<FeedUiState> = repository.observeFeed()
 - Verify each feature `Handler` owns the observable state and asynchronous task boundary, remains independent of UI framework types, and receives test-controllable asynchronous dependencies.
 - Separate persistent state from one-off effects, and define loading, empty, content, and failure states.
 - Test handler state transitions, cancellation, and error propagation without a UI runtime; separately test that rendering receives UI-ready data without extra work.
-
-## Delegated agent
-
-For a cross-platform UI review or a refactor touching scheduling and state ownership, use
-`../../agents/client-ui-architecture-reviewer.md`. Ask it to inspect the complete call path and return
-actionable findings before delegating edits. Spawn it with `fork_turns: "none"` and provide only the
-relevant UI surface, constraints, and review scope. The parent must wait for the delegated agent's
-final report before making edits or returning a final response; do not treat an active agent as
-completed.

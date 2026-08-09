@@ -1,6 +1,8 @@
 ---
 name: android-appium-device-lock
 description: Serialize Android Appium, UIAutomator, Espresso, or end-to-end test runs that share a single physical device or emulator by acquiring a device-side file lock before testing. Use when adding or running Android Appium tests, CI mobile tests, local adb-driven tests, or any workflow where only one app/test may control the same Android device at a time and other tests must wait for a lock with project directory, test name, start time, and timeout metadata.
+context: fork
+agent: android-e2e-operator
 ---
 
 # Android Appium Device Lock
@@ -62,12 +64,3 @@ npm run test:appium
 ## Bundled Resource
 
 - `scripts/adb-device-lock.sh`: deterministic adb lock helper with `acquire`, `release`, and `run` commands.
-
-## Delegated agent
-
-Use `../../agents/android-e2e-operator.md` for device-backed Appium, UIAutomator, Espresso, or adb
-verification. The agent must acquire this skill's device lock before changing device state and must
-prefer deterministic fixtures over live services or real-world routes. Spawn it with
-`fork_turns: "none"` and provide only the device, test, and fixture context it needs. The parent
-must wait for the delegated agent's final report before changing device state further or returning a
-final response; do not treat an active agent as completed.
