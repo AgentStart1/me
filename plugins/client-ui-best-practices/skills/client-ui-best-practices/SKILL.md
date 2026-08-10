@@ -21,17 +21,17 @@ Build clients around a unidirectional state flow: asynchronous work produces imm
 - Model durable screen data as an immutable `UiState` exposed as `StateFlow<UiState>` (or the platform's equivalent observable state).
 - Model one-time effects—navigation, snackbar/toast, permission request, or external action—as a separate `SharedFlow<UiEffect>` or event stream. Do not encode a consumable event in persistent state.
 - In Compose, collect every value that affects rendering into Compose `State`, normally with `collectAsStateWithLifecycle()`. Read that state during composition; do not read mutable domain objects or launch asynchronous work directly from a composable.
-- Encapsulate each screen or feature's observable state and asynchronous business tasks in a `Handler`. A `Handler` owns immutable state, exposes methods for the view to call, performs asynchronous work, and publishes UI-ready snapshots. It must not depend on Compose, Android views, or a UI lifecycle.
-- Let a ViewModel, presenter, or controller own or adapt the `Handler` to the screen lifecycle when necessary. Keep views declarative: observe, render, and call handler methods directly—not through intent dispatching.
+- Encapsulate each screen or feature's observable state and asynchronous business tasks in a `Host`. A `Host` owns immutable state, exposes methods for the view to call, performs asynchronous work, and publishes UI-ready snapshots. It must not depend on Compose, Android views, or a UI lifecycle.
+- Let a ViewModel, presenter, or controller own or adapt the `Host` to the screen lifecycle when necessary. Keep views declarative: observe, render, and call host methods directly—not through intent dispatching.
 - Treat operators on observable data as real work. Place `map`, `filter`, `flatMap*`, `combine`, sorting, grouping, parsing, and other non-trivial transformations upstream of `flowOn(Dispatchers.Default)` or equivalent, so they execute off the UI thread even when the downstream is collected on the UI thread.
 - Use lifecycle-aware collection. Start and stop observation with the visible UI lifecycle; do not keep a view or screen alive through a long-lived collector.
 - Publish complete immutable snapshots. Avoid exposing mutable collections or state that the UI can mutate.
 
-### Handler boundary and tests
+### Host boundary and tests
 
-A `Handler` is a platform-independent state holder and asynchronous task boundary, not a second name for a composable or a view. Expose read-only observable state and effects; keep mutation and coroutine launching private to the handler. Inject dispatchers, scopes, repositories, clocks, or other external dependencies that affect asynchronous behavior.
+A `Host` is a platform-independent state holder and asynchronous task boundary, not a second name for a composable or a view. Expose read-only observable state and effects; keep mutation and coroutine launching private to the host. Inject dispatchers, scopes, repositories, clocks, or other external dependencies that affect asynchronous behavior.
 
-This boundary makes business behavior testable without a UI runtime: instantiate the handler in a coroutine test, call its public methods, and assert the resulting state/effects. Test loading, success, failure, cancellation, and state-transition ordering there. Compose tests should only cover rendering, user-event wiring, and accessibility semantics.
+This boundary makes business behavior testable without a UI runtime: instantiate the host in a coroutine test, call its public methods, and assert the resulting state/effects. Test loading, success, failure, cancellation, and state-transition ordering there. Compose tests should only cover rendering, user-event wiring, and accessibility semantics.
 
 ### Database observability
 
@@ -39,8 +39,8 @@ Treat the database as a reactive data source: reads are observable Flows that em
 
 - Expose database reads as `Flow` from DAO methods (e.g. Room `@Query` returning `Flow<List<T>>`). The Flow re-emits automatically when the underlying table changes, so the UI always reflects the latest persisted state without manual refresh.
 - Route database writes through a global `SharedFlow<DbEvent>`. A dedicated writer collects events and executes suspend DAO methods on `Dispatchers.IO`, keeping write logic centralized and testable.
-- Never observe or write to the database directly from a composable, UI callback, or Handler constructor. The Handler subscribes to the composed database Flow; a separate writer service subscribes to the event stream.
-- Combine the database Flow with other upstreams (network, cache, preferences) inside the Handler using `combine` or `flatMapLatest`, upstream of `flowOn(Dispatchers.Default)`.
+- Never observe or write to the database directly from a composable, UI callback, or Host constructor. The Host subscribes to the composed database Flow; a separate writer service subscribes to the event stream.
+- Combine the database Flow with other upstreams (network, cache, preferences) inside the Host using `combine` or `flatMapLatest`, upstream of `flowOn(Dispatchers.Default)`.
 - Keep database event types as a sealed interface so the writer can pattern-match all cases exhaustively. Include entity identity and payload in each event.
 
 ```kotlin
@@ -85,9 +85,9 @@ class DatabaseWriter(
     }
 }
 
-// --- Handler (reads from DB, writes via events) ---
+// --- Host (reads from DB, writes via events) ---
 
-class ItemHandler(
+class ItemHost(
     private val itemDao: ItemDao,
     private val dbEvents: MutableSharedFlow<DbEvent>,
     private val repository: ItemRepository,
@@ -117,8 +117,8 @@ class ItemHandler(
 }
 ```
 
-- The database Flow drives the UI reactively: any insert, update, or delete on the observed tables triggers a new emission through the Handler and into the UI state.
-- Writes go through `dbEvents.emit(...)`, never through direct DAO calls from the Handler. This keeps the write path observable, testable, and decoupled from the read path.
+- The database Flow drives the UI reactively: any insert, update, or delete on the observed tables triggers a new emission through the Host and into the UI state.
+- Writes go through `dbEvents.emit(...)`, never through direct DAO calls from the Host. This keeps the write path observable, testable, and decoupled from the read path.
 - For testing, replace the DAO with an in-memory fake that exposes a controllable `MutableSharedFlow`, and verify that emitted `DbEvent` values match expected writes.
 
 ## Observable transformation scheduling
@@ -195,7 +195,7 @@ data class ProfileUiState(
     val error: String? = null,
 )
 
-class ProfileHandler(
+class ProfileHost(
     private val repository: ProfileRepository,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
@@ -219,32 +219,32 @@ class ProfileHandler(
 }
 
 @Composable
-fun ProfileRoute(handler: ProfileHandler) {
-    val state by handler.uiState.collectAsStateWithLifecycle()
+fun ProfileRoute(host: ProfileHost) {
+    val state by host.uiState.collectAsStateWithLifecycle()
     ProfileScreen(
         state = state,
-        onRefresh = handler::refresh,
+        onRefresh = host::refresh,
     )
 }
 ```
 
 Collect `uiState` and `effects` using lifecycle-aware APIs, then perform view mutation or Compose rendering in the collector. In Compose, `collectAsStateWithLifecycle()` creates the rendering `State`; a `LaunchedEffect` collector is appropriate for one-time effects. Prefer injecting dispatchers when testability or dispatcher selection is meaningful; use `Dispatchers.IO` for blocking I/O and `Dispatchers.Default` for CPU-bound work.
 
-The handler can be exercised in a coroutine test without Compose or Android instrumentation:
+The host can be exercised in a coroutine test without Compose or Android instrumentation:
 
 ```kotlin
 @Test
 fun refresh_publishesLoadedProfile() = runTest {
-    val handler = ProfileHandler(
+    val host = ProfileHost(
         repository = FakeProfileRepository(profile),
         scope = this,
         ioDispatcher = StandardTestDispatcher(testScheduler),
     )
 
-    handler.refresh()
+    host.refresh()
     advanceUntilIdle()
 
-    assertEquals(ProfileUiState(profile = profile), handler.uiState.value)
+    assertEquals(ProfileUiState(profile = profile), host.uiState.value)
 }
 ```
 
@@ -272,10 +272,10 @@ val uiState: StateFlow<FeedUiState> = repository.observeFeed()
 - Verify cancellation follows the screen, ViewModel, or feature lifecycle.
 - Ensure a background result cannot update a destroyed or inactive UI directly; publish state and let lifecycle-aware observation render it.
 - For Compose, verify rendering inputs are Compose `State` collected from observable state and that composables do not own business tasks or mutable business data.
-- Verify each feature `Handler` owns the observable state and asynchronous task boundary, remains independent of UI framework types, and receives test-controllable asynchronous dependencies.
+- Verify each feature `Host` owns the observable state and asynchronous task boundary, remains independent of UI framework types, and receives test-controllable asynchronous dependencies.
 - Separate persistent state from one-off effects, and define loading, empty, content, and failure states.
 - Verify database reads use observable Flow from DAO methods, not one-shot queries; the UI reflects persisted state changes without manual refresh.
-- Verify database writes go through a global event stream (`SharedFlow<DbEvent>`), not direct DAO calls from the Handler or UI layer.
+- Verify database writes go through a global event stream (`SharedFlow<DbEvent>`), not direct DAO calls from the Host or UI layer.
 - Ensure the database writer executes on `Dispatchers.IO` and handles all sealed event subtypes exhaustively.
 - Confirm database Flows are combined with other upstreams upstream of `flowOn(Dispatchers.Default)`, not on the UI thread.
-- Test handler state transitions, cancellation, and error propagation without a UI runtime; separately test that rendering receives UI-ready data without extra work.
+- Test host state transitions, cancellation, and error propagation without a UI runtime; separately test that rendering receives UI-ready data without extra work.
