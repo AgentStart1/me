@@ -33,6 +33,94 @@ A `Handler` is a platform-independent state holder and asynchronous task boundar
 
 This boundary makes business behavior testable without a UI runtime: instantiate the handler in a coroutine test, call its public methods, and assert the resulting state/effects. Test loading, success, failure, cancellation, and state-transition ordering there. Compose tests should only cover rendering, user-event wiring, and accessibility semantics.
 
+### Database observability
+
+Treat the database as a reactive data source: reads are observable Flows that emit on every relevant table change; writes are commands dispatched through a global event stream.
+
+- Expose database reads as `Flow` from DAO methods (e.g. Room `@Query` returning `Flow<List<T>>`). The Flow re-emits automatically when the underlying table changes, so the UI always reflects the latest persisted state without manual refresh.
+- Route database writes through a global `SharedFlow<DbEvent>`. A dedicated writer collects events and executes suspend DAO methods on `Dispatchers.IO`, keeping write logic centralized and testable.
+- Never observe or write to the database directly from a composable, UI callback, or Handler constructor. The Handler subscribes to the composed database Flow; a separate writer service subscribes to the event stream.
+- Combine the database Flow with other upstreams (network, cache, preferences) inside the Handler using `combine` or `flatMapLatest`, upstream of `flowOn(Dispatchers.Default)`.
+- Keep database event types as a sealed interface so the writer can pattern-match all cases exhaustively. Include entity identity and payload in each event.
+
+```kotlin
+// --- Database events ---
+
+sealed interface DbEvent {
+    data class UpsertItem(val entity: ItemEntity) : DbEvent
+    data class DeleteItem(val id: Long) : DbEvent
+}
+
+// --- DAO (Room) ---
+
+@Dao
+interface ItemDao {
+    @Query("SELECT * FROM items ORDER BY updatedAt DESC")
+    fun observeItems(): Flow<List<ItemEntity>>
+
+    @Upsert
+    suspend fun upsert(item: ItemEntity)
+
+    @Query("DELETE FROM items WHERE id = :id")
+    suspend fun deleteById(id: Long)
+}
+
+// --- Database writer ---
+
+class DatabaseWriter(
+    private val itemDao: ItemDao,
+    private val eventFlow: SharedFlow<DbEvent>,
+    private val scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher,
+) {
+    fun start() = scope.launch {
+        eventFlow.collect { event ->
+            withContext(ioDispatcher) {
+                when (event) {
+                    is DbEvent.UpsertItem -> itemDao.upsert(event.entity)
+                    is DbEvent.DeleteItem -> itemDao.deleteById(event.id)
+                }
+            }
+        }
+    }
+}
+
+// --- Handler (reads from DB, writes via events) ---
+
+class ItemHandler(
+    private val itemDao: ItemDao,
+    private val dbEvents: MutableSharedFlow<DbEvent>,
+    private val repository: ItemRepository,
+    private val scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher,
+) {
+    private val _uiState = MutableStateFlow(ItemUiState())
+    val uiState = _uiState.asStateFlow()
+
+    fun observe() = scope.launch {
+        combine(
+            itemDao.observeItems(),
+            repository.observeNetworkStatus(),
+        ) { items, status ->
+            ItemUiState(
+                items = items.map { it.toUiModel() },
+                isOffline = status == NetworkStatus.Offline,
+            )
+        }
+            .flowOn(Dispatchers.Default)
+            .collect { _uiState.value = it }
+    }
+
+    fun deleteItem(id: Long) = scope.launch {
+        dbEvents.emit(DbEvent.DeleteItem(id))
+    }
+}
+```
+
+- The database Flow drives the UI reactively: any insert, update, or delete on the observed tables triggers a new emission through the Handler and into the UI state.
+- Writes go through `dbEvents.emit(...)`, never through direct DAO calls from the Handler. This keeps the write path observable, testable, and decoupled from the read path.
+- For testing, replace the DAO with an in-memory fake that exposes a controllable `MutableSharedFlow`, and verify that emitted `DbEvent` values match expected writes.
+
 ## Observable transformation scheduling
 
 Keep non-trivial work in an observable pipeline off the UI scheduler on every client platform. This includes `map`, filtering, flattening, combining streams, sorting, grouping, parsing, formatting, and mapping domain data to UI models. Use the platform's upstream/background scheduling operator or executor, and switch to the UI scheduler only at the rendering boundary.
@@ -186,4 +274,8 @@ val uiState: StateFlow<FeedUiState> = repository.observeFeed()
 - For Compose, verify rendering inputs are Compose `State` collected from observable state and that composables do not own business tasks or mutable business data.
 - Verify each feature `Handler` owns the observable state and asynchronous task boundary, remains independent of UI framework types, and receives test-controllable asynchronous dependencies.
 - Separate persistent state from one-off effects, and define loading, empty, content, and failure states.
+- Verify database reads use observable Flow from DAO methods, not one-shot queries; the UI reflects persisted state changes without manual refresh.
+- Verify database writes go through a global event stream (`SharedFlow<DbEvent>`), not direct DAO calls from the Handler or UI layer.
+- Ensure the database writer executes on `Dispatchers.IO` and handles all sealed event subtypes exhaustively.
+- Confirm database Flows are combined with other upstreams upstream of `flowOn(Dispatchers.Default)`, not on the UI thread.
 - Test handler state transitions, cancellation, and error propagation without a UI runtime; separately test that rendering receives UI-ready data without extra work.
