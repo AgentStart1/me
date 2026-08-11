@@ -7,6 +7,7 @@ This repository publishes Claude Code plugins. Each plugin lives under `plugins/
 | Plugin | Path | Description |
 |--------|------|-------------|
 | android-profile | `plugins/android-profile/` | Android SDK/AVD/emulator profile scripts |
+| android-appium-device-lock | `plugins/android-appium-device-lock/` | Android Appium, UIAutomator, Espresso, or end-to-end test device lock |
 | recyclerview-best-practice | `plugins/recyclerview-best-practice/` | RecyclerView adapter, diff, paging best practices |
 | general-coding-practices | `plugins/general-coding-practices/` | General coding, repository delivery, and Kotlin project guidance |
 | client-ui-best-practices | `plugins/client-ui-best-practices/` | Client UI threading, Compose state, and handler-driven business-test guidance |
@@ -24,6 +25,7 @@ plugins/<name>/
 ## Loaded Skills
 
 @plugins/android-profile/skills/android-profile/SKILL.md
+@plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
 @plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
 @plugins/recyclerview-best-practice/skills/recyclerview-sentinel-viewholder/SKILL.md
 @plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md
