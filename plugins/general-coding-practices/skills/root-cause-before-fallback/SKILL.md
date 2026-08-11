@@ -1,6 +1,6 @@
 ---
 name: root-cause-before-fallback
-description: Use when investigating bugs, regressions, flaky behavior, unexpected output, build errors, test failures, crashes, performance anomalies, or unclear implementation problems where Codex should identify the root cause before adding fallbacks, guards, retries, defaults, or workarounds.
+description: Use when investigating bugs, regressions, flaky behavior, unexpected output, build errors, test failures, crashes, performance anomalies, or unclear implementation problems to identify the root cause before adding fallbacks, guards, retries, defaults, or workarounds.
 context: fork
 agent: root-cause-debugger
 ---

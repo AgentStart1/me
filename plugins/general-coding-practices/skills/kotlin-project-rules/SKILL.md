@@ -1,6 +1,6 @@
 ---
 name: kotlin-project-rules
-description: Use for Kotlin or Android Kotlin work involving .kt files, coroutines, concurrency, tests, or bug fixes where Codex should choose coroutine-first designs, prefer immutable vals and expressions over var mutation, and avoid Java threads, blocking, locks, synchronized, wait/notify, or Executor-style concurrency.
+description: Use for Kotlin or Android Kotlin work involving .kt files, coroutines, concurrency, tests, or bug fixes to choose coroutine-first designs, prefer immutable vals and expressions over var mutation, and avoid Java threads, blocking, locks, synchronized, wait/notify, or Executor-style concurrency.
 ---
 
 # Kotlin Project Rules

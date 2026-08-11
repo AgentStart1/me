@@ -1,6 +1,6 @@
 ---
 name: project-collaboration-rules
-description: Use for coding project work where Codex must follow collaboration rules for user-approved planning, commit boundaries, privacy-safe examples, avoiding duplicated code, keeping large files modular, and choosing appropriate dependencies.
+description: Use for coding project work to follow collaboration rules for user-approved planning, commit boundaries, privacy-safe examples, avoiding duplicated code, keeping large files modular, and choosing appropriate dependencies.
 ---
 
 # Project Collaboration Rules
@@ -11,7 +11,7 @@ For coding tasks in this project, follow these rules:
 - Treat approval as applying only to the plan that was explicitly explained. Generic instructions such as "continue" do not approve design choices discovered later.
 - If inspection, compilation, tests, or static analysis reveals a new choice that changes module boundaries, dependencies, public APIs, data models, or architecture, pause. Explain the options, trade-offs, and recommendation, then wait for fresh approval before changing direction.
 - When changes can be split into multiple commits by independent concerns, ask whether the user wants separate commits before committing.
-- Do not include `Codex-Session` lines in commit messages.
+- Do not include session-specific identifiers in commit messages.
 - Do not put personal private information in code, tests, fixtures, docs, examples, or commit messages. Use placeholders for real emails, phone numbers, addresses, and similar data.
 - Avoid duplicated code. Reuse existing helpers and patterns, or introduce a suitable abstraction when it meaningfully reduces duplication.
 - When a code file exceeds 1000 lines, split it by feature or responsibility into appropriate separate files instead of continuing to grow the same file.

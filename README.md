@@ -22,7 +22,6 @@ A local Codex Android and client UI plugin collection. It currently includes And
 - `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, Compose state collection, handler-owned async work, database observability with reactive DAO Flow and global write events, and UI-free business test guidance.
 - `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
 - `agents/`: prompts specific to maintaining this plugin collection.
-- `scripts/install-agents.sh`: manually copy prompts into Codex or Claude agent directories.
 
 ## Installation
 
@@ -46,22 +45,8 @@ Start a new Codex thread after installation so the plugin skills are loaded.
 
 ### Agent prompts
 
-The Codex plugin flow in this repository does not install custom agent files automatically;
-install them separately from a clone of this repository. Claude Code loads the Markdown agents
-from each plugin's root `agents/` directory; adjacent `codex-routing.toml` files hold Codex model
-metadata, and the installer combines both sources into Codex TOML agents.
-
-```bash
-# Install globally for Codex.
-./scripts/install-agents.sh --target codex --scope global
-
-# Or install for the current project in both supported layouts.
-./scripts/install-agents.sh --target both --scope project --project-dir "$PWD"
-```
-
-Use `--dry-run` to inspect the install list first. Codex receives generated `.toml` files under
-`.codex/agents`, while Claude receives the source Markdown under `.claude/agents`; it does not copy
-conversation history.
+Claude Code loads the Markdown agents from each plugin's root `agents/` directory. The repository
+also maintains `agents/me-agent-config-maintainer.md` for prompts specific to this collection.
 
 ### Claude Code
 
