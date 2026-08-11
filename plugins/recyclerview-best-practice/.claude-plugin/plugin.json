@@ -1,0 +1,8 @@
+{
+  "name": "recyclerview-best-practice",
+  "description": "Android RecyclerView best practices for adapter selection, diffing, paging, state, and performance.",
+  "author": {
+    "name": "Local Android Practices"
+  },
+  "version": "0.2.0.20260811225000"
+}
