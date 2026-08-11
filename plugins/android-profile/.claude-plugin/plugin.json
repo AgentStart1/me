@@ -1,0 +1,8 @@
+{
+  "name": "android-profile",
+  "description": "Use the bundled Android SDK and AVD configuration scripts to install Android SDK tools, create Android Virtual Devices, launch Docker-friendly emulators, and run the start-avd smoke test.",
+  "author": {
+    "name": "Android Profile Maintainers"
+  },
+  "version": "0.2.0.20260811225000"
+}
