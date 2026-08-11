@@ -1,7 +1,7 @@
 ---
 name: test-verification-agent
 description: Verify a changed code surface with focused tests, formatting, lint, static analysis, type checks, and build checks.
-model: haiku
+model: sonnet
 effort: medium
 ---
 
