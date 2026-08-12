@@ -11,6 +11,7 @@ For coding tasks in this project, follow these rules:
 - Treat approval as applying only to the plan that was explicitly explained. Generic instructions such as "continue" do not approve design choices discovered later.
 - If inspection, compilation, tests, or static analysis reveals a new choice that changes module boundaries, dependencies, public APIs, data models, or architecture, pause. Explain the options, trade-offs, and recommendation, then wait for fresh approval before changing direction.
 - When changes can be split into multiple commits by independent concerns, ask whether the user wants separate commits before committing.
+- Whenever plugin content changes, update that plugin's `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions together in the same change. Keep both manifest versions identical, follow the repository's versioning convention, and keep installed marketplace versions aligned with the modified content.
 - Do not include session-specific identifiers in commit messages.
 - Do not put personal private information in code, tests, fixtures, docs, examples, or commit messages. Use placeholders for real emails, phone numbers, addresses, and similar data.
 - Avoid duplicated code. Reuse existing helpers and patterns, or introduce a suitable abstraction when it meaningfully reduces duplication.
