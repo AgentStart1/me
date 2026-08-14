@@ -17,7 +17,7 @@ A local Codex Android and client UI plugin collection. It currently includes And
 - `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
 - `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
-- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, checks and tests, rule-file maintenance, logging, root-cause-first debugging, GitHub PR & CI, repository sync, release infrastructure, and Kotlin project practice instructions.
+- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, flow stabilization before end-to-end test authoring, checks and tests, rule-file maintenance, logging, root-cause-first debugging, GitHub PR & CI, repository sync, release infrastructure, and Kotlin project practice instructions.
 - `plugins/client-ui-best-practices/.codex-plugin/plugin.json`: Client UI Best Practices plugin manifest.
 - `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, Compose state collection, handler-owned async work, database observability with reactive DAO Flow and global write events, and UI-free business test guidance.
 - `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
