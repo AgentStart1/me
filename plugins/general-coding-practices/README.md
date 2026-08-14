@@ -8,7 +8,7 @@ This Codex plugin provides focused skills for project collaboration, README main
 - `.claude-plugin/plugin.json` declares the Claude Code plugin.
 - `skills/project-collaboration-rules/SKILL.md` contains collaboration, privacy, duplication, and dependency guidance.
 - `skills/project-readme-maintenance/SKILL.md` contains guidance for keeping README files focused on project information and usage.
-- `skills/project-checks-and-tests/SKILL.md` contains formatter, static-check, and test-coverage guidance.
+- `skills/project-checks-and-tests/SKILL.md` contains flow-stabilization, end-to-end test, formatter, static-check, and test-coverage guidance.
 - `skills/project-rule-file-maintenance/SKILL.md` contains guidance for keeping `AGENTS.md`, `CLAUDE.md`, and similar project instruction files current.
 - `skills/project-logging-rules/SKILL.md` contains guidance for adding necessary, structured, and privacy-safe diagnostic logs.
 - `skills/root-cause-before-fallback/SKILL.md` contains root-cause-first debugging guidance.
