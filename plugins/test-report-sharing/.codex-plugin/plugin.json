@@ -1,0 +1,36 @@
+{
+  "name": "test-report-sharing",
+  "version": "0.2.0.20260815000000",
+  "description": "Collect test results, E2E recordings, and code diffs, then share them via a public ngrok tunnel.",
+  "author": {
+    "name": "Test Report Sharing"
+  },
+  "license": "MIT",
+  "keywords": [
+    "test-results",
+    "e2e",
+    "recordings",
+    "diff",
+    "ngrok",
+    "report-sharing"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Test Report Sharing",
+    "shortDescription": "Collect and share test results, recordings, and diffs via ngrok.",
+    "longDescription": "Collects test results from standard project locations, captures E2E recordings, generates HTML diff reports, assembles everything into a static site, and exposes it via ngrok for easy sharing.",
+    "developerName": "Test Report Sharing",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Test Reporting",
+      "E2E Recording",
+      "Diff Generation",
+      "Ngrok Tunnel"
+    ],
+    "defaultPrompt": [
+      "Collect test results and share them via ngrok.",
+      "Generate a diff report and expose it publicly."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

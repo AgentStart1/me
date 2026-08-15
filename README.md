@@ -1,6 +1,6 @@
 # me
 
-A local Codex Android and client UI plugin collection. It currently includes Android SDK/AVD setup scripts, an Appium device lock, RecyclerView best-practice skills, client UI state/handler guidance, and general coding-practice/Kotlin project skills.
+A local Codex Android and client UI plugin collection. It currently includes Android SDK/AVD setup scripts, an Appium device lock, RecyclerView best-practice skills, client UI state/handler guidance, general coding-practice/Kotlin project skills, and test report sharing with ngrok tunnel support.
 
 ## Package Structure
 
@@ -20,6 +20,9 @@ A local Codex Android and client UI plugin collection. It currently includes And
 - `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, flow stabilization before end-to-end test authoring, checks and tests, rule-file maintenance, logging, root-cause-first debugging, GitHub PR & CI, repository sync, release infrastructure, and Kotlin project practice instructions.
 - `plugins/client-ui-best-practices/.codex-plugin/plugin.json`: Client UI Best Practices plugin manifest.
 - `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, Compose state collection, handler-owned async work, database observability with reactive DAO Flow and global write events, and UI-free business test guidance.
+- `plugins/test-report-sharing/.claude-plugin/plugin.json`: Test Report Sharing plugin manifest.
+- `plugins/test-report-sharing/skills/`: Test result collection, E2E recording capture, diff report generation, and ngrok tunnel sharing.
+- `plugins/test-report-sharing/scripts/`: Shell scripts for collecting test results, recordings, generating diffs, and starting ngrok.
 - `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
 - `agents/`: prompts specific to maintaining this plugin collection.
 
@@ -39,6 +42,7 @@ codex plugin add android-appium-device-lock@me
 codex plugin add recyclerview-best-practice@me
 codex plugin add general-coding-practices@me
 codex plugin add client-ui-best-practices@me
+codex plugin add test-report-sharing@me
 ```
 
 Start a new Codex thread after installation so the plugin skills are loaded.
@@ -63,6 +67,7 @@ Create a `CLAUDE.md` file in the target project and reference the skills needed 
 @plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 @plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
 @plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
+@plugins/test-report-sharing/skills/test-report-sharing/SKILL.md
 ```
 
 Alternatively, clone this repository locally and reference the skill files with absolute paths from the target project's `CLAUDE.md`:
@@ -78,6 +83,7 @@ Alternatively, clone this repository locally and reference the skill files with 
 @/path/to/me/plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
 @/path/to/me/plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
 @/path/to/me/plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
+@/path/to/me/plugins/test-report-sharing/skills/test-report-sharing/SKILL.md
 ```
 
 Claude Code loads these instructions automatically when a conversation starts.
