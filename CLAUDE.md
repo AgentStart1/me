@@ -11,6 +11,7 @@ This repository publishes Claude Code plugins. Each plugin lives under `plugins/
 | recyclerview-best-practice | `plugins/recyclerview-best-practice/` | RecyclerView adapter, diff, paging best practices |
 | general-coding-practices | `plugins/general-coding-practices/` | General coding, repository delivery, and Kotlin project guidance |
 | client-ui-best-practices | `plugins/client-ui-best-practices/` | Client UI threading, Compose state, and handler-driven business-test guidance |
+| test-report-sharing | `plugins/test-report-sharing/` | Test result collection, E2E recording, diff report, and ngrok sharing |
 
 ## Plugin Structure Convention
 
@@ -39,6 +40,7 @@ plugins/<name>/
 @plugins/general-coding-practices/skills/release-infra/SKILL.md
 @plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
 @plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
+@plugins/test-report-sharing/skills/test-report-sharing/SKILL.md
 @AGENTS.md
 
 ## Agent prompts
