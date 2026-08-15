@@ -54,6 +54,31 @@ done
 # Create output directory
 mkdir -p "$OUTPUT_DIR/reports"
 
+# Function to generate a meaningful report name from its path
+get_report_name() {
+    local report_dir="$1"
+    local search_dir="$2"
+
+    # Get relative path from search directory
+    local rel_path="${report_dir#"$search_dir"/}"
+    rel_path="${rel_path#./}"
+
+    # Remove common prefixes
+    rel_path="${rel_path#build/reports/}"
+    rel_path="${rel_path#reports/}"
+    rel_path="${rel_path#test-results/}"
+
+    # Replace / with - and clean up
+    rel_path=$(echo "$rel_path" | tr '/' '-' | sed 's/^-//;s/-$//')
+
+    # Fallback to generic name if empty
+    if [[ -z "$rel_path" ]]; then
+        rel_path="report"
+    fi
+
+    echo "$rel_path"
+}
+
 # Function to collect a complete test report directory
 collect_test_report() {
     local report_dir="$1"
@@ -161,7 +186,11 @@ for dir in "${search_dirs[@]}"; do
             fi
 
             # Collect if this directory has index.html
-            report_name="report-${total_reports}"
+            report_name=$(get_report_name "$report_dir" "$dir")
+            # Add suffix to avoid name collision
+            if [[ -d "$OUTPUT_DIR/reports/$report_name" ]]; then
+                report_name="${report_name}-${total_reports}"
+            fi
             result=$(collect_test_report "$report_dir" "$report_name")
             if [[ -n "$result" ]]; then
                 report_dirs+=("$result")
