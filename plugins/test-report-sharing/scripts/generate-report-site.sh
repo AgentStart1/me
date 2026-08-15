@@ -66,12 +66,19 @@ generate_reports_section() {
             <h2>📊 Reports</h2>
             <div class="report-links">
 EOF
-        # Check for report-* directories
-        for report_dir in "$reports_dir"/report-*; do
+        # Check all directories with index.html
+        for report_dir in "$reports_dir"/*/; do
             if [[ -d "$report_dir" ]] && [[ -f "$report_dir/index.html" ]]; then
                 local report_name
                 report_name=$(basename "$report_dir")
-                echo "                <a href=\"reports/$report_name/index.html\" class=\"btn\">Report $((report_count + 1))</a>"
+                # Format report name: replace - with space, handle common abbreviations
+                local display_name
+                display_name=$(echo "$report_name" | sed 's/-/ /g')
+                # Uppercase common abbreviations
+                display_name=$(echo "$display_name" | sed 's/\bE2e\b/E2E/gi; s/\bApi\b/API/gi; s/\bCss\b/CSS/gi; s/\bHtml\b/HTML/gi; s/\bJs\b/JS/gi; s/\bXml\b/XML/gi')
+                # Capitalize first letter of each word
+                display_name=$(echo "$display_name" | sed 's/\b\(.\)/\u\1/g')
+                echo "                <a href=\"reports/$report_name/index.html\" class=\"btn\">$display_name</a>"
                 ((report_count++))
             fi
         done
