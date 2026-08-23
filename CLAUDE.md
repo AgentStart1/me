@@ -12,6 +12,7 @@ This repository publishes Claude Code plugins. Each plugin lives under `plugins/
 | general-coding-practices | `plugins/general-coding-practices/` | General coding, repository delivery, and Kotlin project guidance |
 | client-ui-best-practices | `plugins/client-ui-best-practices/` | Client UI threading, Compose state, and handler-driven business-test guidance |
 | test-report-sharing | `plugins/test-report-sharing/` | Test result collection, E2E recording, selectable Git/Difftastic diff reports, and ngrok sharing |
+| qemu-alpine-docker | `plugins/qemu-alpine-docker/` | Persistent pure-TCG Alpine Docker/Testcontainers VM for Windows |
 
 ## Plugin Structure Convention
 
@@ -41,6 +42,7 @@ plugins/<name>/
 @plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
 @plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
 @plugins/test-report-sharing/skills/test-report-sharing/SKILL.md
+@plugins/qemu-alpine-docker/skills/qemu-alpine-docker/SKILL.md
 @AGENTS.md
 
 ## Agent prompts

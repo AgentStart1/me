@@ -1,6 +1,6 @@
 # me
 
-A local Codex Android and client UI plugin collection. It currently includes Android SDK/AVD setup scripts, an Appium device lock, RecyclerView best-practice skills, client UI state/handler guidance, general coding-practice/Kotlin project skills, and test report sharing with ngrok tunnel support.
+A local Codex developer plugin collection. It includes Android tooling, client UI and coding guidance, test report sharing with ngrok tunnel support, plus a persistent pure-TCG QEMU Alpine Docker test environment for Windows.
 
 ## Package Structure
 
@@ -23,6 +23,7 @@ A local Codex Android and client UI plugin collection. It currently includes And
 - `plugins/test-report-sharing/.claude-plugin/plugin.json`: Test Report Sharing plugin manifest.
 - `plugins/test-report-sharing/skills/`: Test result collection, E2E recording capture, selectable Git/Difftastic diff report generation, and ngrok tunnel sharing.
 - `plugins/test-report-sharing/scripts/`: Shell scripts for collecting test results, recordings, generating diffs, and starting ngrok.
+- `plugins/qemu-alpine-docker/`: unattended Alpine/Docker provisioning, single-VM lifecycle, loopback Docker API and Testcontainers port-range forwarding.
 - `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
 - `agents/`: prompts specific to maintaining this plugin collection.
 
@@ -43,6 +44,7 @@ codex plugin add recyclerview-best-practice@me
 codex plugin add general-coding-practices@me
 codex plugin add client-ui-best-practices@me
 codex plugin add test-report-sharing@me
+codex plugin add qemu-alpine-docker@me
 ```
 
 Start a new Codex thread after installation so the plugin skills are loaded.
@@ -68,6 +70,7 @@ Create a `CLAUDE.md` file in the target project and reference the skills needed 
 @plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
 @plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
 @plugins/test-report-sharing/skills/test-report-sharing/SKILL.md
+@plugins/qemu-alpine-docker/skills/qemu-alpine-docker/SKILL.md
 ```
 
 Alternatively, clone this repository locally and reference the skill files with absolute paths from the target project's `CLAUDE.md`:
@@ -84,6 +87,7 @@ Alternatively, clone this repository locally and reference the skill files with 
 @/path/to/me/plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
 @/path/to/me/plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
 @/path/to/me/plugins/test-report-sharing/skills/test-report-sharing/SKILL.md
+@/path/to/me/plugins/qemu-alpine-docker/skills/qemu-alpine-docker/SKILL.md
 ```
 
 Claude Code loads these instructions automatically when a conversation starts.
@@ -105,6 +109,16 @@ Run the `start-avd.sh` smoke test with fake emulator commands from the repositor
 
 ```bash
 plugins/android-profile/tests/test-start-avd-docker.sh
+```
+
+Provision and run the persistent Alpine Docker test VM from Git Bash or MSYS2:
+
+```bash
+cd plugins/qemu-alpine-docker
+./scripts/setup.sh
+./scripts/create-vm.sh ./profiles/dev.profile
+./scripts/start-vm.sh ./profiles/dev.profile
+./scripts/run-testcontainers.sh -- <test command>
 ```
 
 ## Host Emulator Access From a VM
