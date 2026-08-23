@@ -64,4 +64,10 @@ assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'Difftastic semantic &lt;cha
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "renderer.addEventListener('change'" "renderer switching script"
 assert_contains "$AVAILABLE_OUTPUT/diff/stats.json" '"difftastic_available": true' "available Difftastic stats"
 
+(
+    cd "$REPO_DIR"
+    "$PLUGIN_DIR/scripts/generate-report-site.sh" --output-dir "$AVAILABLE_OUTPUT"
+)
+assert_contains "$AVAILABLE_OUTPUT/index.html" '1 file(s) changed:' "report site stats without jq"
+
 printf '=== Results: %d passed, 0 failed ===\n' "$pass_count"

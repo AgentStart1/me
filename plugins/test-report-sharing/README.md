@@ -107,7 +107,7 @@ plugins/test-report-sharing/
 ## Requirements
 
 - **Bash**: Scripts require bash 4.0+
-- **jq**: JSON processing (usually pre-installed)
+- **jq**: Optional; used for JSON statistics when available, with a built-in fallback
 - **git**: For diff report generation
 - **Difftastic (`difft`)**: Optional, for structural diff rendering
 - **Python 3**: For local HTTP server (optional)

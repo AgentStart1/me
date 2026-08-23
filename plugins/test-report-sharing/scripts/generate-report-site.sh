@@ -108,15 +108,25 @@ EOF
 }
 
 # Generate diff section
+read_diff_stat() {
+    local stats_file="$1"
+    local field="$2"
+    if command -v jq >/dev/null 2>&1; then
+        jq -r ".$field" "$stats_file"
+    else
+        sed -n "s/.*\"$field\"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p" "$stats_file" | head -n 1
+    fi
+}
+
 generate_diff_section() {
     local diff_dir="$OUTPUT_DIR/diff"
     if [[ -d "$diff_dir" ]] && [[ -f "$diff_dir/index.html" ]]; then
         local stats_file="$diff_dir/stats.json"
         if [[ -f "$stats_file" ]]; then
             local files_changed insertions deletions
-            files_changed=$(jq -r '.files_changed' "$stats_file")
-            insertions=$(jq -r '.insertions' "$stats_file")
-            deletions=$(jq -r '.deletions' "$stats_file")
+            files_changed=$(read_diff_stat "$stats_file" "files_changed")
+            insertions=$(read_diff_stat "$stats_file" "insertions")
+            deletions=$(read_diff_stat "$stats_file" "deletions")
             cat <<EOF
         <div class="section">
             <h2>📝 Code Diff</h2>
