@@ -5,7 +5,7 @@ Collect reports and code diffs, then share them via a public ngrok tunnel.
 ## Features
 
 - **Report Collection**: Automatically discovers and collects test reports (JUnit XML, HTML, E2E) from standard project locations
-- **Diff Report Generation**: Creates HTML reports that switch between ordinary Git diff and syntax-highlighted Difftastic structural diff output
+- **Diff Report Generation**: Creates HTML reports that switch between ordinary Git diff and syntax-highlighted Difftastic structural diff output, with inline and side-by-side layouts
 - **Static Site Generation**: Assembles all artifacts into a beautiful, responsive HTML report site
 - **Ngrok Integration**: Exposes the report site via a public ngrok tunnel for easy sharing
 
@@ -78,8 +78,9 @@ plugins/test-report-sharing/scripts/start-ngrok.sh --help
 ### Diff Reports
 - Git diff output converted to HTML with syntax highlighting
 - Difftastic structural diff output selectable on the same page when `difft` is installed
+- Difftastic layout selector switches between inline and side-by-side output without leaving the report
 - Difftastic ANSI colors rendered offline with the bundled MIT-licensed `ansi_up` v6.0.6 browser library
-- Renderer-specific summaries: Git shows line insertions/deletions, while Difftastic shows its structural model and display mode
+- Renderer-specific summaries: Git shows line insertions/deletions, while Difftastic shows its structural model and the currently selected display mode
 - Supports comparison against any git ref (branch, commit, tag)
 
 ## Project Structure

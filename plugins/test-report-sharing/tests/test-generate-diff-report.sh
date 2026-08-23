@@ -48,7 +48,7 @@ mkdir -p "$WORK_DIR/fake tools"
 FAKE_DIFFT="$WORK_DIR/fake tools/difft"
 cat > "$FAKE_DIFFT" <<'EOF'
 #!/usr/bin/env bash
-printf '\033[38;2;255;85;85mDifftastic semantic <change> & output\033[0m\n'
+printf '\033[38;2;255;85;85mDifftastic %s semantic <change> & output\033[0m\n' "${DFT_DISPLAY:-missing}"
 EOF
 chmod +x "$FAKE_DIFFT"
 
@@ -61,11 +61,16 @@ AVAILABLE_OUTPUT="$WORK_DIR/available-output"
 
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<option value="difftastic">' "available Difftastic selectable"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<script src="ansi_up.js"></script>' "bundled ANSI renderer loaded"
-assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-ansi"' "Difftastic ANSI payload embedded"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-inline-ansi"' "inline ANSI payload embedded"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-side-by-side-ansi"' "side-by-side ANSI payload embedded"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<select id="difftastic-layout">' "Difftastic layout selector"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<option value="side-by-side">Side by side</option>' "side-by-side layout option"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-display-value"' "display mode summary value"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-stats" hidden' "Difftastic-specific summary"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'Files Compared' "Difftastic file summary label"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'Diff Model' "Difftastic structural summary label"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'difftasticStats.hidden = !showDifftastic' "summary switches with renderer"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "layout.addEventListener('change'" "layout switching script"
 assert_contains "$AVAILABLE_OUTPUT/diff/ansi_up.js" 'root.AnsiUp = exp.default' "ansi_up browser bundle"
 assert_contains "$AVAILABLE_OUTPUT/diff/ansi_up.js" 'this.VERSION = "6.0.6"' "pinned ansi_up version"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "renderer.addEventListener('change'" "renderer switching script"

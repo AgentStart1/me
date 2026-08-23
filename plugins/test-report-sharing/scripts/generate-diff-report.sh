@@ -261,6 +261,10 @@ cat > "$HTML_FILE" <<EOF
         .diff-view[hidden] {
             display: none;
         }
+        .difftastic-layout[hidden],
+        #difftastic-layout-control[hidden] {
+            display: none;
+        }
         .difftastic-output {
             padding: 12px 15px;
             white-space: pre;
@@ -309,7 +313,7 @@ cat > "$HTML_FILE" <<EOF
                     <div class="stat-label">Diff Model</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">Inline</div>
+                    <div class="stat-value" id="difftastic-display-value">Inline</div>
                     <div class="stat-label">Display Mode</div>
                 </div>
             </div>
@@ -321,6 +325,13 @@ cat > "$HTML_FILE" <<EOF
                     <option value="git">Git diff</option>
                     <option value="difftastic"$(if [[ "$DIFFTASTIC_AVAILABLE" != "true" ]]; then printf ' disabled'; fi)>Difftastic</option>
                 </select>
+                <span id="difftastic-layout-control" hidden>
+                    <label for="difftastic-layout">Layout:</label>
+                    <select id="difftastic-layout">
+                        <option value="inline">Inline</option>
+                        <option value="side-by-side">Side by side</option>
+                    </select>
+                </span>
                 <span class="view-note">$(if [[ "$DIFFTASTIC_AVAILABLE" == "true" ]]; then printf 'Choose the renderer used for this comparison.'; else printf 'Difftastic is unavailable because %s was not found.' "$DIFFTASTIC_COMMAND_HTML"; fi)</span>
             </div>
             <div class="diff-container diff-view" id="git-view">
@@ -338,6 +349,18 @@ cat > "$HTML_FILE" <<EOF
         const difftasticView = document.getElementById('difftastic-view');
         const gitStats = document.getElementById('git-stats');
         const difftasticStats = document.getElementById('difftastic-stats');
+        const layoutControl = document.getElementById('difftastic-layout-control');
+        const layout = document.getElementById('difftastic-layout');
+        const inlineView = document.getElementById('difftastic-inline-view');
+        const sideBySideView = document.getElementById('difftastic-side-by-side-view');
+        const displayValue = document.getElementById('difftastic-display-value');
+
+        function updateDifftasticLayout() {
+            const showSideBySide = layout.value === 'side-by-side';
+            if (inlineView) inlineView.hidden = showSideBySide;
+            if (sideBySideView) sideBySideView.hidden = !showSideBySide;
+            displayValue.textContent = showSideBySide ? 'Side by Side' : 'Inline';
+        }
 
         renderer.addEventListener('change', () => {
             const showDifftastic = renderer.value === 'difftastic';
@@ -345,11 +368,15 @@ cat > "$HTML_FILE" <<EOF
             difftasticView.hidden = !showDifftastic;
             gitStats.hidden = showDifftastic;
             difftasticStats.hidden = !showDifftastic;
+            layoutControl.hidden = !showDifftastic;
         });
+        layout.addEventListener('change', updateDifftasticLayout);
+        updateDifftasticLayout();
 
-        const ansiPayload = document.getElementById('difftastic-ansi');
-        const difftasticOutput = document.getElementById('difftastic-output');
-        if (ansiPayload && difftasticOutput) {
+        function renderAnsi(payloadId, outputId) {
+            const ansiPayload = document.getElementById(payloadId);
+            const difftasticOutput = document.getElementById(outputId);
+            if (!ansiPayload || !difftasticOutput) return;
             try {
                 const binary = atob(ansiPayload.textContent.trim());
                 const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
@@ -360,6 +387,8 @@ cat > "$HTML_FILE" <<EOF
                 difftasticOutput.textContent = 'Unable to render Difftastic colors: ' + error.message;
             }
         }
+        renderAnsi('difftastic-inline-ansi', 'difftastic-inline-output');
+        renderAnsi('difftastic-side-by-side-ansi', 'difftastic-side-by-side-output');
     </script>
 </body>
 </html>
@@ -391,32 +420,46 @@ generate_git_diff 2>/dev/null | while IFS= read -r line; do
 # external diff once per changed file; DFT_* keeps the captured output static.
 DIFFTASTIC_HTML="$OUTPUT_DIR/diff/difftastic-diff-content.html"
 generate_difftastic_diff() {
+    local display_mode="$1"
     if [[ "$INCLUDE_UNCOMMITTED" == "true" ]]; then
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=always DFT_DISPLAY=inline DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=always DFT_DISPLAY="$display_mode" DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
     else
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=always DFT_DISPLAY=inline DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=always DFT_DISPLAY="$display_mode" DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
+    fi
+}
+
+generate_difftastic_layout() {
+    local display_mode="$1"
+    local slug="$2"
+    local hidden_attribute="$3"
+    local raw_file="$OUTPUT_DIR/diff/difftastic-${slug}-ansi.txt"
+
+    if generate_difftastic_diff "$display_mode" 2>/dev/null > "$raw_file"; then
+        if [[ -s "$raw_file" ]]; then
+            local encoded
+            encoded=$(base64 < "$raw_file" | tr -d '\r\n')
+            cat >> "$DIFFTASTIC_HTML" <<EOF
+<div class="difftastic-layout" id="difftastic-${slug}-view"${hidden_attribute}>
+    <div class="difftastic-output" id="difftastic-${slug}-output">Rendering Difftastic colors...</div>
+    <script type="application/octet-stream" id="difftastic-${slug}-ansi">$encoded</script>
+</div>
+EOF
+        else
+            printf '<div class="difftastic-layout" id="difftastic-%s-view"%s><div class="no-diff">No Difftastic diff available</div></div>\n' "$slug" "$hidden_attribute" >> "$DIFFTASTIC_HTML"
+        fi
+    else
+        printf '<div class="difftastic-layout" id="difftastic-%s-view"%s><div class="no-diff">Difftastic failed to generate this layout</div></div>\n' "$slug" "$hidden_attribute" >> "$DIFFTASTIC_HTML"
     fi
 }
 
 if [[ "$DIFFTASTIC_AVAILABLE" == "true" ]]; then
-    DIFFTASTIC_RAW="$OUTPUT_DIR/diff/difftastic-ansi.txt"
-    if generate_difftastic_diff 2>/dev/null > "$DIFFTASTIC_RAW"; then
-        if [[ -s "$DIFFTASTIC_RAW" ]]; then
-            if [[ ! -f "$PLUGIN_DIR/templates/ansi_up.js" ]]; then
-                echo "<div class=\"no-diff\">Bundled ANSI renderer is missing</div>" > "$DIFFTASTIC_HTML"
-            else
-                cp "$PLUGIN_DIR/templates/ansi_up.js" "$OUTPUT_DIR/diff/ansi_up.js"
-                DIFFTASTIC_BASE64=$(base64 < "$DIFFTASTIC_RAW" | tr -d '\r\n')
-                cat > "$DIFFTASTIC_HTML" <<EOF
-<div class="difftastic-output" id="difftastic-output">Rendering Difftastic colors...</div>
-<script type="application/octet-stream" id="difftastic-ansi">$DIFFTASTIC_BASE64</script>
-EOF
-            fi
-        else
-            echo "<div class=\"no-diff\">No Difftastic diff available</div>" > "$DIFFTASTIC_HTML"
-        fi
+    if [[ ! -f "$PLUGIN_DIR/templates/ansi_up.js" ]]; then
+        echo "<div class=\"no-diff\">Bundled ANSI renderer is missing</div>" > "$DIFFTASTIC_HTML"
     else
-        echo "<div class=\"no-diff\">Difftastic failed to generate a diff</div>" > "$DIFFTASTIC_HTML"
+        cp "$PLUGIN_DIR/templates/ansi_up.js" "$OUTPUT_DIR/diff/ansi_up.js"
+        : > "$DIFFTASTIC_HTML"
+        generate_difftastic_layout inline inline ""
+        generate_difftastic_layout side-by-side side-by-side " hidden"
     fi
 else
     echo "<div class=\"no-diff\">Difftastic executable '$DIFFTASTIC_COMMAND_HTML' was not found</div>" > "$DIFFTASTIC_HTML"
