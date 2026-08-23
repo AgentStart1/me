@@ -5,7 +5,7 @@ Collect reports and code diffs, then share them via a public ngrok tunnel.
 ## Features
 
 - **Report Collection**: Automatically discovers and collects test reports (JUnit XML, HTML, E2E) from standard project locations
-- **Diff Report Generation**: Creates HTML diff reports with syntax highlighting from git changes
+- **Diff Report Generation**: Creates HTML reports that switch between ordinary Git diff and optional Difftastic structural diff output
 - **Static Site Generation**: Assembles all artifacts into a beautiful, responsive HTML report site
 - **Ngrok Integration**: Exposes the report site via a public ngrok tunnel for easy sharing
 
@@ -53,6 +53,8 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 | `NGROK_PORT` | Local port to expose | `8080` |
 | `GIT_BASE_REF` | Base git ref for diff comparison | `main` |
 | `GIT_COMPARE_REF` | Compare git ref | `HEAD` |
+| `DIFFTASTIC_COMMAND` | Difftastic executable name or path | `difft` |
+| `DIFFTASTIC_WIDTH` | Captured Difftastic output width | `160` |
 
 ### Command Line Options
 
@@ -75,6 +77,7 @@ plugins/test-report-sharing/scripts/start-ngrok.sh --help
 
 ### Diff Reports
 - Git diff output converted to HTML with syntax highlighting
+- Difftastic structural diff output selectable on the same page when `difft` is installed
 - Supports comparison against any git ref (branch, commit, tag)
 
 ## Project Structure
@@ -96,6 +99,8 @@ plugins/test-report-sharing/
 ├── templates/
 │   ├── index.html               # HTML template
 │   └── style.css                # Stylesheet
+├── tests/
+│   └── test-generate-diff-report.sh # Diff renderer smoke tests
 └── README.md                    # This file
 ```
 
@@ -104,6 +109,7 @@ plugins/test-report-sharing/
 - **Bash**: Scripts require bash 4.0+
 - **jq**: JSON processing (usually pre-installed)
 - **git**: For diff report generation
+- **Difftastic (`difft`)**: Optional, for structural diff rendering
 - **Python 3**: For local HTTP server (optional)
 - **ngrok**: For public tunnel (optional, can use local server)
 
@@ -189,6 +195,10 @@ python3 -m http.server 8080
 - Ensure you're in a git repository
 - Check that the base ref exists: `git rev-parse main`
 - Verify you have changes to compare
+
+### Difftastic is unavailable
+- Install Difftastic and make sure `difft` is on `PATH`, or set `DIFFTASTIC_COMMAND` to its executable path
+- The generated page disables the Difftastic choice when it is unavailable; ordinary Git diff remains usable
 
 ## License
 

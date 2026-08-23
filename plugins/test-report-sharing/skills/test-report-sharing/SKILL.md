@@ -1,6 +1,6 @@
 ---
 name: test-report-sharing
-description: Collect reports and code diffs, then share them via a public ngrok tunnel.
+description: Collect reports and selectable Git or Difftastic code diffs, then share them via a public ngrok tunnel.
 context: fork
 agent: test-report-operator
 ---
@@ -14,6 +14,7 @@ Use this skill when you need to collect reports (unit tests, E2E tests, etc.) an
 - Collect reports from standard project locations (build/reports, test output folders).
 - E2E test reports should include video recordings of the test runs.
 - Generate an HTML diff report from the current git branch compared to main or a specified base.
+- Include a page control for switching between ordinary Git diff and Difftastic output when `difft` is installed; keep Git diff usable when it is not.
 - Assemble all artifacts into a static HTML site with navigation between reports and diffs.
 - Expose the report site via ngrok if available, otherwise provide a local server URL.
 - Return a summary with public URL, report count, and diff statistics.
@@ -50,6 +51,8 @@ Or run the full workflow via the agent:
 - `NGROK_AUTHTOKEN`: ngrok authentication token (required for public tunnel)
 - `NGROK_PORT`: Local port to expose (default: 8080)
 - `GIT_BASE_REF`: Base ref for diff comparison (default: `main`)
+- `DIFFTASTIC_COMMAND`: Difftastic executable name or path (default: `difft`)
+- `DIFFTASTIC_WIDTH`: Captured Difftastic output width (default: `160`)
 
 ## Supported Input Formats
 
@@ -61,6 +64,7 @@ Or run the full workflow via the agent:
 
 ### Diff Reports
 - Git diff output converted to HTML with syntax highlighting
+- Optional Difftastic structural diff output selectable on the same page
 - Supports comparison against any git ref (branch, commit, tag)
 
 ## Bundled Resources
