@@ -48,7 +48,7 @@ mkdir -p "$WORK_DIR/fake tools"
 FAKE_DIFFT="$WORK_DIR/fake tools/difft"
 cat > "$FAKE_DIFFT" <<'EOF'
 #!/usr/bin/env bash
-printf 'Difftastic semantic <change> & output\n'
+printf '\033[38;2;255;85;85mDifftastic semantic <change> & output\033[0m\n'
 EOF
 chmod +x "$FAKE_DIFFT"
 
@@ -60,7 +60,10 @@ AVAILABLE_OUTPUT="$WORK_DIR/available-output"
 )
 
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<option value="difftastic">' "available Difftastic selectable"
-assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'Difftastic semantic &lt;change&gt; &amp; output' "Difftastic output embedded and escaped"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<script src="ansi_up.js"></script>' "bundled ANSI renderer loaded"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-ansi"' "Difftastic ANSI payload embedded"
+assert_contains "$AVAILABLE_OUTPUT/diff/ansi_up.js" 'root.AnsiUp = exp.default' "ansi_up browser bundle"
+assert_contains "$AVAILABLE_OUTPUT/diff/ansi_up.js" 'this.VERSION = "6.0.6"' "pinned ansi_up version"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "renderer.addEventListener('change'" "renderer switching script"
 assert_contains "$AVAILABLE_OUTPUT/diff/stats.json" '"difftastic_available": true' "available Difftastic stats"
 

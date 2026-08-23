@@ -325,6 +325,20 @@ cat > "$HTML_FILE" <<EOF
             gitView.hidden = showDifftastic;
             difftasticView.hidden = !showDifftastic;
         });
+
+        const ansiPayload = document.getElementById('difftastic-ansi');
+        const difftasticOutput = document.getElementById('difftastic-output');
+        if (ansiPayload && difftasticOutput) {
+            try {
+                const binary = atob(ansiPayload.textContent.trim());
+                const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+                const ansiText = new TextDecoder().decode(bytes);
+                const ansiUp = new AnsiUp();
+                difftasticOutput.innerHTML = ansiUp.ansi_to_html(ansiText);
+            } catch (error) {
+                difftasticOutput.textContent = 'Unable to render Difftastic colors: ' + error.message;
+            }
+        }
     </script>
 </body>
 </html>
@@ -357,16 +371,26 @@ generate_git_diff 2>/dev/null | while IFS= read -r line; do
 DIFFTASTIC_HTML="$OUTPUT_DIR/diff/difftastic-diff-content.html"
 generate_difftastic_diff() {
     if [[ "$INCLUDE_UNCOMMITTED" == "true" ]]; then
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=never DFT_DISPLAY=inline DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=always DFT_DISPLAY=inline DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
     else
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=never DFT_DISPLAY=inline DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=always DFT_DISPLAY=inline DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
     fi
 }
 
 if [[ "$DIFFTASTIC_AVAILABLE" == "true" ]]; then
-    if generate_difftastic_diff 2>/dev/null | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' > "$DIFFTASTIC_HTML"; then
-        if [[ -s "$DIFFTASTIC_HTML" ]]; then
-            sed -i '1s/^/<div class="difftastic-output">/; $s/$/<\/div>/' "$DIFFTASTIC_HTML"
+    DIFFTASTIC_RAW="$OUTPUT_DIR/diff/difftastic-ansi.txt"
+    if generate_difftastic_diff 2>/dev/null > "$DIFFTASTIC_RAW"; then
+        if [[ -s "$DIFFTASTIC_RAW" ]]; then
+            if [[ ! -f "$PLUGIN_DIR/templates/ansi_up.js" ]]; then
+                echo "<div class=\"no-diff\">Bundled ANSI renderer is missing</div>" > "$DIFFTASTIC_HTML"
+            else
+                cp "$PLUGIN_DIR/templates/ansi_up.js" "$OUTPUT_DIR/diff/ansi_up.js"
+                DIFFTASTIC_BASE64=$(base64 < "$DIFFTASTIC_RAW" | tr -d '\r\n')
+                cat > "$DIFFTASTIC_HTML" <<EOF
+<div class="difftastic-output" id="difftastic-output">Rendering Difftastic colors...</div>
+<script type="application/octet-stream" id="difftastic-ansi">$DIFFTASTIC_BASE64</script>
+EOF
+            fi
         else
             echo "<div class=\"no-diff\">No Difftastic diff available</div>" > "$DIFFTASTIC_HTML"
         fi
@@ -390,6 +414,18 @@ awk '
 { print }
 ' "$HTML_FILE" > "$TEMP_HTML"
 mv "$TEMP_HTML" "$HTML_FILE"
+
+if [[ "$DIFFTASTIC_AVAILABLE" == "true" ]] && [[ -f "$OUTPUT_DIR/diff/ansi_up.js" ]]; then
+    TEMP_HTML=$(mktemp)
+    awk '
+/<script>/ && !inserted {
+    print "    <script src=\"ansi_up.js\"></script>"
+    inserted = 1
+}
+{ print }
+' "$HTML_FILE" > "$TEMP_HTML"
+    mv "$TEMP_HTML" "$HTML_FILE"
+fi
 
 TEMP_HTML=$(mktemp)
 awk '
