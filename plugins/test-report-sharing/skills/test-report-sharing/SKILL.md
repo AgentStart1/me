@@ -14,7 +14,7 @@ Use this skill when you need to collect reports (unit tests, E2E tests, etc.) an
 - Collect reports from standard project locations (build/reports, test output folders).
 - E2E test reports should include video recordings of the test runs.
 - Generate an HTML diff report from the current git branch compared to main or a specified base.
-- Include a page control for switching between ordinary Git diff and syntax-highlighted Difftastic output when `difft` is installed; within Difftastic, support inline and side-by-side layout switching; keep Git diff usable when it is not.
+- Include a page control for switching between ordinary Git diff and locally rendered Difftastic JSON when `difft` is installed; within Difftastic, support inline and side-by-side layout switching; keep Git diff usable when it is not.
 - Switch the header summary with the renderer: Git reports line insertions/deletions, while Difftastic reports files compared, structural model, and display mode.
 - Assemble all artifacts into a static HTML site with navigation between reports and diffs.
 - Expose the report site via ngrok if available, otherwise provide a local server URL.
@@ -65,7 +65,7 @@ Or run the full workflow via the agent:
 
 ### Diff Reports
 - Git diff output converted to HTML with syntax highlighting
-- Optional Difftastic structural diff output in inline and side-by-side layouts with bundled offline ANSI-to-HTML color rendering
+- Optional Difftastic JSON output rendered locally in inline and side-by-side layouts, with emphasis limited to changed structural fragments
 - Supports comparison against any git ref (branch, commit, tag)
 
 ## Bundled Resources
@@ -76,8 +76,6 @@ Or run the full workflow via the agent:
 - `scripts/start-ngrok.sh`: Starts ngrok tunnel for public access
 - `templates/index.html`: HTML template for the report site
 - `templates/style.css`: Stylesheet for the report site
-- `templates/ansi_up.js`: Bundled `ansi_up` v6.0.6 browser renderer for Difftastic ANSI colors
-- `templates/ansi_up.LICENSE`: MIT license for the bundled renderer
 
 ## Failure Handling
 

@@ -48,7 +48,10 @@ mkdir -p "$WORK_DIR/fake tools"
 FAKE_DIFFT="$WORK_DIR/fake tools/difft"
 cat > "$FAKE_DIFFT" <<'EOF'
 #!/usr/bin/env bash
-printf '\033[38;2;255;85;85mDifftastic %s semantic <change> & output\033[0m\n' "${DFT_DISPLAY:-missing}"
+if [[ "${DFT_UNSTABLE:-}" != "yes" || "${DFT_DISPLAY:-}" != "json" ]]; then
+    exit 1
+fi
+printf '%s\n' '{"aligned_lines":[[0,0]],"chunks":[[{"lhs":{"line_number":0,"changes":[{"start":7,"end":13,"content":"before","highlight":"normal"}]},"rhs":{"line_number":0,"changes":[{"start":7,"end":12,"content":"after","highlight":"normal"}]}}]],"language":"Text","path":"example.txt","status":"changed"}'
 EOF
 chmod +x "$FAKE_DIFFT"
 
@@ -60,9 +63,9 @@ AVAILABLE_OUTPUT="$WORK_DIR/available-output"
 )
 
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<option value="difftastic">' "available Difftastic selectable"
-assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<script src="ansi_up.js"></script>' "bundled ANSI renderer loaded"
-assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-inline-ansi"' "inline ANSI payload embedded"
-assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-side-by-side-ansi"' "side-by-side ANSI payload embedded"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-json"' "Difftastic JSON payload embedded"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-inline-output"' "inline renderer target"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-side-by-side-output"' "side-by-side renderer target"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<select id="difftastic-layout">' "Difftastic layout selector"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<option value="side-by-side">Side by side</option>' "side-by-side layout option"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-display-value"' "display mode summary value"
@@ -71,8 +74,9 @@ assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'Files Compared' "Difftastic
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'Diff Model' "Difftastic structural summary label"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'difftasticStats.hidden = !showDifftastic' "summary switches with renderer"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "layout.addEventListener('change'" "layout switching script"
-assert_contains "$AVAILABLE_OUTPUT/diff/ansi_up.js" 'root.AnsiUp = exp.default' "ansi_up browser bundle"
-assert_contains "$AVAILABLE_OUTPUT/diff/ansi_up.js" 'this.VERSION = "6.0.6"' "pinned ansi_up version"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'function renderStructuralDiff' "custom JSON renderer"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "fragment.textContent = change.content" "safe changed-fragment rendering"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'structural-change-add' "fragment-only addition styling"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "renderer.addEventListener('change'" "renderer switching script"
 assert_contains "$AVAILABLE_OUTPUT/diff/stats.json" '"difftastic_available": true' "available Difftastic stats"
 

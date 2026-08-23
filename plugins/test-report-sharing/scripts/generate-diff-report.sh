@@ -269,6 +269,64 @@ cat > "$HTML_FILE" <<EOF
             padding: 12px 15px;
             white-space: pre;
         }
+        .structural-file {
+            border-bottom: 1px solid #404040;
+        }
+        .structural-file:last-child {
+            border-bottom: 0;
+        }
+        .structural-file-header {
+            padding: 10px 15px;
+            background: #2d2d2d;
+            color: #ddd;
+        }
+        .structural-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            border-top: 1px solid #303030;
+        }
+        .structural-cell {
+            display: flex;
+            min-width: 0;
+            padding: 5px 10px;
+        }
+        .structural-cell + .structural-cell {
+            border-left: 1px solid #404040;
+        }
+        .structural-line-number {
+            flex: 0 0 4em;
+            color: #777;
+            text-align: right;
+            padding-right: 12px;
+            user-select: none;
+        }
+        .structural-code {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+        .structural-change-remove {
+            color: #ff8a8a;
+            font-weight: 700;
+            text-decoration: line-through;
+            text-decoration-color: #b94a4a;
+        }
+        .structural-change-add {
+            color: #9ee493;
+            font-weight: 700;
+            text-decoration: underline;
+            text-decoration-color: #4f9950;
+            text-underline-offset: 3px;
+        }
+        .structural-gap {
+            color: #777;
+            padding: 0 0.35em;
+        }
+        .structural-inline-row {
+            border-top: 1px solid #303030;
+        }
+        .structural-inline-row .structural-cell {
+            width: 100%;
+        }
         .no-diff {
             text-align: center;
             padding: 40px;
@@ -373,22 +431,93 @@ cat > "$HTML_FILE" <<EOF
         layout.addEventListener('change', updateDifftasticLayout);
         updateDifftasticLayout();
 
-        function renderAnsi(payloadId, outputId) {
-            const ansiPayload = document.getElementById(payloadId);
-            const difftasticOutput = document.getElementById(outputId);
-            if (!ansiPayload || !difftasticOutput) return;
+        function decodePayload(payload) {
+            const binary = atob(payload.textContent.trim());
+            const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+            return new TextDecoder().decode(bytes);
+        }
+
+        function parseDifftasticRecords(text) {
+            return text.split(/\r?\n/).filter(line => line.trim()).flatMap(line => {
+                const value = JSON.parse(line);
+                return Array.isArray(value) ? value : [value];
+            });
+        }
+
+        function changedFragment(side, kind) {
+            const cell = document.createElement('div');
+            cell.className = 'structural-cell';
+            const number = document.createElement('span');
+            number.className = 'structural-line-number';
+            number.textContent = side ? String(side.line_number + 1) : '';
+            const code = document.createElement('span');
+            code.className = 'structural-code';
+            if (!side || !side.changes || side.changes.length === 0) {
+                code.textContent = '∅';
+            } else {
+                side.changes.forEach((change, index) => {
+                    if (index > 0) {
+                        const gap = document.createElement('span');
+                        gap.className = 'structural-gap';
+                        gap.textContent = '…';
+                        code.appendChild(gap);
+                    }
+                    const fragment = document.createElement('span');
+                    fragment.className = 'structural-change-' + kind;
+                    fragment.textContent = change.content;
+                    fragment.title = 'Columns ' + (change.start + 1) + '–' + change.end;
+                    code.appendChild(fragment);
+                });
+            }
+            cell.append(number, code);
+            return cell;
+        }
+
+        function fileSection(record, sideBySide) {
+            const section = document.createElement('section');
+            section.className = 'structural-file';
+            const header = document.createElement('div');
+            header.className = 'structural-file-header';
+            header.textContent = record.path + (record.language ? ' · ' + record.language : '');
+            section.appendChild(header);
+            const changes = (record.chunks || []).flat();
+            changes.forEach(change => {
+                if (sideBySide) {
+                    const row = document.createElement('div');
+                    row.className = 'structural-row';
+                    row.append(changedFragment(change.lhs, 'remove'), changedFragment(change.rhs, 'add'));
+                    section.appendChild(row);
+                } else {
+                    [['lhs', 'remove'], ['rhs', 'add']].forEach(([side, kind]) => {
+                        if (!change[side]) return;
+                        const row = document.createElement('div');
+                        row.className = 'structural-inline-row';
+                        row.appendChild(changedFragment(change[side], kind));
+                        section.appendChild(row);
+                    });
+                }
+            });
+            return section;
+        }
+
+        function renderStructuralDiff(records, output, sideBySide) {
+            output.replaceChildren(...records.map(record => fileSection(record, sideBySide)));
+            if (records.length === 0) output.textContent = 'No Difftastic diff available';
+        }
+
+        const jsonPayload = document.getElementById('difftastic-json');
+        const inlineOutput = document.getElementById('difftastic-inline-output');
+        const sideBySideOutput = document.getElementById('difftastic-side-by-side-output');
+        if (jsonPayload && inlineOutput && sideBySideOutput) {
             try {
-                const binary = atob(ansiPayload.textContent.trim());
-                const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
-                const ansiText = new TextDecoder().decode(bytes);
-                const ansiUp = new AnsiUp();
-                difftasticOutput.innerHTML = ansiUp.ansi_to_html(ansiText);
+                const records = parseDifftasticRecords(decodePayload(jsonPayload));
+                renderStructuralDiff(records, inlineOutput, false);
+                renderStructuralDiff(records, sideBySideOutput, true);
             } catch (error) {
-                difftasticOutput.textContent = 'Unable to render Difftastic colors: ' + error.message;
+                inlineOutput.textContent = 'Unable to render Difftastic JSON: ' + error.message;
+                sideBySideOutput.textContent = inlineOutput.textContent;
             }
         }
-        renderAnsi('difftastic-inline-ansi', 'difftastic-inline-output');
-        renderAnsi('difftastic-side-by-side-ansi', 'difftastic-side-by-side-output');
     </script>
 </body>
 </html>
@@ -420,46 +549,32 @@ generate_git_diff 2>/dev/null | while IFS= read -r line; do
 # external diff once per changed file; DFT_* keeps the captured output static.
 DIFFTASTIC_HTML="$OUTPUT_DIR/diff/difftastic-diff-content.html"
 generate_difftastic_diff() {
-    local display_mode="$1"
     if [[ "$INCLUDE_UNCOMMITTED" == "true" ]]; then
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=always DFT_DISPLAY="$display_mode" DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
     else
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_COLOR=always DFT_DISPLAY="$display_mode" DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
-    fi
-}
-
-generate_difftastic_layout() {
-    local display_mode="$1"
-    local slug="$2"
-    local hidden_attribute="$3"
-    local raw_file="$OUTPUT_DIR/diff/difftastic-${slug}-ansi.txt"
-
-    if generate_difftastic_diff "$display_mode" 2>/dev/null > "$raw_file"; then
-        if [[ -s "$raw_file" ]]; then
-            local encoded
-            encoded=$(base64 < "$raw_file" | tr -d '\r\n')
-            cat >> "$DIFFTASTIC_HTML" <<EOF
-<div class="difftastic-layout" id="difftastic-${slug}-view"${hidden_attribute}>
-    <div class="difftastic-output" id="difftastic-${slug}-output">Rendering Difftastic colors...</div>
-    <script type="application/octet-stream" id="difftastic-${slug}-ansi">$encoded</script>
-</div>
-EOF
-        else
-            printf '<div class="difftastic-layout" id="difftastic-%s-view"%s><div class="no-diff">No Difftastic diff available</div></div>\n' "$slug" "$hidden_attribute" >> "$DIFFTASTIC_HTML"
-        fi
-    else
-        printf '<div class="difftastic-layout" id="difftastic-%s-view"%s><div class="no-diff">Difftastic failed to generate this layout</div></div>\n' "$slug" "$hidden_attribute" >> "$DIFFTASTIC_HTML"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
     fi
 }
 
 if [[ "$DIFFTASTIC_AVAILABLE" == "true" ]]; then
-    if [[ ! -f "$PLUGIN_DIR/templates/ansi_up.js" ]]; then
-        echo "<div class=\"no-diff\">Bundled ANSI renderer is missing</div>" > "$DIFFTASTIC_HTML"
+    DIFFTASTIC_JSON="$OUTPUT_DIR/diff/difftastic.jsonl"
+    if generate_difftastic_diff 2>/dev/null > "$DIFFTASTIC_JSON"; then
+        if [[ -s "$DIFFTASTIC_JSON" ]]; then
+            DIFFTASTIC_BASE64=$(base64 < "$DIFFTASTIC_JSON" | tr -d '\r\n')
+            cat > "$DIFFTASTIC_HTML" <<EOF
+<div class="difftastic-layout" id="difftastic-inline-view">
+    <div class="difftastic-output" id="difftastic-inline-output">Rendering Difftastic JSON...</div>
+</div>
+<div class="difftastic-layout" id="difftastic-side-by-side-view" hidden>
+    <div class="difftastic-output" id="difftastic-side-by-side-output">Rendering Difftastic JSON...</div>
+</div>
+<script type="application/json" id="difftastic-json">$DIFFTASTIC_BASE64</script>
+EOF
+        else
+            echo "<div class=\"no-diff\">No Difftastic diff available</div>" > "$DIFFTASTIC_HTML"
+        fi
     else
-        cp "$PLUGIN_DIR/templates/ansi_up.js" "$OUTPUT_DIR/diff/ansi_up.js"
-        : > "$DIFFTASTIC_HTML"
-        generate_difftastic_layout inline inline ""
-        generate_difftastic_layout side-by-side side-by-side " hidden"
+        echo "<div class=\"no-diff\">Difftastic failed to generate JSON output</div>" > "$DIFFTASTIC_HTML"
     fi
 else
     echo "<div class=\"no-diff\">Difftastic executable '$DIFFTASTIC_COMMAND_HTML' was not found</div>" > "$DIFFTASTIC_HTML"
@@ -478,18 +593,6 @@ awk '
 { print }
 ' "$HTML_FILE" > "$TEMP_HTML"
 mv "$TEMP_HTML" "$HTML_FILE"
-
-if [[ "$DIFFTASTIC_AVAILABLE" == "true" ]] && [[ -f "$OUTPUT_DIR/diff/ansi_up.js" ]]; then
-    TEMP_HTML=$(mktemp)
-    awk '
-/<script>/ && !inserted {
-    print "    <script src=\"ansi_up.js\"></script>"
-    inserted = 1
-}
-{ print }
-' "$HTML_FILE" > "$TEMP_HTML"
-    mv "$TEMP_HTML" "$HTML_FILE"
-fi
 
 TEMP_HTML=$(mktemp)
 awk '
