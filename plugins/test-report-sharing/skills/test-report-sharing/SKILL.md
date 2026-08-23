@@ -15,6 +15,7 @@ Use this skill when you need to collect reports (unit tests, E2E tests, etc.) an
 - E2E test reports should include video recordings of the test runs.
 - Generate an HTML diff report from the current git branch compared to main or a specified base.
 - Include a page control for switching between ordinary Git diff and syntax-highlighted Difftastic output when `difft` is installed; keep Git diff usable when it is not.
+- Switch the header summary with the renderer: Git reports line insertions/deletions, while Difftastic reports files compared, structural model, and display mode.
 - Assemble all artifacts into a static HTML site with navigation between reports and diffs.
 - Expose the report site via ngrok if available, otherwise provide a local server URL.
 - Return a summary with public URL, report count, and diff statistics.

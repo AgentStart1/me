@@ -62,6 +62,10 @@ AVAILABLE_OUTPUT="$WORK_DIR/available-output"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<option value="difftastic">' "available Difftastic selectable"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" '<script src="ansi_up.js"></script>' "bundled ANSI renderer loaded"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-ansi"' "Difftastic ANSI payload embedded"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'id="difftastic-stats" hidden' "Difftastic-specific summary"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'Files Compared' "Difftastic file summary label"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'Diff Model' "Difftastic structural summary label"
+assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'difftasticStats.hidden = !showDifftastic' "summary switches with renderer"
 assert_contains "$AVAILABLE_OUTPUT/diff/ansi_up.js" 'root.AnsiUp = exp.default' "ansi_up browser bundle"
 assert_contains "$AVAILABLE_OUTPUT/diff/ansi_up.js" 'this.VERSION = "6.0.6"' "pinned ansi_up version"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "renderer.addEventListener('change'" "renderer switching script"
@@ -71,6 +75,6 @@ assert_contains "$AVAILABLE_OUTPUT/diff/stats.json" '"difftastic_available": tru
     cd "$REPO_DIR"
     "$PLUGIN_DIR/scripts/generate-report-site.sh" --output-dir "$AVAILABLE_OUTPUT"
 )
-assert_contains "$AVAILABLE_OUTPUT/index.html" '1 file(s) changed:' "report site stats without jq"
+assert_contains "$AVAILABLE_OUTPUT/index.html" '1 file(s) changed. Git line stats:' "report site stats without jq"
 
 printf '=== Results: %d passed, 0 failed ===\n' "$pass_count"

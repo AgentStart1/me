@@ -79,6 +79,7 @@ plugins/test-report-sharing/scripts/start-ngrok.sh --help
 - Git diff output converted to HTML with syntax highlighting
 - Difftastic structural diff output selectable on the same page when `difft` is installed
 - Difftastic ANSI colors rendered offline with the bundled MIT-licensed `ansi_up` v6.0.6 browser library
+- Renderer-specific summaries: Git shows line insertions/deletions, while Difftastic shows its structural model and display mode
 - Supports comparison against any git ref (branch, commit, tag)
 
 ## Project Structure

@@ -189,6 +189,9 @@ cat > "$HTML_FILE" <<EOF
             gap: 20px;
             flex-wrap: wrap;
         }
+        .stats[hidden] {
+            display: none;
+        }
         .stat {
             background: rgba(255,255,255,0.1);
             padding: 10px 15px;
@@ -282,7 +285,7 @@ cat > "$HTML_FILE" <<EOF
     <div class="container">
         <div class="header">
             <h1>Code Diff Report</h1>
-            <div class="stats">
+            <div class="stats" id="git-stats">
                 <div class="stat">
                     <div class="stat-value">$FILES_CHANGED</div>
                     <div class="stat-label">Files Changed</div>
@@ -294,6 +297,20 @@ cat > "$HTML_FILE" <<EOF
                 <div class="stat">
                     <div class="stat-value">-$DELETIONS</div>
                     <div class="stat-label">Deletions</div>
+                </div>
+            </div>
+            <div class="stats" id="difftastic-stats" hidden>
+                <div class="stat">
+                    <div class="stat-value">$FILES_CHANGED</div>
+                    <div class="stat-label">Files Compared</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">Structural</div>
+                    <div class="stat-label">Diff Model</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">Inline</div>
+                    <div class="stat-label">Display Mode</div>
                 </div>
             </div>
         </div>
@@ -319,11 +336,15 @@ cat > "$HTML_FILE" <<EOF
         const renderer = document.getElementById('diff-renderer');
         const gitView = document.getElementById('git-view');
         const difftasticView = document.getElementById('difftastic-view');
+        const gitStats = document.getElementById('git-stats');
+        const difftasticStats = document.getElementById('difftastic-stats');
 
         renderer.addEventListener('change', () => {
             const showDifftastic = renderer.value === 'difftastic';
             gitView.hidden = showDifftastic;
             difftasticView.hidden = !showDifftastic;
+            gitStats.hidden = showDifftastic;
+            difftasticStats.hidden = !showDifftastic;
         });
 
         const ansiPayload = document.getElementById('difftastic-ansi');

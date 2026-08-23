@@ -130,7 +130,7 @@ generate_diff_section() {
             cat <<EOF
         <div class="section">
             <h2>📝 Code Diff</h2>
-            <p>$files_changed file(s) changed: <span class="insertions">+$insertions</span> / <span class="deletions">-$deletions</span></p>
+            <p>$files_changed file(s) changed. Git line stats: <span class="insertions">+$insertions</span> / <span class="deletions">-$deletions</span></p>
             <a href="diff/index.html" class="btn">View Full Diff</a>
         </div>
 EOF
