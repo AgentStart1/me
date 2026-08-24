@@ -65,7 +65,7 @@ Or run the full workflow via the agent:
 
 ### Diff Reports
 - Git diff output converted to HTML with syntax highlighting
-- Optional Difftastic JSON output rendered locally in inline and side-by-side layouts, with emphasis limited to changed structural fragments
+- Optional Difftastic JSON output rendered locally with old/new source context in inline and side-by-side layouts, aligned line numbers, and foreground-only emphasis limited to changed structural fragments
 - Supports comparison against any git ref (branch, commit, tag)
 
 ## Bundled Resources

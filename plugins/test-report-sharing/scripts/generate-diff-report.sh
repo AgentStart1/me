@@ -113,7 +113,20 @@ DIFFTASTIC_WRAPPER=""
 if DIFFTASTIC_BIN=$(command -v "$DIFFTASTIC_COMMAND" 2>/dev/null); then
     DIFFTASTIC_AVAILABLE=true
     DIFFTASTIC_WRAPPER=$(mktemp)
-    printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$DIFFTASTIC_BIN" > "$DIFFTASTIC_WRAPPER"
+    {
+        printf '#!/usr/bin/env bash\nset -euo pipefail\nDIFFTASTIC_BIN=%q\n' "$DIFFTASTIC_BIN"
+        cat <<'EOF'
+if [[ "${DFT_REPORT_WITH_SOURCES:-}" == "yes" ]]; then
+    diff_json=$("$DIFFTASTIC_BIN" "$@")
+    lhs_source=$(base64 < "$2" | tr -d '\r\n')
+    rhs_source=$(base64 < "$5" | tr -d '\r\n')
+    diff_payload=$(printf '%s' "$diff_json" | base64 | tr -d '\r\n')
+    printf '%s\t%s\t%s\n' "$lhs_source" "$rhs_source" "$diff_payload"
+else
+    exec "$DIFFTASTIC_BIN" "$@"
+fi
+EOF
+    } > "$DIFFTASTIC_WRAPPER"
     chmod +x "$DIFFTASTIC_WRAPPER"
 fi
 
@@ -278,7 +291,8 @@ cat > "$HTML_FILE" <<EOF
         .structural-file-header {
             padding: 10px 15px;
             background: #2d2d2d;
-            color: #ddd;
+            color: #f4e66a;
+            font-weight: 700;
         }
         .structural-row {
             display: grid;
@@ -294,7 +308,7 @@ cat > "$HTML_FILE" <<EOF
             border-left: 1px solid #404040;
         }
         .structural-line-number {
-            flex: 0 0 4em;
+            flex: 0 0 3.25em;
             color: #777;
             text-align: right;
             padding-right: 12px;
@@ -305,17 +319,12 @@ cat > "$HTML_FILE" <<EOF
             overflow-wrap: anywhere;
         }
         .structural-change-remove {
-            color: #ff8a8a;
+            color: #ff5f5f;
             font-weight: 700;
-            text-decoration: line-through;
-            text-decoration-color: #b94a4a;
         }
         .structural-change-add {
-            color: #9ee493;
+            color: #8fe234;
             font-weight: 700;
-            text-decoration: underline;
-            text-decoration-color: #4f9950;
-            text-underline-offset: 3px;
         }
         .structural-gap {
             color: #777;
@@ -326,6 +335,11 @@ cat > "$HTML_FILE" <<EOF
         }
         .structural-inline-row .structural-cell {
             width: 100%;
+        }
+        .structural-separator {
+            padding: 2px 15px 2px 5.5em;
+            color: #777;
+            border-top: 1px solid #303030;
         }
         .no-diff {
             text-align: center;
@@ -437,40 +451,78 @@ cat > "$HTML_FILE" <<EOF
             return new TextDecoder().decode(bytes);
         }
 
+        function decodeBase64(value) {
+            const binary = atob(value);
+            return new TextDecoder().decode(Uint8Array.from(binary, character => character.charCodeAt(0)));
+        }
+
         function parseDifftasticRecords(text) {
             return text.split(/\r?\n/).filter(line => line.trim()).flatMap(line => {
-                const value = JSON.parse(line);
-                return Array.isArray(value) ? value : [value];
+                const [lhsPayload, rhsPayload, diffPayload] = line.split('\t');
+                const parsed = JSON.parse(decodeBase64(diffPayload));
+                const values = Array.isArray(parsed) ? parsed : [parsed];
+                return values.map(value => ({
+                    ...value,
+                    lhsLines: decodeBase64(lhsPayload).split(/\r?\n/),
+                    rhsLines: decodeBase64(rhsPayload).split(/\r?\n/)
+                }));
             });
         }
 
-        function changedFragment(side, kind) {
-            const cell = document.createElement('div');
-            cell.className = 'structural-cell';
+        function lineNumber(value) {
             const number = document.createElement('span');
             number.className = 'structural-line-number';
-            number.textContent = side ? String(side.line_number + 1) : '';
+            number.textContent = value == null ? '·' : String(value + 1);
+            return number;
+        }
+
+        function codeWithChanges(text, changes, kind) {
             const code = document.createElement('span');
             code.className = 'structural-code';
-            if (!side || !side.changes || side.changes.length === 0) {
-                code.textContent = '∅';
-            } else {
-                side.changes.forEach((change, index) => {
-                    if (index > 0) {
-                        const gap = document.createElement('span');
-                        gap.className = 'structural-gap';
-                        gap.textContent = '…';
-                        code.appendChild(gap);
-                    }
-                    const fragment = document.createElement('span');
-                    fragment.className = 'structural-change-' + kind;
-                    fragment.textContent = change.content;
-                    fragment.title = 'Columns ' + (change.start + 1) + '–' + change.end;
-                    code.appendChild(fragment);
-                });
-            }
-            cell.append(number, code);
+            let cursor = 0;
+            (changes || []).slice().sort((a, b) => a.start - b.start).forEach(change => {
+                code.appendChild(document.createTextNode(text.slice(cursor, change.start)));
+                const fragment = document.createElement('span');
+                fragment.className = 'structural-change-' + kind;
+                fragment.textContent = text.slice(change.start, change.end) || change.content;
+                fragment.title = 'Columns ' + (change.start + 1) + '–' + change.end;
+                code.appendChild(fragment);
+                cursor = change.end;
+            });
+            code.appendChild(document.createTextNode(text.slice(cursor)));
+            return code;
+        }
+
+        function structuralCell(line, oldNumber, newNumber, changes, kind, dualNumbers) {
+            const cell = document.createElement('div');
+            cell.className = 'structural-cell';
+            cell.appendChild(lineNumber(oldNumber));
+            if (dualNumbers) cell.appendChild(lineNumber(newNumber));
+            cell.appendChild(codeWithChanges(line, changes, kind));
             return cell;
+        }
+
+        function changeMaps(record) {
+            const lhs = new Map();
+            const rhs = new Map();
+            (record.chunks || []).flat().forEach(change => {
+                if (change.lhs) lhs.set(change.lhs.line_number, change.lhs.changes || []);
+                if (change.rhs) rhs.set(change.rhs.line_number, change.rhs.changes || []);
+            });
+            return {lhs, rhs};
+        }
+
+        function visibleAlignedLines(record, maps) {
+            const aligned = record.aligned_lines || [];
+            const visible = new Set();
+            aligned.forEach((pair, index) => {
+                if (maps.lhs.has(pair[0]) || maps.rhs.has(pair[1])) {
+                    for (let offset = -3; offset <= 3; offset += 1) {
+                        if (index + offset >= 0 && index + offset < aligned.length) visible.add(index + offset);
+                    }
+                }
+            });
+            return aligned.map((pair, index) => ({pair, index})).filter(item => visible.has(item.index));
         }
 
         function fileSection(record, sideBySide) {
@@ -480,21 +532,46 @@ cat > "$HTML_FILE" <<EOF
             header.className = 'structural-file-header';
             header.textContent = record.path + (record.language ? ' · ' + record.language : '');
             section.appendChild(header);
-            const changes = (record.chunks || []).flat();
-            changes.forEach(change => {
+            const maps = changeMaps(record);
+            let previousIndex = -2;
+            visibleAlignedLines(record, maps).forEach(({pair, index}) => {
+                if (index > previousIndex + 1) {
+                    const separator = document.createElement('div');
+                    separator.className = 'structural-separator';
+                    separator.textContent = '···';
+                    section.appendChild(separator);
+                }
+                previousIndex = index;
+                const [lhsNumber, rhsNumber] = pair;
+                const lhsChanges = maps.lhs.get(lhsNumber);
+                const rhsChanges = maps.rhs.get(rhsNumber);
+                const changed = lhsChanges || rhsChanges;
                 if (sideBySide) {
                     const row = document.createElement('div');
                     row.className = 'structural-row';
-                    row.append(changedFragment(change.lhs, 'remove'), changedFragment(change.rhs, 'add'));
+                    row.append(
+                        structuralCell(lhsNumber == null ? '' : record.lhsLines[lhsNumber] || '', lhsNumber, null, lhsChanges, 'remove', false),
+                        structuralCell(rhsNumber == null ? '' : record.rhsLines[rhsNumber] || '', rhsNumber, null, rhsChanges, 'add', false)
+                    );
+                    section.appendChild(row);
+                } else if (!changed) {
+                    const row = document.createElement('div');
+                    row.className = 'structural-inline-row';
+                    row.appendChild(structuralCell(record.rhsLines[rhsNumber] || record.lhsLines[lhsNumber] || '', lhsNumber, rhsNumber, [], 'context', true));
                     section.appendChild(row);
                 } else {
-                    [['lhs', 'remove'], ['rhs', 'add']].forEach(([side, kind]) => {
-                        if (!change[side]) return;
+                    if (lhsNumber != null) {
                         const row = document.createElement('div');
                         row.className = 'structural-inline-row';
-                        row.appendChild(changedFragment(change[side], kind));
+                        row.appendChild(structuralCell(record.lhsLines[lhsNumber] || '', lhsNumber, null, lhsChanges, 'remove', true));
                         section.appendChild(row);
-                    });
+                    }
+                    if (rhsNumber != null) {
+                        const row = document.createElement('div');
+                        row.className = 'structural-inline-row';
+                        row.appendChild(structuralCell(record.rhsLines[rhsNumber] || '', null, rhsNumber, rhsChanges, 'add', true));
+                        section.appendChild(row);
+                    }
                 }
             });
             return section;
@@ -550,9 +627,9 @@ generate_git_diff 2>/dev/null | while IFS= read -r line; do
 DIFFTASTIC_HTML="$OUTPUT_DIR/diff/difftastic-diff-content.html"
 generate_difftastic_diff() {
     if [[ "$INCLUDE_UNCOMMITTED" == "true" ]]; then
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_REPORT_WITH_SOURCES=yes DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
     else
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_REPORT_WITH_SOURCES=yes DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
     fi
 }
 

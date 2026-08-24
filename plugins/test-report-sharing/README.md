@@ -79,7 +79,7 @@ plugins/test-report-sharing/scripts/start-ngrok.sh --help
 - Git diff output converted to HTML with syntax highlighting
 - Difftastic structural diff output selectable on the same page when `difft` is installed
 - Difftastic layout selector switches between inline and side-by-side output without leaving the report
-- Difftastic JSON rendered locally in the report, emphasizing only changed structural fragments instead of highlighting entire lines
+- Difftastic JSON rendered locally with old/new source lines to reproduce the official context view: aligned line numbers, unchanged context, and foreground-only emphasis on changed structural fragments
 - Renderer-specific summaries: Git shows line insertions/deletions, while Difftastic shows its structural model and the currently selected display mode
 - Supports comparison against any git ref (branch, commit, tag)
 
