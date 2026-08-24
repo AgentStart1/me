@@ -102,8 +102,10 @@ plugins/test-report-sharing/
 │   ├── generate-report-site.sh  # Generate static site
 │   └── start-ngrok.sh           # Start ngrok tunnel
 ├── templates/
-│   ├── index.html               # HTML template
-│   └── style.css                # Stylesheet
+│   ├── diff-report.html         # Diff page template
+│   ├── diff-report.css          # Diff page stylesheet
+│   ├── report-site.html         # Report index template
+│   └── style.css                # Report index stylesheet
 ├── tests/
 │   └── test-generate-diff-report.sh # Diff renderer smoke tests
 └── README.md                    # This file

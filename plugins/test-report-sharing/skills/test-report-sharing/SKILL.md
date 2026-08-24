@@ -76,8 +76,10 @@ Or run the full workflow via the agent:
 - `scripts/generate-diff-report.sh`: Generates HTML diff report
 - `scripts/generate-report-site.sh`: Assembles static HTML report site
 - `scripts/start-ngrok.sh`: Starts ngrok tunnel for public access
-- `templates/index.html`: HTML template for the report site
-- `templates/style.css`: Stylesheet for the report site
+- `templates/diff-report.html`: Placeholder-based Git/Difftastic report template
+- `templates/diff-report.css`: Diff report stylesheet
+- `templates/report-site.html`: Placeholder-based report index template
+- `templates/style.css`: Report index stylesheet
 
 ## Failure Handling
 
