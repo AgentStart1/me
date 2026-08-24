@@ -54,6 +54,8 @@ Or run the full workflow via the agent:
 - `GIT_BASE_REF`: Base ref for diff comparison (default: `main`)
 - `DIFFTASTIC_COMMAND`: Difftastic executable name or path (default: `difft`)
 - `DIFFTASTIC_WIDTH`: Captured Difftastic output width (default: `160`)
+- `DIFFTASTIC_SKIP_UNCHANGED`: omit files where Difftastic detects no change (default: `true`)
+- `DIFFTASTIC_PARSE_ERROR_LIMIT`: parse errors allowed before line-oriented fallback (default: `100`)
 
 ## Supported Input Formats
 

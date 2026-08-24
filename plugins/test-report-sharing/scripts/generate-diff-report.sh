@@ -24,6 +24,8 @@ COMPARE_REF="${GIT_COMPARE_REF:-HEAD}"
 INCLUDE_UNCOMMITTED="${GIT_INCLUDE_UNCOMMITTED:-true}"
 DIFFTASTIC_COMMAND="${DIFFTASTIC_COMMAND:-difft}"
 DIFFTASTIC_WIDTH="${DIFFTASTIC_WIDTH:-160}"
+DIFFTASTIC_SKIP_UNCHANGED="${DIFFTASTIC_SKIP_UNCHANGED:-true}"
+DIFFTASTIC_PARSE_ERROR_LIMIT="${DIFFTASTIC_PARSE_ERROR_LIMIT:-100}"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -53,6 +55,8 @@ while [[ $# -gt 0 ]]; do
             echo "Environment:"
             echo "  DIFFTASTIC_COMMAND  Difftastic executable name or path (default: difft)"
             echo "  DIFFTASTIC_WIDTH    Difftastic output width (default: 160)"
+            echo "  DIFFTASTIC_SKIP_UNCHANGED  Skip files with no detected changes (default: true)"
+            echo "  DIFFTASTIC_PARSE_ERROR_LIMIT  Parse errors allowed before text fallback (default: 100)"
             echo "  --help, -h         Show this help message"
             exit 0
             ;;
@@ -65,6 +69,16 @@ done
 
 if [[ ! "$DIFFTASTIC_WIDTH" =~ ^[1-9][0-9]*$ ]]; then
     echo "Error: DIFFTASTIC_WIDTH must be a positive integer" >&2
+    exit 1
+fi
+
+if [[ "$DIFFTASTIC_SKIP_UNCHANGED" != "true" && "$DIFFTASTIC_SKIP_UNCHANGED" != "false" ]]; then
+    echo "Error: DIFFTASTIC_SKIP_UNCHANGED must be true or false" >&2
+    exit 1
+fi
+
+if [[ ! "$DIFFTASTIC_PARSE_ERROR_LIMIT" =~ ^[0-9]+$ ]]; then
+    echo "Error: DIFFTASTIC_PARSE_ERROR_LIMIT must be a non-negative integer" >&2
     exit 1
 fi
 
@@ -148,7 +162,9 @@ cat > "$STATS_FILE" <<EOF
   "files_changed": $FILES_CHANGED,
   "insertions": $INSERTIONS,
   "deletions": $DELETIONS,
-  "difftastic_available": $DIFFTASTIC_AVAILABLE
+  "difftastic_available": $DIFFTASTIC_AVAILABLE,
+  "difftastic_skip_unchanged": $DIFFTASTIC_SKIP_UNCHANGED,
+  "difftastic_parse_error_limit": $DIFFTASTIC_PARSE_ERROR_LIMIT
 }
 EOF
 
@@ -627,9 +643,9 @@ generate_git_diff 2>/dev/null | while IFS= read -r line; do
 DIFFTASTIC_HTML="$OUTPUT_DIR/diff/difftastic-diff-content.html"
 generate_difftastic_diff() {
     if [[ "$INCLUDE_UNCOMMITTED" == "true" ]]; then
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_REPORT_WITH_SOURCES=yes DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_REPORT_WITH_SOURCES=yes DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" DFT_SKIP_UNCHANGED="$DIFFTASTIC_SKIP_UNCHANGED" DFT_PARSE_ERROR_LIMIT="$DIFFTASTIC_PARSE_ERROR_LIMIT" git diff "$BASE_REF"
     else
-        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_REPORT_WITH_SOURCES=yes DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" git diff "$BASE_REF"..."$COMPARE_REF"
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_REPORT_WITH_SOURCES=yes DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" DFT_SKIP_UNCHANGED="$DIFFTASTIC_SKIP_UNCHANGED" DFT_PARSE_ERROR_LIMIT="$DIFFTASTIC_PARSE_ERROR_LIMIT" git diff "$BASE_REF"..."$COMPARE_REF"
     fi
 }
 

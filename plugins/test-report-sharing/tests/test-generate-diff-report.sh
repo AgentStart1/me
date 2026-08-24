@@ -48,7 +48,7 @@ mkdir -p "$WORK_DIR/fake tools"
 FAKE_DIFFT="$WORK_DIR/fake tools/difft"
 cat > "$FAKE_DIFFT" <<'EOF'
 #!/usr/bin/env bash
-if [[ "${DFT_UNSTABLE:-}" != "yes" || "${DFT_DISPLAY:-}" != "json" ]]; then
+if [[ "${DFT_UNSTABLE:-}" != "yes" || "${DFT_DISPLAY:-}" != "json" || "${DFT_SKIP_UNCHANGED:-}" != "true" || "${DFT_PARSE_ERROR_LIMIT:-}" != "100" ]]; then
     exit 1
 fi
 printf '%s\n' '{"aligned_lines":[[0,0]],"chunks":[[{"lhs":{"line_number":0,"changes":[{"start":7,"end":13,"content":"before","highlight":"normal"}]},"rhs":{"line_number":0,"changes":[{"start":7,"end":12,"content":"after","highlight":"normal"}]}}]],"language":"Text","path":"example.txt","status":"changed"}'
@@ -82,6 +82,8 @@ assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'visibleAlignedLines(record,
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" 'structural-change-add' "fragment-only addition styling"
 assert_contains "$AVAILABLE_OUTPUT/diff/index.html" "renderer.addEventListener('change'" "renderer switching script"
 assert_contains "$AVAILABLE_OUTPUT/diff/stats.json" '"difftastic_available": true' "available Difftastic stats"
+assert_contains "$AVAILABLE_OUTPUT/diff/stats.json" '"difftastic_skip_unchanged": true' "skip unchanged stats"
+assert_contains "$AVAILABLE_OUTPUT/diff/stats.json" '"difftastic_parse_error_limit": 100' "parse error limit stats"
 
 (
     cd "$REPO_DIR"

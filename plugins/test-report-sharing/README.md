@@ -55,6 +55,8 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 | `GIT_COMPARE_REF` | Compare git ref | `HEAD` |
 | `DIFFTASTIC_COMMAND` | Difftastic executable name or path | `difft` |
 | `DIFFTASTIC_WIDTH` | Captured Difftastic output width | `160` |
+| `DIFFTASTIC_SKIP_UNCHANGED` | Omit files where Difftastic detects no change | `true` |
+| `DIFFTASTIC_PARSE_ERROR_LIMIT` | Parse errors allowed before falling back to line-oriented diff | `100` |
 
 ### Command Line Options
 
