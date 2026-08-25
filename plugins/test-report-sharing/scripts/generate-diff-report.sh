@@ -22,6 +22,10 @@ OUTPUT_DIR="${REPORT_OUTPUT_DIR:-$(get_cache_dir)}"
 BASE_REF="${GIT_BASE_REF:-main}"
 COMPARE_REF="${GIT_COMPARE_REF:-HEAD}"
 INCLUDE_UNCOMMITTED="${GIT_INCLUDE_UNCOMMITTED:-true}"
+DIFFTASTIC_COMMAND="${DIFFTASTIC_COMMAND:-difft}"
+DIFFTASTIC_WIDTH="${DIFFTASTIC_WIDTH:-160}"
+DIFFTASTIC_SKIP_UNCHANGED="${DIFFTASTIC_SKIP_UNCHANGED:-true}"
+DIFFTASTIC_PARSE_ERROR_LIMIT="${DIFFTASTIC_PARSE_ERROR_LIMIT:-100}"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -41,12 +45,18 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             echo "Usage: $0 [--output-dir DIR] [--base-ref REF] [--compare-ref REF]"
             echo ""
-            echo "Generates an HTML diff report from git diff."
+            echo "Generates an HTML report with selectable Git and Difftastic diff views."
             echo ""
             echo "Options:"
             echo "  --output-dir DIR   Output directory for the diff report (default: ./test-reports)"
             echo "  --base-ref REF     Base git ref for comparison (default: main)"
             echo "  --compare-ref REF  Compare git ref (default: HEAD)"
+            echo ""
+            echo "Environment:"
+            echo "  DIFFTASTIC_COMMAND  Difftastic executable name or path (default: difft)"
+            echo "  DIFFTASTIC_WIDTH    Difftastic output width (default: 160)"
+            echo "  DIFFTASTIC_SKIP_UNCHANGED  Skip files with no detected changes (default: true)"
+            echo "  DIFFTASTIC_PARSE_ERROR_LIMIT  Parse errors allowed before text fallback (default: 100)"
             echo "  --help, -h         Show this help message"
             exit 0
             ;;
@@ -56,6 +66,21 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ ! "$DIFFTASTIC_WIDTH" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: DIFFTASTIC_WIDTH must be a positive integer" >&2
+    exit 1
+fi
+
+if [[ "$DIFFTASTIC_SKIP_UNCHANGED" != "true" && "$DIFFTASTIC_SKIP_UNCHANGED" != "false" ]]; then
+    echo "Error: DIFFTASTIC_SKIP_UNCHANGED must be true or false" >&2
+    exit 1
+fi
+
+if [[ ! "$DIFFTASTIC_PARSE_ERROR_LIMIT" =~ ^[0-9]+$ ]]; then
+    echo "Error: DIFFTASTIC_PARSE_ERROR_LIMIT must be a non-negative integer" >&2
+    exit 1
+fi
 
 # Create output directory
 mkdir -p "$OUTPUT_DIR/diff"
@@ -95,6 +120,39 @@ else
     DELETIONS=$(git diff --numstat "$BASE_REF"..."$COMPARE_REF" 2>/dev/null | awk '{sum+=$2} END {print sum+0}' || echo "0")
 fi
 
+# Detect Difftastic without making it a hard dependency.
+DIFFTASTIC_AVAILABLE=false
+DIFFTASTIC_BIN=""
+DIFFTASTIC_WRAPPER=""
+if DIFFTASTIC_BIN=$(command -v "$DIFFTASTIC_COMMAND" 2>/dev/null); then
+    DIFFTASTIC_AVAILABLE=true
+    DIFFTASTIC_WRAPPER=$(mktemp)
+    {
+        printf '#!/usr/bin/env bash\nset -euo pipefail\nDIFFTASTIC_BIN=%q\n' "$DIFFTASTIC_BIN"
+        cat <<'EOF'
+if [[ "${DFT_REPORT_WITH_SOURCES:-}" == "yes" ]]; then
+    diff_json=$("$DIFFTASTIC_BIN" "$@")
+    lhs_source=$(base64 < "$2" | tr -d '\r\n')
+    rhs_source=$(base64 < "$5" | tr -d '\r\n')
+    diff_payload=$(printf '%s' "$diff_json" | base64 | tr -d '\r\n')
+    printf '%s\t%s\t%s\n' "$lhs_source" "$rhs_source" "$diff_payload"
+else
+    exec "$DIFFTASTIC_BIN" "$@"
+fi
+EOF
+    } > "$DIFFTASTIC_WRAPPER"
+    chmod +x "$DIFFTASTIC_WRAPPER"
+fi
+
+cleanup() {
+    if [[ -n "$DIFFTASTIC_WRAPPER" ]]; then
+        rm -f "$DIFFTASTIC_WRAPPER"
+    fi
+}
+trap cleanup EXIT
+
+DIFFTASTIC_COMMAND_HTML=$(printf '%s' "$DIFFTASTIC_COMMAND" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+
 # Generate stats JSON
 cat > "$STATS_FILE" <<EOF
 {
@@ -103,7 +161,10 @@ cat > "$STATS_FILE" <<EOF
   "compare_ref": "$COMPARE_REF",
   "files_changed": $FILES_CHANGED,
   "insertions": $INSERTIONS,
-  "deletions": $DELETIONS
+  "deletions": $DELETIONS,
+  "difftastic_available": $DIFFTASTIC_AVAILABLE,
+  "difftastic_skip_unchanged": $DIFFTASTIC_SKIP_UNCHANGED,
+  "difftastic_parse_error_limit": $DIFFTASTIC_PARSE_ERROR_LIMIT
 }
 EOF
 
@@ -115,184 +176,112 @@ echo "  Deletions: -$DELETIONS"
 # Generate HTML diff report
 HTML_FILE="$OUTPUT_DIR/diff/index.html"
 
-cat > "$HTML_FILE" <<EOF
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Diff Report</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: #f5f5f5;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        .header {
-            background: #2c3e50;
-            color: white;
-            padding: 20px;
-        }
-        .header h1 {
-            font-size: 1.5rem;
-            margin-bottom: 10px;
-        }
-        .stats {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        .stat {
-            background: rgba(255,255,255,0.1);
-            padding: 10px 15px;
-            border-radius: 4px;
-        }
-        .stat-value {
-            font-size: 1.2rem;
-            font-weight: bold;
-        }
-        .stat-label {
-            font-size: 0.85rem;
-            opacity: 0.8;
-        }
-        .content {
-            padding: 20px;
-        }
-        .diff-container {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            border-radius: 4px;
-            overflow-x: auto;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        .diff-header {
-            background: #2d2d2d;
-            padding: 10px 15px;
-            border-bottom: 1px solid #404040;
-            font-weight: bold;
-        }
-        .diff-line {
-            padding: 2px 15px;
-            white-space: pre;
-        }
-        .diff-add {
-            background: #1e3a1e;
-            color: #a8ff60;
-        }
-        .diff-remove {
-            background: #3a1e1e;
-            color: #ff6060;
-        }
-        .diff-context {
-            color: #999;
-        }
-        .diff-info {
-            background: #1e1e3a;
-            color: #9696ff;
-        }
-        .no-diff {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-        }
-        .back-link {
-            display: inline-block;
-            margin-top: 20px;
-            color: #3498db;
-            text-decoration: none;
-        }
-        .back-link:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Code Diff Report</h1>
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-value">$FILES_CHANGED</div>
-                    <div class="stat-label">Files Changed</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value">+$INSERTIONS</div>
-                    <div class="stat-label">Insertions</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value">-$DELETIONS</div>
-                    <div class="stat-label">Deletions</div>
-                </div>
-            </div>
-        </div>
-        <div class="content">
-            <div class="diff-container" id="diff-content">
-                <div class="no-diff">Loading diff...</div>
-            </div>
-            <a href="../index.html" class="back-link">← Back to Report</a>
-        </div>
-    </div>
-    <script>
-        // Stats are already embedded in the HTML
-    </script>
-</body>
-</html>
-EOF
-
-# Generate diff content HTML
-DIFF_HTML="$OUTPUT_DIR/diff/diff-content.html"
-if [[ "$INCLUDE_UNCOMMITTED" == "true" ]]; then
-    git diff "$BASE_REF" 2>/dev/null | while IFS= read -r line; do
-        if [[ "$line" == @@* ]]; then
-            echo "<div class=\"diff-line diff-info\">$(echo "$line" | sed 's/</\&lt;/g; s/>/\&gt;/g')</div>"
-        elif [[ "$line" == +* ]]; then
-            echo "<div class=\"diff-line diff-add\">$(echo "$line" | sed 's/</\&lt;/g; s/>/\&gt;/g')</div>"
-        elif [[ "$line" == -* ]]; then
-            echo "<div class=\"diff-line diff-remove\">$(echo "$line" | sed 's/</\&lt;/g; s/>/\&gt;/g')</div>"
-        else
-            echo "<div class=\"diff-line diff-context\">$(echo "$line" | sed 's/</\&lt;/g; s/>/\&gt;/g')</div>"
-        fi
-    done > "$DIFF_HTML" 2>/dev/null || echo "<div class=\"no-diff\">No diff available</div>" > "$DIFF_HTML"
+DIFFTASTIC_DISABLED=""
+if [[ "$DIFFTASTIC_AVAILABLE" != "true" ]]; then
+    DIFFTASTIC_DISABLED=" disabled"
+    DIFFTASTIC_NOTE="Difftastic is unavailable because $DIFFTASTIC_COMMAND_HTML was not found."
 else
-    git diff "$BASE_REF"..."$COMPARE_REF" 2>/dev/null | while IFS= read -r line; do
-        if [[ "$line" == @@* ]]; then
-            echo "<div class=\"diff-line diff-info\">$(echo "$line" | sed 's/</\&lt;/g; s/>/\&gt;/g')</div>"
-        elif [[ "$line" == +* ]]; then
-            echo "<div class=\"diff-line diff-add\">$(echo "$line" | sed 's/</\&lt;/g; s/>/\&gt;/g')</div>"
-        elif [[ "$line" == -* ]]; then
-            echo "<div class=\"diff-line diff-remove\">$(echo "$line" | sed 's/</\&lt;/g; s/>/\&gt;/g')</div>"
-        else
-            echo "<div class=\"diff-line diff-context\">$(echo "$line" | sed 's/</\&lt;/g; s/>/\&gt;/g')</div>"
-        fi
-    done > "$DIFF_HTML" 2>/dev/null || echo "<div class=\"no-diff\">No diff available</div>" > "$DIFF_HTML"
+    DIFFTASTIC_NOTE="Choose the renderer used for this comparison."
 fi
 
-# Update HTML to include diff content
-# Use a temporary file to avoid sed issues with special characters
+render_diff_template() {
+    local template="$PLUGIN_DIR/templates/diff-report.html"
+    local stylesheet="$PLUGIN_DIR/templates/diff-report.css"
+    if [[ ! -f "$template" ]] || [[ ! -f "$stylesheet" ]]; then
+        echo "Error: Diff report template or stylesheet is missing" >&2
+        exit 1
+    fi
+    cp "$stylesheet" "$OUTPUT_DIR/diff/diff-report.css"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line//@@FILES_CHANGED@@/$FILES_CHANGED}"
+        line="${line//@@INSERTIONS@@/$INSERTIONS}"
+        line="${line//@@DELETIONS@@/$DELETIONS}"
+        line="${line//@@DIFFTASTIC_DISABLED@@/$DIFFTASTIC_DISABLED}"
+        line="${line//@@DIFFTASTIC_NOTE@@/$DIFFTASTIC_NOTE}"
+        printf '%s\n' "$line"
+    done < "$template"
+}
+
+render_diff_template > "$HTML_FILE"
+
+# Generate Git diff content HTML.
+GIT_DIFF_HTML="$OUTPUT_DIR/diff/git-diff-content.html"
+generate_git_diff() {
+    if [[ "$INCLUDE_UNCOMMITTED" == "true" ]]; then
+        git diff "$BASE_REF"
+    else
+        git diff "$BASE_REF"..."$COMPARE_REF"
+    fi
+}
+
+generate_git_diff 2>/dev/null | while IFS= read -r line; do
+        if [[ "$line" == @@* ]]; then
+            echo "<div class=\"diff-line diff-info\">$(printf '%s' "$line" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')</div>"
+        elif [[ "$line" == +* ]]; then
+            echo "<div class=\"diff-line diff-add\">$(printf '%s' "$line" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')</div>"
+        elif [[ "$line" == -* ]]; then
+            echo "<div class=\"diff-line diff-remove\">$(printf '%s' "$line" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')</div>"
+        else
+            echo "<div class=\"diff-line diff-context\">$(printf '%s' "$line" | sed 's/\&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')</div>"
+        fi
+    done > "$GIT_DIFF_HTML" 2>/dev/null || echo "<div class=\"no-diff\">No Git diff available</div>" > "$GIT_DIFF_HTML"
+
+# Generate Difftastic content when the executable is available. Git invokes the
+# external diff once per changed file; DFT_* keeps the captured output static.
+DIFFTASTIC_HTML="$OUTPUT_DIR/diff/difftastic-diff-content.html"
+generate_difftastic_diff() {
+    if [[ "$INCLUDE_UNCOMMITTED" == "true" ]]; then
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_REPORT_WITH_SOURCES=yes DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" DFT_SKIP_UNCHANGED="$DIFFTASTIC_SKIP_UNCHANGED" DFT_PARSE_ERROR_LIMIT="$DIFFTASTIC_PARSE_ERROR_LIMIT" git diff "$BASE_REF"
+    else
+        GIT_EXTERNAL_DIFF="$DIFFTASTIC_WRAPPER" DFT_REPORT_WITH_SOURCES=yes DFT_UNSTABLE=yes DFT_DISPLAY=json DFT_WIDTH="$DIFFTASTIC_WIDTH" DFT_SKIP_UNCHANGED="$DIFFTASTIC_SKIP_UNCHANGED" DFT_PARSE_ERROR_LIMIT="$DIFFTASTIC_PARSE_ERROR_LIMIT" git diff "$BASE_REF"..."$COMPARE_REF"
+    fi
+}
+
+if [[ "$DIFFTASTIC_AVAILABLE" == "true" ]]; then
+    DIFFTASTIC_JSON="$OUTPUT_DIR/diff/difftastic.jsonl"
+    if generate_difftastic_diff 2>/dev/null > "$DIFFTASTIC_JSON"; then
+        if [[ -s "$DIFFTASTIC_JSON" ]]; then
+            DIFFTASTIC_BASE64=$(base64 < "$DIFFTASTIC_JSON" | tr -d '\r\n')
+            cat > "$DIFFTASTIC_HTML" <<EOF
+<div class="difftastic-layout" id="difftastic-inline-view">
+    <div class="difftastic-output" id="difftastic-inline-output">Rendering Difftastic JSON...</div>
+</div>
+<div class="difftastic-layout" id="difftastic-side-by-side-view" hidden>
+    <div class="difftastic-output" id="difftastic-side-by-side-output">Rendering Difftastic JSON...</div>
+</div>
+<script type="application/json" id="difftastic-json">$DIFFTASTIC_BASE64</script>
+EOF
+        else
+            echo "<div class=\"no-diff\">No Difftastic diff available</div>" > "$DIFFTASTIC_HTML"
+        fi
+    else
+        echo "<div class=\"no-diff\">Difftastic failed to generate JSON output</div>" > "$DIFFTASTIC_HTML"
+    fi
+else
+    echo "<div class=\"no-diff\">Difftastic executable '$DIFFTASTIC_COMMAND_HTML' was not found</div>" > "$DIFFTASTIC_HTML"
+fi
+
+# Update HTML to include both diff fragments.
 TEMP_HTML=$(mktemp)
 awk '
-/<div class="no-diff">Loading diff...<\/div>/ {
-    while ((getline line < "'"$DIFF_HTML"'") > 0) {
+/<div class="no-diff">Loading Git diff...<\/div>/ {
+    while ((getline line < "'"$GIT_DIFF_HTML"'") > 0) {
         print line
     }
-    close("'"$DIFF_HTML"'")
+    close("'"$GIT_DIFF_HTML"'")
+    next
+}
+{ print }
+' "$HTML_FILE" > "$TEMP_HTML"
+mv "$TEMP_HTML" "$HTML_FILE"
+
+TEMP_HTML=$(mktemp)
+awk '
+/<div class="no-diff">Loading Difftastic diff...<\/div>/ {
+    while ((getline line < "'"$DIFFTASTIC_HTML"'") > 0) {
+        print line
+    }
+    close("'"$DIFFTASTIC_HTML"'")
     next
 }
 { print }
