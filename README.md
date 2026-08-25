@@ -21,7 +21,7 @@ A local Codex Android and client UI plugin collection. It currently includes And
 - `plugins/client-ui-best-practices/.codex-plugin/plugin.json`: Client UI Best Practices plugin manifest.
 - `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, Compose state collection, handler-owned async work, database observability with reactive DAO Flow and global write events, and UI-free business test guidance.
 - `plugins/test-report-sharing/.claude-plugin/plugin.json`: Test Report Sharing plugin manifest.
-- `plugins/test-report-sharing/skills/`: Test result collection, E2E recording capture, diff report generation, and ngrok tunnel sharing.
+- `plugins/test-report-sharing/skills/`: Test result collection, E2E recording capture, selectable Git/Difftastic diff report generation, and ngrok tunnel sharing.
 - `plugins/test-report-sharing/scripts/`: Shell scripts for collecting test results, recordings, generating diffs, and starting ngrok.
 - `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
 - `agents/`: prompts specific to maintaining this plugin collection.

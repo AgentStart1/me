@@ -1,0 +1,187 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background: #f5f5f5;
+    padding: 20px;
+}
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+.header {
+    background: #2c3e50;
+    color: white;
+    padding: 20px;
+}
+.header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+}
+.stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+.stats[hidden] {
+    display: none;
+}
+.stat {
+    background: rgba(255,255,255,0.1);
+    padding: 10px 15px;
+    border-radius: 4px;
+}
+.stat-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+.stat-label {
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+.content {
+    padding: 20px;
+}
+.diff-container {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.diff-header {
+    background: #2d2d2d;
+    padding: 10px 15px;
+    border-bottom: 1px solid #404040;
+    font-weight: bold;
+}
+.diff-line {
+    padding: 2px 15px;
+    white-space: pre;
+}
+.diff-add {
+    background: #1e3a1e;
+    color: #a8ff60;
+}
+.diff-remove {
+    background: #3a1e1e;
+    color: #ff6060;
+}
+.diff-context {
+    color: #999;
+}
+.diff-info {
+    background: #1e1e3a;
+    color: #9696ff;
+}
+.view-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+.view-controls select {
+    padding: 8px 12px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: white;
+}
+.view-note {
+    color: #666;
+    font-size: 0.9rem;
+}
+.diff-view[hidden] {
+    display: none;
+}
+.difftastic-layout[hidden],
+#difftastic-layout-control[hidden] {
+    display: none;
+}
+.difftastic-output {
+    padding: 12px 15px;
+    white-space: pre;
+}
+.structural-file {
+    border-bottom: 1px solid #404040;
+}
+.structural-file:last-child {
+    border-bottom: 0;
+}
+.structural-file-header {
+    padding: 10px 15px;
+    background: #2d2d2d;
+    color: #f4e66a;
+    font-weight: 700;
+}
+.structural-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    border-top: 1px solid #303030;
+}
+.structural-cell {
+    display: flex;
+    min-width: 0;
+    padding: 5px 10px;
+}
+.structural-cell + .structural-cell {
+    border-left: 1px solid #404040;
+}
+.structural-line-number {
+    flex: 0 0 3.25em;
+    color: #777;
+    text-align: right;
+    padding-right: 12px;
+    user-select: none;
+}
+.structural-code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.structural-change-remove {
+    color: #ff5f5f;
+    font-weight: 700;
+}
+.structural-change-add {
+    color: #8fe234;
+    font-weight: 700;
+}
+.structural-gap {
+    color: #777;
+    padding: 0 0.35em;
+}
+.structural-inline-row {
+    border-top: 1px solid #303030;
+}
+.structural-inline-row .structural-cell {
+    width: 100%;
+}
+.structural-separator {
+    padding: 2px 15px 2px 5.5em;
+    color: #777;
+    border-top: 1px solid #303030;
+}
+.no-diff {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+.back-link {
+    display: inline-block;
+    margin-top: 20px;
+    color: #3498db;
+    text-decoration: none;
+}
+.back-link:hover {
+    text-decoration: underline;
+}

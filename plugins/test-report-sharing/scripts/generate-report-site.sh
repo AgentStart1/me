@@ -108,19 +108,29 @@ EOF
 }
 
 # Generate diff section
+read_diff_stat() {
+    local stats_file="$1"
+    local field="$2"
+    if command -v jq >/dev/null 2>&1; then
+        jq -r ".$field" "$stats_file"
+    else
+        sed -n "s/.*\"$field\"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p" "$stats_file" | head -n 1
+    fi
+}
+
 generate_diff_section() {
     local diff_dir="$OUTPUT_DIR/diff"
     if [[ -d "$diff_dir" ]] && [[ -f "$diff_dir/index.html" ]]; then
         local stats_file="$diff_dir/stats.json"
         if [[ -f "$stats_file" ]]; then
             local files_changed insertions deletions
-            files_changed=$(jq -r '.files_changed' "$stats_file")
-            insertions=$(jq -r '.insertions' "$stats_file")
-            deletions=$(jq -r '.deletions' "$stats_file")
+            files_changed=$(read_diff_stat "$stats_file" "files_changed")
+            insertions=$(read_diff_stat "$stats_file" "insertions")
+            deletions=$(read_diff_stat "$stats_file" "deletions")
             cat <<EOF
         <div class="section">
             <h2>📝 Code Diff</h2>
-            <p>$files_changed file(s) changed: <span class="insertions">+$insertions</span> / <span class="deletions">-$deletions</span></p>
+            <p>$files_changed file(s) changed. Git line stats: <span class="insertions">+$insertions</span> / <span class="deletions">-$deletions</span></p>
             <a href="diff/index.html" class="btn">View Full Diff</a>
         </div>
 EOF
@@ -143,148 +153,30 @@ EOF
 }
 
 # Generate main index.html
-cat > "$OUTPUT_DIR/index.html" <<EOF
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Report</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: #f5f5f5;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .header h1 {
-            font-size: 2rem;
-            margin-bottom: 10px;
-        }
-        .header p {
-            opacity: 0.9;
-        }
-        .section {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .section h2 {
-            color: #2c3e50;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #eee;
-        }
-        .no-data {
-            color: #999;
-            font-style: italic;
-        }
-        .recordings-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 15px;
-        }
-        .recording-item {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center;
-        }
-        .recording-item video,
-        .recording-item img {
-            max-width: 100%;
-            border-radius: 4px;
-            margin-bottom: 10px;
-        }
-        .recording-item.more {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #666;
-            font-size: 1.2rem;
-        }
-        .insertions {
-            color: #27ae60;
-            font-weight: bold;
-        }
-        .deletions {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-        .btn {
-            display: inline-block;
-            background: #3498db;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 4px;
-            text-decoration: none;
-            margin-top: 10px;
-            transition: background 0.3s;
-        }
-        .btn:hover {
-            background: #2980b9;
-        }
-        ul {
-            list-style: none;
-            margin-top: 10px;
-        }
-        li {
-            padding: 5px 0;
-        }
-        li a {
-            color: #3498db;
-            text-decoration: none;
-        }
-        li a:hover {
-            text-decoration: underline;
-        }
-        .footer {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            font-size: 0.9rem;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>📋 Test Report</h1>
-            <p>Generated on $(date +"%Y-%m-%d %H:%M:%S")</p>
-        </div>
+REPORT_GENERATED_AT=$(date +"%Y-%m-%d %H:%M:%S")
+REPORTS_SECTION=$(generate_reports_section)
+DIFF_SECTION=$(generate_diff_section)
+REPORT_TEMPLATE="$PLUGIN_DIR/templates/report-site.html"
 
-$(generate_reports_section)
+if [[ ! -f "$REPORT_TEMPLATE" ]]; then
+    echo "Error: Report site template not found at $REPORT_TEMPLATE" >&2
+    exit 1
+fi
 
-$(generate_diff_section)
-
-        <div class="footer">
-            <p>Generated by test-report-sharing plugin</p>
-        </div>
-    </div>
-</body>
-</html>
-EOF
+while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+        *'<!-- @@REPORTS_SECTION@@ -->'*)
+            printf '%s\n' "$REPORTS_SECTION"
+            ;;
+        *'<!-- @@DIFF_SECTION@@ -->'*)
+            printf '%s\n' "$DIFF_SECTION"
+            ;;
+        *)
+            line="${line//@@GENERATED_AT@@/$REPORT_GENERATED_AT}"
+            printf '%s\n' "$line"
+            ;;
+    esac
+done < "$REPORT_TEMPLATE" > "$OUTPUT_DIR/index.html"
 
 echo ""
 echo "Report site generated: $OUTPUT_DIR/index.html"

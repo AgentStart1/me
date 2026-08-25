@@ -5,7 +5,7 @@ Collect reports and code diffs, then share them via a public ngrok tunnel.
 ## Features
 
 - **Report Collection**: Automatically discovers and collects test reports (JUnit XML, HTML, E2E) from standard project locations
-- **Diff Report Generation**: Creates HTML diff reports with syntax highlighting from git changes
+- **Diff Report Generation**: Creates HTML reports that switch between ordinary Git diff and locally rendered Difftastic JSON, with inline and side-by-side layouts
 - **Static Site Generation**: Assembles all artifacts into a beautiful, responsive HTML report site
 - **Ngrok Integration**: Exposes the report site via a public ngrok tunnel for easy sharing
 
@@ -53,6 +53,10 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 | `NGROK_PORT` | Local port to expose | `8080` |
 | `GIT_BASE_REF` | Base git ref for diff comparison | `main` |
 | `GIT_COMPARE_REF` | Compare git ref | `HEAD` |
+| `DIFFTASTIC_COMMAND` | Difftastic executable name or path | `difft` |
+| `DIFFTASTIC_WIDTH` | Captured Difftastic output width | `160` |
+| `DIFFTASTIC_SKIP_UNCHANGED` | Omit files where Difftastic detects no change | `true` |
+| `DIFFTASTIC_PARSE_ERROR_LIMIT` | Parse errors allowed before falling back to line-oriented diff | `100` |
 
 ### Command Line Options
 
@@ -75,6 +79,10 @@ plugins/test-report-sharing/scripts/start-ngrok.sh --help
 
 ### Diff Reports
 - Git diff output converted to HTML with syntax highlighting
+- Difftastic structural diff output selectable on the same page when `difft` is installed
+- Difftastic layout selector switches between inline and side-by-side output without leaving the report
+- Difftastic JSON rendered locally with old/new source lines to reproduce the official context view: aligned line numbers, unchanged context, and foreground-only emphasis on changed structural fragments
+- Renderer-specific summaries: Git shows line insertions/deletions, while Difftastic shows its structural model and the currently selected display mode
 - Supports comparison against any git ref (branch, commit, tag)
 
 ## Project Structure
@@ -94,16 +102,21 @@ plugins/test-report-sharing/
 │   ├── generate-report-site.sh  # Generate static site
 │   └── start-ngrok.sh           # Start ngrok tunnel
 ├── templates/
-│   ├── index.html               # HTML template
-│   └── style.css                # Stylesheet
+│   ├── diff-report.html         # Diff page template
+│   ├── diff-report.css          # Diff page stylesheet
+│   ├── report-site.html         # Report index template
+│   └── style.css                # Report index stylesheet
+├── tests/
+│   └── test-generate-diff-report.sh # Diff renderer smoke tests
 └── README.md                    # This file
 ```
 
 ## Requirements
 
 - **Bash**: Scripts require bash 4.0+
-- **jq**: JSON processing (usually pre-installed)
+- **jq**: Optional; used for JSON statistics when available, with a built-in fallback
 - **git**: For diff report generation
+- **Difftastic (`difft`)**: Optional, for structural diff rendering
 - **Python 3**: For local HTTP server (optional)
 - **ngrok**: For public tunnel (optional, can use local server)
 
@@ -189,6 +202,10 @@ python3 -m http.server 8080
 - Ensure you're in a git repository
 - Check that the base ref exists: `git rev-parse main`
 - Verify you have changes to compare
+
+### Difftastic is unavailable
+- Install Difftastic and make sure `difft` is on `PATH`, or set `DIFFTASTIC_COMMAND` to its executable path
+- The generated page disables the Difftastic choice when it is unavailable; ordinary Git diff remains usable
 
 ## License
 

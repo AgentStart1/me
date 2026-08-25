@@ -1,10 +1,10 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "test-report-sharing",
-  "description": "Collect test results, E2E recordings, and code diffs, then share them via a public ngrok tunnel.",
+  "description": "Collect test results, E2E recordings, and selectable Git or Difftastic code diffs, then share them via a public ngrok tunnel.",
   "author": {
     "name": "Test Report Sharing"
   },
-  "version": "0.2.0.20260815020000",
+  "version": "0.2.0.20260824151123",
   "skills": ["./skills/"]
 }
