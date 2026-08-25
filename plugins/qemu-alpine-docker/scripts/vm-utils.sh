@@ -202,26 +202,6 @@ wait_for_docker_api() {
     return 1
 }
 
-rsync_to_vm() {
-    local src="${1:-}" dest="${2:-/root/project}"
-    [ -n "$src" ] || { echo "Error: No source directory provided." >&2; return 1; }
-    local exclude_args=() pattern
-    if [ -n "${SYNC_EXCLUDE:-}" ]; then
-        IFS=',' read -ra excludes <<< "$SYNC_EXCLUDE"
-        for pattern in "${excludes[@]}"; do exclude_args+=("--exclude=${pattern}"); done
-    fi
-    if command -v rsync >/dev/null 2>&1; then
-        rsync -avz --delete "${exclude_args[@]}" \
-            -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $(ssh_port) -i ${SSH_KEY}" \
-            "$src/" "root@${SSH_HOST:-127.0.0.1}:${dest}/"
-    else
-        echo "Warning: rsync not found; scp fallback does not apply SYNC_EXCLUDE." >&2
-        scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -P "$(ssh_port)" -i "$SSH_KEY" -r "$src/." \
-            "root@${SSH_HOST:-127.0.0.1}:${dest}/"
-    fi
-}
-
 download_file() {
     local url="$1" dest="$2"
     mkdir -p "$(dirname "$dest")"

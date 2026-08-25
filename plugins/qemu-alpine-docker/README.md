@@ -13,7 +13,7 @@ This plugin creates one persistent Alpine Linux VM for host-side Docker and Test
 - Docker images remain on the qcow2 disk and are reused by later test runs. Do not recreate the VM or run `docker image prune -a` if cache reuse matters.
 - Testcontainers Ryuk stays enabled and uses the guest Docker socket.
 
-Host bind mounts are not directly available to the remote guest daemon. Use `sync-code.sh`, build contexts, or named volumes when tests need host files.
+Host bind mounts are not directly available to the remote guest daemon. Use Docker build contexts or named volumes when tests need host files.
 
 ## Prerequisites
 
@@ -63,7 +63,8 @@ Other operations:
 
 ```bash
 ./scripts/run-docker.sh -- ps
-./scripts/sync-code.sh -- . /root/project
+./scripts/sync-code.sh                # interactive SSH session
+./scripts/sync-code.sh --sftp         # SFTP session
 ./scripts/stop-vm.sh ./profiles/dev.profile
 ```
 
@@ -77,7 +78,6 @@ The dev and test profiles intentionally use the same `VM_NAME`, disk, SSH/API po
 - `PORT_FORWARD=host:guest,...` for additional fixed loopback forwards
 - `ALPINE_BRANCH` and `ALPINE_MIRROR_BASE`
 - `PRELOAD_IMAGES=image,...`
-- `SYNC_EXCLUDE=pattern,...`
 
 Fixed host ports must not overlap the Testcontainers range. All forwards bind to `127.0.0.1`.
 

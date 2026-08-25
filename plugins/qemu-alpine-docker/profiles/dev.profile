@@ -14,4 +14,3 @@ ALPINE_BRANCH=v3.24
 ALPINE_MIRROR_BASE=https://mirrors.aliyun.com/alpine
 # Optional comma-separated images to pull once during provisioning.
 PRELOAD_IMAGES=
-SYNC_EXCLUDE=.git,node_modules,build,.gradle,__pycache__,.venv,target

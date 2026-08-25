@@ -26,7 +26,7 @@ Use this skill for the bundled Alpine VM instead of configuring a Windows bridge
 - `scripts/stop-vm.sh`: graceful or forced shutdown
 - `scripts/run-testcontainers.sh`: host test command using guest Docker
 - `scripts/run-docker.sh`: guest Docker CLI over SSH
-- `scripts/sync-code.sh`: host-to-guest file sync
+- `scripts/sync-code.sh`: open an interactive SSH or SFTP session to the guest
 - `profiles/dev.profile` and `profiles/test.profile`
 - `tests/test-vm-utils.sh`
 
@@ -72,7 +72,7 @@ The range may contain at most 512 ports. Additional `PORT_FORWARD=host:guest,...
 
 ## Limitations
 
-Because Docker runs in a remote guest, Windows host paths cannot be used as ordinary Docker bind mounts. Prefer `sync-code.sh`, Docker build contexts, named volumes, or test fixtures copied through the Docker API.
+Because Docker runs in a remote guest, Windows host paths cannot be used as ordinary Docker bind mounts. Prefer Docker build contexts, named volumes, or test fixtures copied through the Docker API.
 
 If provisioning leaves a disk without a ready marker, inspect the install and verify console logs. When installation is known to be complete and only verification failed, run `VERIFY_EXISTING=true ./scripts/create-vm.sh <profile>` to resume verification. Do not remove the VM directory unless the user explicitly chooses to rebuild it.
 
