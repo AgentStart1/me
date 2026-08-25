@@ -54,7 +54,6 @@ Run host tests through the guest Docker API:
 
 ```bash
 ./scripts/run-testcontainers.sh -- npm test
-./scripts/run-testcontainers.sh --profile ./profiles/test.profile -- ./gradlew test
 ```
 
 The wrapper exports `DOCKER_HOST`, `TESTCONTAINERS_HOST_OVERRIDE`, and `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` for the child process. It keeps Ryuk enabled. Random published ports work when the framework asks Docker to assign a port because guest allocation and host forwards share the configured range.
@@ -67,8 +66,6 @@ Other operations:
 ./scripts/sync-code.sh --sftp         # SFTP session
 ./scripts/stop-vm.sh ./profiles/dev.profile
 ```
-
-The dev and test profiles intentionally use the same `VM_NAME`, disk, SSH/API ports, and Testcontainers range. They may vary CPU and memory without losing cached Docker layers.
 
 ## Profile settings
 

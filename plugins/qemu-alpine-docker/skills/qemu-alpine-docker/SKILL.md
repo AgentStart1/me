@@ -27,7 +27,7 @@ Use this skill for the bundled Alpine VM instead of configuring a Windows bridge
 - `scripts/run-testcontainers.sh`: host test command using guest Docker
 - `scripts/run-docker.sh`: guest Docker CLI over SSH
 - `scripts/sync-code.sh`: open an interactive SSH or SFTP session to the guest
-- `profiles/dev.profile` and `profiles/test.profile`
+- `profiles/dev.profile`
 - `tests/test-vm-utils.sh`
 
 ## Workflow
@@ -66,7 +66,7 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 - `TESTCONTAINERS_PORT_START`
 - `TESTCONTAINERS_PORT_END`
 
-The range may contain at most 512 ports. Additional `PORT_FORWARD=host:guest,...` mappings must not overlap reserved ports. The bundled dev and test profiles share one `VM_NAME` and disk; test resource values may differ.
+The range may contain at most 512 ports. Additional `PORT_FORWARD=host:guest,...` mappings must not overlap reserved ports.
 
 `PRELOAD_IMAGES` optionally pulls a comma-separated image list during provisioning. Otherwise, Testcontainers pulls once and Docker reuses the layers from the persistent disk.
 
