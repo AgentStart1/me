@@ -9,7 +9,7 @@ Use this skill for the bundled Alpine VM instead of configuring a Windows bridge
 
 ## Design invariants
 
-- Run at most one plugin VM at a time. The scripts enforce a global lock.
+- Run at most one plugin VM at a time. The scripts serialize lock-state updates with an atomic guard and enforce a global VM lock.
 - Use pure TCG and QEMU user-mode networking.
 - Bind every host forward to `127.0.0.1`.
 - Reuse the persistent qcow2 disk so Docker images survive between test runs.
@@ -68,7 +68,7 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 
 The range may contain at most 512 ports. Additional `PORT_FORWARD=host:guest,...` mappings must not overlap reserved ports.
 
-`PRELOAD_IMAGES` optionally pulls a comma-separated image list during provisioning. Otherwise, Testcontainers pulls once and Docker reuses the layers from the persistent disk.
+`PRELOAD_IMAGES` optionally pulls a comma-separated image list during provisioning. Registry paths, tags, digests, dots, dashes, and underscores are accepted. Otherwise, Testcontainers pulls once and Docker reuses the layers from the persistent disk.
 
 ## Limitations
 

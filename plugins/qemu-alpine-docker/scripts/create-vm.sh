@@ -34,6 +34,8 @@ KERNEL_IMAGE="${VM_HOME}/vmlinuz-virt"
 INITRAMFS_IMAGE="${VM_HOME}/initramfs-virt"
 INSTALL_LOG="${VM_HOME}/install-console.log"
 BOOT_LOG="${VM_HOME}/verify-console.log"
+VM_DISK_NATIVE="$(qemu_native_path "$VM_DISK")"
+MODIFIED_ISO_NATIVE="$(qemu_native_path "$MODIFIED_ISO")"
 INSTALL_LOG_NATIVE="$(qemu_native_path "$INSTALL_LOG")"
 BOOT_LOG_NATIVE="$(qemu_native_path "$BOOT_LOG")"
 KERNEL_IMAGE_NATIVE="$(qemu_native_path "$KERNEL_IMAGE")"
@@ -138,7 +140,7 @@ until setup-apkrepos "$ALIYUN_MAIN" "$ALIYUN_COMMUNITY"; do
     [ "$repo_attempt" -lt 10 ] || exit 1
     sleep 3
 done
-apk add docker docker-cli-compose openssh
+apk add cgroupfs-mount docker docker-cli-compose openssh
 rc-update add cgroups default
 rc-update add docker default
 rc-update add sshd default
@@ -169,25 +171,25 @@ rm -f "${OVERLAY_DIR}/localhost.apkovl.tar.gz"
 
 echo "Creating unattended Alpine ISO..." >&2
 rm -f "$MODIFIED_ISO"
-xorriso -indev "$VM_ISO" -outdev "$MODIFIED_ISO" \
+xorriso -indev "$VM_ISO" -outdev "$MODIFIED_ISO_NATIVE" \
     -map "$OVERLAY_ARCHIVE" /localhost.apkovl.tar.gz \
     -boot_image any replay >/dev/null
 
 rm -f "$KERNEL_IMAGE" "$INITRAMFS_IMAGE"
-xorriso -osirrox on -indev "$MODIFIED_ISO" \
+xorriso -osirrox on -indev "$MODIFIED_ISO_NATIVE" \
     -extract /boot/vmlinuz-virt "$KERNEL_IMAGE" \
     -extract /boot/initramfs-virt "$INITRAMFS_IMAGE" >/dev/null
 
 echo "Creating persistent disk ${VM_DISK} (${VM_DISK_SIZE})..." >&2
-"$QEMU_IMG_BIN" create -f qcow2 "$VM_DISK" "$VM_DISK_SIZE"
+"$QEMU_IMG_BIN" create -f qcow2 "$VM_DISK_NATIVE" "$VM_DISK_SIZE"
 
 install_args=(
     -name "${VM_NAME}-install"
     -accel tcg,thread=multi
     -m "$VM_MEMORY"
     -smp "$VM_CPUS"
-    -drive "file=${VM_DISK},format=qcow2,if=virtio"
-    -cdrom "$MODIFIED_ISO"
+    -drive "file=${VM_DISK_NATIVE},format=qcow2,if=virtio"
+    -cdrom "$MODIFIED_ISO_NATIVE"
     -kernel "$KERNEL_IMAGE_NATIVE"
     -initrd "$INITRAMFS_IMAGE_NATIVE"
     -append "modules=loop,squashfs,sd-mod,usb-storage,virtio_net,af_packet,ext4,fat,vfat modloop=/media/sr0/boot/modloop-virt console=ttyS0,115200"
@@ -210,7 +212,7 @@ if ! wait "$QEMU_PID"; then
     echo "Error: installer QEMU exited unsuccessfully; see ${INSTALL_LOG}." >&2
     exit 1
 fi
-ACTUAL_DISK_SIZE="$("$QEMU_IMG_BIN" info --output=json "$VM_DISK" | sed -n 's/.*"actual-size":[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+ACTUAL_DISK_SIZE="$("$QEMU_IMG_BIN" info --output=json "$VM_DISK_NATIVE" | sed -n 's/.*"actual-size":[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)"
 if [ -z "$ACTUAL_DISK_SIZE" ] || [ "$ACTUAL_DISK_SIZE" -lt 1048576 ]; then
     echo "Error: installer powered off without writing an Alpine system to disk; see ${INSTALL_LOG}." >&2
     exit 1
@@ -225,7 +227,7 @@ verify_args=(
     -accel tcg,thread=multi
     -m "$VM_MEMORY"
     -smp "$VM_CPUS"
-    -drive "file=${VM_DISK},format=qcow2,if=virtio"
+    -drive "file=${VM_DISK_NATIVE},format=qcow2,if=virtio"
     -display none
     -serial "file:${BOOT_LOG_NATIVE}"
     -monitor none
@@ -246,10 +248,7 @@ ssh_exec "set -- \$(sysctl -n net.ipv4.ip_local_port_range); test \"\$1\" = '${T
 if [ -n "$PRELOAD_IMAGES" ]; then
     IFS=',' read -ra preload_list <<< "$PRELOAD_IMAGES"
     for image in "${preload_list[@]}"; do
-        [[ "$image" =~ ^[A-Za-z0-9._/:@-]+$ ]] || {
-            echo "Error: Invalid PRELOAD_IMAGES entry '${image}'." >&2
-            exit 1
-        }
+        validate_image_reference "$image"
         ssh_exec "docker image inspect '${image}' >/dev/null 2>&1 || docker pull '${image}'"
     done
 fi

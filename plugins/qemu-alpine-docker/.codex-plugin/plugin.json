@@ -1,6 +1,6 @@
 {
   "name": "qemu-alpine-docker",
-  "version": "0.3.0.20260825115910",
+  "version": "0.3.1+local.20260827012757",
   "description": "Persistent pure-TCG QEMU Alpine Docker VM for Testcontainers development and testing on Windows.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers",

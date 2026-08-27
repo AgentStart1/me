@@ -25,7 +25,7 @@ TIMEOUT="${TIMEOUT:-30}"
 # Check if running
 if ! vm_is_running; then
     echo "VM '${VM_NAME}' is not running." >&2
-    rm -f "$(vm_pid_file)"
+    clear_vm_process_state
     exit 0
 fi
 

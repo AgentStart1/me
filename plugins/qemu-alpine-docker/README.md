@@ -9,7 +9,7 @@ This plugin creates one persistent Alpine Linux VM for host-side Docker and Test
 - Docker and SSH start automatically in the guest.
 - Docker exposes its unauthenticated API only through QEMU's host loopback forward at `127.0.0.1:2375`.
 - Docker automatically allocates published ports from `20000–20255`; QEMU forwards every port in that range to the same guest port.
-- A global lock permits only one VM from this plugin to run at a time, which also reserves the forwarded range.
+- A global lock permits only one VM from this plugin to run at a time, which also reserves the forwarded range. Lock-state changes are serialized with an atomic guard directory so concurrent launchers cannot overwrite each other.
 - Docker images remain on the qcow2 disk and are reused by later test runs. Do not recreate the VM or run `docker image prune -a` if cache reuse matters.
 - Testcontainers Ryuk stays enabled and uses the guest Docker socket.
 
@@ -23,7 +23,6 @@ Run the scripts from Git Bash or MSYS2 with:
 - `xorriso`
 - OpenSSH client and key generator
 - `curl`, `tar`, and `sha256sum`
-- optional `rsync` (otherwise `scp` is used)
 
 ## First-time provisioning
 
@@ -40,7 +39,7 @@ When the install log proves that disk installation completed and only post-boot 
 VERIFY_EXISTING=true ./scripts/create-vm.sh ./profiles/dev.profile
 ```
 
-Set `PRELOAD_IMAGES` in a profile to a comma-separated list if a few images should be pulled during initial verification. Normal Testcontainers pulls are cached automatically on the persistent disk.
+Set `PRELOAD_IMAGES` in a profile to a comma-separated list if a few images should be pulled during initial verification. Image references may contain registry paths, tags, digests, dots, dashes, and underscores. Normal Testcontainers pulls are cached automatically on the persistent disk.
 
 ## Daily use
 
