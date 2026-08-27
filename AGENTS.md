@@ -7,6 +7,7 @@ This repository is the source of truth for the `me` Codex plugin collection and 
 - Keep Claude agent instructions in Markdown with only Claude-compatible frontmatter (`model` and `effort`).
 - When a skill or agent changes, proactively update the owning `SKILL.md`, `README.md`, and applicable `CLAUDE.md` references. The custom agent prompts themselves belong at plugin root.
 - Do not claim that installing a plugin automatically installs agents.
+- Use `MAJOR.MINOR.PATCH-YYYYMMDDHHMMSS` for every plugin version. Keep each plugin's `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions identical, and do not insert environment or tool labels into the version.
 - Validate changed skills and the plugin manifest before handoff, and tell the user when a new Codex thread is needed to load plugin changes.
 - Keep prompts privacy-safe and generalized; never copy raw account conversation content, secrets, or personal identifiers into this repository.
 
