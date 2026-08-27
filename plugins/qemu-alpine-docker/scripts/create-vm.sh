@@ -18,7 +18,9 @@ done
 }
 
 ALPINE_BRANCH="${ALPINE_BRANCH:-v3.24}"
-ALPINE_MIRROR_BASE="${ALPINE_MIRROR_BASE:-https://mirrors.aliyun.com/alpine}"
+ALPINE_MIRROR_BASE="${ALPINE_MIRROR_BASE:-auto}"
+ALPINE_FALLBACK_MIRROR="https://dl-cdn.alpinelinux.org/alpine"
+TEMPLATE_DIR="${PLUGIN_DIR}/templates"
 INSTALL_TIMEOUT="${INSTALL_TIMEOUT:-1800}"
 BOOT_TIMEOUT="${BOOT_TIMEOUT:-300}"
 PRELOAD_IMAGES="${PRELOAD_IMAGES:-}"
@@ -83,84 +85,28 @@ trap cleanup_create EXIT INT TERM
 if [ "$VERIFY_ONLY" != "true" ]; then
 mkdir -p "$VM_HOME" "${OVERLAY_DIR}/etc/local.d" "${OVERLAY_DIR}/etc/runlevels/default"
 mkdir -p "${OVERLAY_DIR}/etc/sysctl.d"
+mkdir -p "${OVERLAY_DIR}/usr/local/libexec"
 
 cp "${SSH_KEY}.pub" "${OVERLAY_DIR}/root-key.pub"
+cp "${SCRIPT_DIR}/select-apk-mirror.sh" "${OVERLAY_DIR}/usr/local/libexec/select-apk-mirror"
+chmod +x "${OVERLAY_DIR}/usr/local/libexec/select-apk-mirror"
+printf '%s\n%s\n' "$ALPINE_BRANCH" "$ALPINE_MIRROR_BASE" > "${OVERLAY_DIR}/mirror-config"
 ROOT_SSH_KEY="$(tr -d '\r\n' < "${SSH_KEY}.pub")"
-
-cat > "${OVERLAY_DIR}/answers" <<'ANSWERS'
-KEYMAPOPTS=none
-HOSTNAMEOPTS=__VM_NAME__
-DEVDOPTS=mdev
-INTERFACESOPTS="auto lo
-iface lo inet loopback
-
-auto eth0
-iface eth0 inet dhcp
-"
-TIMEZONEOPTS="-z UTC"
-PROXYOPTS=none
-APKREPOSOPTS="__ALIYUN_MAIN__ __ALIYUN_COMMUNITY__"
-USEROPTS=none
-SSHDOPTS=openssh
-ROOTSSHKEY="__ROOT_SSH_KEY__"
-NTPOPTS=chrony
-DISKOPTS="-m sys /dev/vda"
-LBUOPTS=none
-APKCACHEOPTS=none
-ERASE_DISKS=/dev/vda
-ANSWERS
-
-sed -i \
-    -e "s|__VM_NAME__|${VM_NAME}|g" \
-    -e "s|__ALIYUN_MAIN__|${ALPINE_MIRROR_BASE}/${ALPINE_BRANCH}/main|g" \
-    -e "s|__ALIYUN_COMMUNITY__|${ALPINE_MIRROR_BASE}/${ALPINE_BRANCH}/community|g" \
-    -e "s|__ROOT_SSH_KEY__|${ROOT_SSH_KEY}|g" \
-    "${OVERLAY_DIR}/answers"
-
-cat > "${OVERLAY_DIR}/etc/sysctl.d/99-testcontainers-ports.conf" <<SYSCTL
-# Keep Docker's automatically published ports inside the host-forwarded range.
-net.ipv4.ip_local_port_range = ${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}
-SYSCTL
-
-cat > "${OVERLAY_DIR}/etc/local.d/setup.start" <<'GUEST_SETUP'
-#!/bin/ash
-set -eu
-exec >/dev/ttyS0 2>&1
-trap 'status=$?; if [ "$status" -ne 0 ]; then echo "Unattended installation failed with status $status"; poweroff -f; fi' EXIT
-
-ip link set eth0 up
-udhcpc -i eth0 -q -n -t 10
-
-ALIYUN_MAIN="$(awk -F'"' '/^APKREPOSOPTS=/{print $2}' /answers | awk '{print $1}')"
-ALIYUN_COMMUNITY="$(awk -F'"' '/^APKREPOSOPTS=/{print $2}' /answers | awk '{print $2}')"
-
-repo_attempt=0
-until setup-apkrepos "$ALIYUN_MAIN" "$ALIYUN_COMMUNITY"; do
-    repo_attempt=$((repo_attempt + 1))
-    [ "$repo_attempt" -lt 10 ] || exit 1
-    sleep 3
-done
-apk add cgroupfs-mount docker docker-cli-compose openssh
-rc-update add cgroups default
-rc-update add docker default
-rc-update add sshd default
-rc-update add sysctl boot 2>/dev/null || true
-
-mkdir -p /etc/docker
-cat > /etc/docker/daemon.json <<'DOCKER_CONFIG'
-{
-  "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]
-}
-DOCKER_CONFIG
-
-touch /etc/qemu-alpine-docker-image
-# Do not copy the live-ISO installer into the installed system.
-rm -f /etc/local.d/setup.start /etc/runlevels/default/local
-
-ERASE_DISKS=/dev/vda setup-alpine -e -f /answers
-trap - EXIT
-poweroff
-GUEST_SETUP
+render_template "${TEMPLATE_DIR}/setup-alpine.answers.tpl" "${OVERLAY_DIR}/answers" \
+    VM_NAME "$VM_NAME" \
+    FALLBACK_MAIN "${ALPINE_FALLBACK_MIRROR}/${ALPINE_BRANCH}/main" \
+    FALLBACK_COMMUNITY "${ALPINE_FALLBACK_MIRROR}/${ALPINE_BRANCH}/community" \
+    ROOT_SSH_KEY "$ROOT_SSH_KEY"
+render_template "${TEMPLATE_DIR}/testcontainers-ports.conf.tpl" \
+    "${OVERLAY_DIR}/etc/sysctl.d/99-testcontainers-ports.conf" \
+    TESTCONTAINERS_PORT_START "$TESTCONTAINERS_PORT_START" \
+    TESTCONTAINERS_PORT_END "$TESTCONTAINERS_PORT_END"
+render_template "${TEMPLATE_DIR}/docker-daemon.json.tpl" \
+    "${OVERLAY_DIR}/docker-daemon.json" \
+    DOCKER_GUEST_PORT "2375"
+render_template "${TEMPLATE_DIR}/setup.start.tpl" \
+    "${OVERLAY_DIR}/etc/local.d/setup.start" \
+    ALPINE_FALLBACK_MIRROR "$ALPINE_FALLBACK_MIRROR"
 chmod +x "${OVERLAY_DIR}/etc/local.d/setup.start"
 
 # OpenRC identifies services by the entries in the runlevel directory.
@@ -240,7 +186,7 @@ echo "Booting the installed disk for verification..." >&2
 QEMU_PID=$!
 register_vm_process "$QEMU_PID"
 wait_for_ssh "$BOOT_TIMEOUT" "$QEMU_PID"
-ssh_exec "test -f /etc/qemu-alpine-docker-image && grep -q mirrors.aliyun.com /etc/apk/repositories && rc-service docker status >/dev/null"
+ssh_exec "test -f /etc/qemu-alpine-docker-image && test -s /etc/qemu-alpine-docker-mirror && grep -q '/${ALPINE_BRANCH}/main' /etc/apk/repositories && rc-service docker status >/dev/null"
 wait_for_docker_api 120
 ssh_exec "docker info >/dev/null"
 ssh_exec "set -- \$(sysctl -n net.ipv4.ip_local_port_range); test \"\$1\" = '${TESTCONTAINERS_PORT_START}' && test \"\$2\" = '${TESTCONTAINERS_PORT_END}'"

@@ -5,7 +5,8 @@ This plugin creates one persistent Alpine Linux VM for host-side Docker and Test
 ## Architecture
 
 - Alpine is installed unattended to a persistent qcow2 system disk.
-- Alpine `main` and `community` use `https://mirrors.aliyun.com/alpine`.
+- Provisioning configuration is rendered from files under `templates/`; scripts supply explicit placeholder values instead of embedding generated files in heredocs.
+- During first provisioning, Alpine selects the fastest mirror from its official list, upgrades the result to HTTPS, validates it, and falls back to the official HTTPS CDN when needed.
 - Docker and SSH start automatically in the guest.
 - Docker exposes its unauthenticated API only through QEMU's host loopback forward at `127.0.0.1:2375`.
 - Docker automatically allocates published ports from `20000–20255`; QEMU forwards every port in that range to the same guest port.
@@ -31,7 +32,7 @@ Run the scripts from Git Bash or MSYS2 with:
 ./scripts/create-vm.sh ./profiles/dev.profile
 ```
 
-`setup.sh` downloads and verifies the official Alpine virt ISO. `create-vm.sh` builds the unattended ISO, directly boots its kernel for deterministic automation, installs through TCG, boots the disk once, verifies Docker and the Aliyun repositories, then writes the persistent ready marker. If a disk exists without that marker, the script stops and preserves it for inspection instead of silently rebuilding it.
+`setup.sh` downloads and verifies the official Alpine virt ISO. `create-vm.sh` builds the unattended ISO, directly boots its kernel for deterministic automation, selects and persists a usable package mirror, installs through TCG, boots the disk once, verifies Docker and the selected repositories, then writes the persistent ready marker. Mirror selection happens only while provisioning a new disk. If a disk exists without the ready marker, the script stops and preserves it for inspection instead of silently rebuilding it.
 
 When the install log proves that disk installation completed and only post-boot verification failed, resume verification without reinstalling:
 
@@ -72,7 +73,7 @@ Other operations:
 - `SSH_PORT` and `DOCKER_DAEMON_PORT`
 - `TESTCONTAINERS_PORT_START` and `TESTCONTAINERS_PORT_END` (maximum 512 ports)
 - `PORT_FORWARD=host:guest,...` for additional fixed loopback forwards
-- `ALPINE_BRANCH` and `ALPINE_MIRROR_BASE`
+- `ALPINE_BRANCH` and `ALPINE_MIRROR_BASE`; use `auto` for fastest-mirror detection or an explicit `http://`/`https://` base URL to disable detection
 - `PRELOAD_IMAGES=image,...`
 
 Fixed host ports must not overlap the Testcontainers range. All forwards bind to `127.0.0.1`.
@@ -80,7 +81,8 @@ Fixed host ports must not overlap the Testcontainers range. All forwards bind to
 ## Validation
 
 ```bash
+./tests/test-apk-mirror-selection.sh
 ./tests/test-vm-utils.sh
 ```
 
-The smoke tests do not boot QEMU or use the network.
+The smoke tests use deterministic command mocks; they do not boot QEMU or use the network.

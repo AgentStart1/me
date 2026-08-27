@@ -17,18 +17,22 @@ Use this skill for the bundled Alpine VM instead of configuring a Windows bridge
 - Keep Docker's automatic published-port range equal to the QEMU same-port forwarding range.
 - Never silently delete an incomplete disk or use `docker image prune -a`.
 - Treat TCP port 2375 as a root-equivalent, unauthenticated API; do not expose it beyond loopback.
+- Render provisioning configuration from `templates/*.tpl` with the shared `render_template` helper; keep scripts limited to runtime values and orchestration.
 
 ## Paths
 
 - `scripts/setup.sh`: prerequisites and verified Alpine ISO download
 - `scripts/create-vm.sh`: unattended install and post-boot verification
+- `scripts/select-apk-mirror.sh`: first-provisioning mirror detection, HTTPS validation, and official-CDN fallback
 - `scripts/start-vm.sh`: background pure-TCG start
 - `scripts/stop-vm.sh`: graceful or forced shutdown
 - `scripts/run-testcontainers.sh`: host test command using guest Docker
 - `scripts/run-docker.sh`: guest Docker CLI over SSH
 - `scripts/sync-code.sh`: open an interactive SSH or SFTP session to the guest
+- `templates/`: Alpine answers, guest setup, sysctl, and Docker daemon configuration templates
 - `profiles/dev.profile`
 - `tests/test-vm-utils.sh`
+- `tests/test-apk-mirror-selection.sh`
 
 ## Workflow
 
@@ -68,6 +72,8 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 
 The range may contain at most 512 ports. Additional `PORT_FORWARD=host:guest,...` mappings must not overlap reserved ports.
 
+`ALPINE_MIRROR_BASE=auto` selects the fastest official-list mirror during first provisioning, requires the automatically selected mirror to work over HTTPS, and falls back to the official HTTPS CDN. Set an explicit HTTP(S) base URL to disable automatic selection.
+
 `PRELOAD_IMAGES` optionally pulls a comma-separated image list during provisioning. Registry paths, tags, digests, dots, dashes, and underscores are accepted. Otherwise, Testcontainers pulls once and Docker reuses the layers from the persistent disk.
 
 ## Limitations
@@ -79,5 +85,6 @@ If provisioning leaves a disk without a ready marker, inspect the install and ve
 ## Validation
 
 ```bash
+./tests/test-apk-mirror-selection.sh
 ./tests/test-vm-utils.sh
 ```

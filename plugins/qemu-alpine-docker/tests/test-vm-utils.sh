@@ -88,6 +88,47 @@ ACTIVE_LOCK_DIR="${RUN_DIR}/active-vm.lock"
 STATE_GUARD_DIR="${RUN_DIR}/vm-state.guard"
 mkdir -p "$VM_DIR"
 
+cat > "${MOCK_DIR}/render.tpl" <<'TEMPLATE'
+name={{NAME}}
+special={{SPECIAL}}
+TEMPLATE
+render_template "${MOCK_DIR}/render.tpl" "${MOCK_DIR}/rendered.conf" \
+    NAME "vm&one" \
+    SPECIAL 'a|b/c\path'
+assert_equals $'name=vm&one\nspecial=a|b/c\path' "$(<"${MOCK_DIR}/rendered.conf")" "template replacement is literal"
+
+cat > "${MOCK_DIR}/unresolved.tpl" <<'TEMPLATE'
+value={{VALUE}}
+missing={{MISSING}}
+TEMPLATE
+if render_template "${MOCK_DIR}/unresolved.tpl" "${MOCK_DIR}/unresolved.conf" VALUE ok 2>/dev/null; then
+    fail "template rejects unresolved placeholder"
+else
+    pass "template rejects unresolved placeholder"
+fi
+assert_not_file "${MOCK_DIR}/unresolved.conf" "failed template render leaves no output"
+
+render_template "${PLUGIN_DIR}/templates/setup-alpine.answers.tpl" "${MOCK_DIR}/answers" \
+    VM_NAME test-vm \
+    FALLBACK_MAIN https://cdn.example/alpine/v3.24/main \
+    FALLBACK_COMMUNITY https://cdn.example/alpine/v3.24/community \
+    ROOT_SSH_KEY 'ssh-ed25519 mock&key'
+assert_contains 'HOSTNAMEOPTS=test-vm' "$(<"${MOCK_DIR}/answers")" "answers template renders VM name"
+assert_contains 'ROOTSSHKEY="ssh-ed25519 mock&key"' "$(<"${MOCK_DIR}/answers")" "answers template renders SSH key literally"
+
+render_template "${PLUGIN_DIR}/templates/testcontainers-ports.conf.tpl" "${MOCK_DIR}/ports.conf" \
+    TESTCONTAINERS_PORT_START 20000 \
+    TESTCONTAINERS_PORT_END 20255
+assert_contains 'net.ipv4.ip_local_port_range = 20000 20255' "$(<"${MOCK_DIR}/ports.conf")" "sysctl template renders port range"
+
+render_template "${PLUGIN_DIR}/templates/docker-daemon.json.tpl" "${MOCK_DIR}/daemon.json" \
+    DOCKER_GUEST_PORT 2375
+assert_contains 'tcp://0.0.0.0:2375' "$(<"${MOCK_DIR}/daemon.json")" "Docker template renders guest port"
+
+render_template "${PLUGIN_DIR}/templates/setup.start.tpl" "${MOCK_DIR}/setup.start" \
+    ALPINE_FALLBACK_MIRROR https://dl-cdn.alpinelinux.org/alpine
+assert_contains 'ALPINE_FALLBACK_MIRROR="https://dl-cdn.alpinelinux.org/alpine"' "$(<"${MOCK_DIR}/setup.start")" "guest setup template renders fallback mirror"
+
 case "$(platform_tag)" in linux|mac|win|unknown) pass "platform_tag" ;; *) fail "platform_tag" ;; esac
 assert_contains "qemu-system-x86_64" "$(resolve_qemu)" "resolve_qemu"
 assert_contains "qemu-img" "$(resolve_qemu_img "$(resolve_qemu)")" "resolve_qemu_img"
@@ -218,9 +259,19 @@ assert_not_contains "whpx" "$start_source" "start script excludes WHPX"
 assert_not_contains "enable-kvm" "$start_source" "start script excludes KVM"
 
 create_source="$(<"${PLUGIN_DIR}/scripts/create-vm.sh")"
-assert_contains "apk add cgroupfs-mount docker" "$create_source" "guest installs cgroup service package"
+setup_template="$(<"${PLUGIN_DIR}/templates/setup.start.tpl")"
+assert_contains "apk add cgroupfs-mount docker" "$setup_template" "guest template installs cgroup service package"
 assert_contains 'VM_DISK_NATIVE="$(qemu_native_path "$VM_DISK")"' "$create_source" "disk path is converted explicitly"
 assert_contains 'MODIFIED_ISO_NATIVE="$(qemu_native_path "$MODIFIED_ISO")"' "$create_source" "ISO path is converted explicitly"
+assert_contains 'cp "${SCRIPT_DIR}/select-apk-mirror.sh"' "$create_source" "mirror selector is copied into guest overlay"
+assert_contains '/usr/local/libexec/select-apk-mirror' "$setup_template" "guest template runs mirror selector"
+assert_contains 'render_template "${TEMPLATE_DIR}/setup-alpine.answers.tpl"' "$create_source" "answers use template rendering"
+assert_contains 'render_template "${TEMPLATE_DIR}/testcontainers-ports.conf.tpl"' "$create_source" "sysctl config uses template rendering"
+assert_contains 'render_template "${TEMPLATE_DIR}/docker-daemon.json.tpl"' "$create_source" "Docker config uses template rendering"
+assert_contains 'render_template "${TEMPLATE_DIR}/setup.start.tpl"' "$create_source" "guest setup uses template rendering"
+assert_not_contains "cat >" "$create_source" "provisioning does not generate product config with heredocs"
+assert_not_contains "mirrors.aliyun.com" "$create_source" "provisioning is not tied to Aliyun"
+assert_contains "ALPINE_MIRROR_BASE=auto" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile enables mirror detection"
 is_windows() { return 0; }
 assert_equals "C:/native/disk.qcow2" "$(qemu_native_path "/tmp/disk.qcow2")" "Windows native path conversion"
 
