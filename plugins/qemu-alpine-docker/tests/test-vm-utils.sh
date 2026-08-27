@@ -137,6 +137,11 @@ load_profile "${MOCK_DIR}/test.profile"
 assert_equals test-vm "$VM_NAME" "profile VM_NAME"
 assert_equals 20002 "$TESTCONTAINERS_PORT_END" "profile range end"
 
+printf 'VM_NAME=crlf-vm\r\nVM_MEMORY=4096\r\n' > "${MOCK_DIR}/crlf.profile"
+load_profile "${MOCK_DIR}/crlf.profile"
+assert_equals crlf-vm "$VM_NAME" "profile accepts Windows CRLF"
+load_profile "${MOCK_DIR}/test.profile"
+
 cat > "${MOCK_DIR}/bad.profile" <<'PROFILE'
 VM_NAME=$(echo bad)
 PROFILE
@@ -272,6 +277,7 @@ assert_contains 'render_template "${TEMPLATE_DIR}/setup.start.tpl"' "$create_sou
 assert_not_contains "cat >" "$create_source" "provisioning does not generate product config with heredocs"
 assert_not_contains "mirrors.aliyun.com" "$create_source" "provisioning is not tied to Aliyun"
 assert_contains "ALPINE_MIRROR_BASE=auto" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile enables mirror detection"
+assert_contains "VM_MEMORY=4096" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile provides multi-container memory headroom"
 is_windows() { return 0; }
 assert_equals "C:/native/disk.qcow2" "$(qemu_native_path "/tmp/disk.qcow2")" "Windows native path conversion"
 

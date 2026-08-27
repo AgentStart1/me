@@ -76,6 +76,8 @@ Other operations:
 - `ALPINE_BRANCH` and `ALPINE_MIRROR_BASE`; use `auto` for fastest-mirror detection or an explicit `http://`/`https://` base URL to disable detection
 - `PRELOAD_IMAGES=image,...`
 
+The bundled development profile allocates 4 GiB of guest memory so multi-container Testcontainers suites have practical headroom.
+
 Fixed host ports must not overlap the Testcontainers range. All forwards bind to `127.0.0.1`.
 
 ## Validation

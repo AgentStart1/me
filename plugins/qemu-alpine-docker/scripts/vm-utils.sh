@@ -114,6 +114,7 @@ load_profile() {
     fi
     local line
     while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ -z "${line//[[:space:]]/}" ]] && continue
         if [[ "$line" =~ \$[\(\{] ]] || [[ "$line" =~ \` ]]; then

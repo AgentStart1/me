@@ -2,7 +2,7 @@
 # Provides balanced resources for interactive development.
 
 VM_NAME=alpine-docker
-VM_MEMORY=2048
+VM_MEMORY=4096
 VM_CPUS=2
 VM_DISK_SIZE=20G
 SSH_PORT=2222
