@@ -289,6 +289,12 @@ assert_not_contains "enable-kvm" "$start_source" "start script excludes KVM"
 stop_source="$(<"${PLUGIN_DIR}/scripts/stop-vm.sh")"
 assert_contains 'ssh_exec "poweroff"' "$stop_source" "stop script uses Alpine's poweroff command"
 
+assert_file "${PLUGIN_DIR}/scripts/connect-vm.sh" "VM connection script uses an accurate name"
+assert_not_file "${PLUGIN_DIR}/scripts/sync-code.sh" "misleading code-sync script name is removed"
+connect_source="$(<"${PLUGIN_DIR}/scripts/connect-vm.sh")"
+assert_contains '--sftp' "$connect_source" "VM connection script supports SFTP"
+assert_contains 'exec ssh' "$connect_source" "VM connection script supports SSH"
+
 create_source="$(<"${PLUGIN_DIR}/scripts/create-vm.sh")"
 setup_template="$(<"${PLUGIN_DIR}/templates/setup.start.tpl")"
 assert_contains 'configure_qemu_acceleration "$QEMU_BIN"' "$create_source" "provisioning selects the configured accelerator"

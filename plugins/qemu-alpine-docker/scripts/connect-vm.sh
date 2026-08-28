@@ -1,5 +1,5 @@
 #!/bin/bash
-# Open an interactive SSH or SFTP session to the guest.
+# Connect to the guest through an interactive SSH or SFTP session.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

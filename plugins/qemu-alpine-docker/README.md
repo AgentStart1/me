@@ -67,8 +67,8 @@ Other operations:
 
 ```bash
 ./scripts/run-docker.sh -- ps
-./scripts/sync-code.sh                # interactive SSH session
-./scripts/sync-code.sh --sftp         # SFTP session
+./scripts/connect-vm.sh               # interactive SSH session
+./scripts/connect-vm.sh --sftp        # SFTP session
 ./scripts/stop-vm.sh ./profiles/dev.profile
 ```
 

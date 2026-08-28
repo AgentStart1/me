@@ -1,6 +1,6 @@
 ---
 name: qemu-alpine-docker
-description: Manages a single persistent accelerated QEMU Alpine Docker VM on Windows for Docker API and Testcontainers development or testing, including unattended provisioning, loopback port ranges, image-cache reuse, code sync, and lifecycle operations.
+description: Manages a single persistent accelerated QEMU Alpine Docker VM on Windows for Docker API and Testcontainers development or testing, including unattended provisioning, loopback port ranges, image-cache reuse, guest access, and lifecycle operations.
 ---
 
 # QEMU Alpine Docker
@@ -33,7 +33,7 @@ Use this skill for the bundled Alpine VM instead of configuring a Windows bridge
 - `scripts/run-testcontainers.sh`: host test command using guest Docker
 - `scripts/collect-resource-metrics.ps1`: Windows host and Alpine guest resource sampler used by the Testcontainers wrapper
 - `scripts/run-docker.sh`: guest Docker CLI over SSH
-- `scripts/sync-code.sh`: open an interactive SSH or SFTP session to the guest
+- `scripts/connect-vm.sh`: connect to the guest through an interactive SSH or SFTP session
 - `templates/`: Alpine answers, guest setup, sysctl, and Docker daemon configuration templates
 - `templates/unbound.conf.tpl`: guest and Docker bridge DNS service with forced TCP forwarding to QEMU DNS
 - `profiles/dev.profile`
