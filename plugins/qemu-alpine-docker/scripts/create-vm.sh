@@ -61,6 +61,7 @@ fi
 
 QEMU_BIN="$(resolve_qemu)"
 QEMU_IMG_BIN="$(resolve_qemu_img "$QEMU_BIN")"
+configure_qemu_acceleration "$QEMU_BIN"
 require_command xorriso
 require_command tar
 require_command curl
@@ -84,7 +85,7 @@ trap cleanup_create EXIT INT TERM
 
 if [ "$VERIFY_ONLY" != "true" ]; then
 mkdir -p "$VM_HOME" "${OVERLAY_DIR}/etc/local.d" "${OVERLAY_DIR}/etc/runlevels/default"
-mkdir -p "${OVERLAY_DIR}/etc/sysctl.d"
+mkdir -p "${OVERLAY_DIR}/etc/sysctl.d" "${OVERLAY_DIR}/etc/unbound"
 mkdir -p "${OVERLAY_DIR}/usr/local/libexec"
 
 cp "${SSH_KEY}.pub" "${OVERLAY_DIR}/root-key.pub"
@@ -103,11 +104,27 @@ render_template "${TEMPLATE_DIR}/testcontainers-ports.conf.tpl" \
     TESTCONTAINERS_PORT_END "$TESTCONTAINERS_PORT_END"
 render_template "${TEMPLATE_DIR}/docker-daemon.json.tpl" \
     "${OVERLAY_DIR}/docker-daemon.json" \
-    DOCKER_GUEST_PORT "2375"
+    DOCKER_GUEST_PORT "2375" \
+    DOCKER_DNS_ADDRESS "172.17.0.1"
+render_template "${TEMPLATE_DIR}/unbound.conf.tpl" \
+    "${OVERLAY_DIR}/etc/unbound/unbound.conf" \
+    DNS_LISTEN_ADDRESS "0.0.0.0" \
+    LOCAL_DNS_NETWORK "127.0.0.1/32" \
+    DOCKER_DNS_NETWORK "172.17.0.0/16" \
+    LOCAL_DNS_PORT "53" \
+    QEMU_DNS_ADDRESS "10.0.2.3" \
+    QEMU_DNS_PORT "53"
+render_template "${TEMPLATE_DIR}/use-local-dns.start.tpl" \
+    "${OVERLAY_DIR}/etc/local.d/use-local-dns.start" \
+    LOCAL_DNS_ADDRESS "127.0.0.1"
+render_template "${TEMPLATE_DIR}/udhcpc.conf.tpl" \
+    "${OVERLAY_DIR}/udhcpc.conf" \
+    RESOLV_CONF_MODE "no"
 render_template "${TEMPLATE_DIR}/setup.start.tpl" \
     "${OVERLAY_DIR}/etc/local.d/setup.start" \
     ALPINE_FALLBACK_MIRROR "$ALPINE_FALLBACK_MIRROR"
 chmod +x "${OVERLAY_DIR}/etc/local.d/setup.start"
+chmod +x "${OVERLAY_DIR}/etc/local.d/use-local-dns.start"
 
 # OpenRC identifies services by the entries in the runlevel directory.
 touch "${OVERLAY_DIR}/etc/runlevels/default/local"
@@ -131,7 +148,7 @@ echo "Creating persistent disk ${VM_DISK} (${VM_DISK_SIZE})..." >&2
 
 install_args=(
     -name "${VM_NAME}-install"
-    -accel tcg,thread=multi
+    "${QEMU_ACCEL_ARGS[@]}"
     -m "$VM_MEMORY"
     -smp "$VM_CPUS"
     -drive "file=${VM_DISK_NATIVE},format=qcow2,if=virtio"
@@ -146,7 +163,7 @@ install_args=(
     -device virtio-net-pci,netdev=net0
 )
 
-echo "Installing Alpine and Docker under pure TCG (timeout: ${INSTALL_TIMEOUT}s)..." >&2
+echo "Installing Alpine and Docker with ${QEMU_ACCELERATOR} acceleration (timeout: ${INSTALL_TIMEOUT}s)..." >&2
 "$QEMU_BIN" "${install_args[@]}" &
 QEMU_PID=$!
 register_vm_process "$QEMU_PID"
@@ -170,7 +187,7 @@ fi
 NETDEV_VALUE="$(build_netdev_value)"
 verify_args=(
     -name "${VM_NAME}-verify"
-    -accel tcg,thread=multi
+    "${QEMU_ACCEL_ARGS[@]}"
     -m "$VM_MEMORY"
     -smp "$VM_CPUS"
     -drive "file=${VM_DISK_NATIVE},format=qcow2,if=virtio"
@@ -186,7 +203,7 @@ echo "Booting the installed disk for verification..." >&2
 QEMU_PID=$!
 register_vm_process "$QEMU_PID"
 wait_for_ssh "$BOOT_TIMEOUT" "$QEMU_PID"
-ssh_exec "test -f /etc/qemu-alpine-docker-image && test -s /etc/qemu-alpine-docker-mirror && grep -q '/${ALPINE_BRANCH}/main' /etc/apk/repositories && rc-service docker status >/dev/null"
+ssh_exec "test -f /etc/qemu-alpine-docker-image && test -s /etc/qemu-alpine-docker-mirror && grep -q '/${ALPINE_BRANCH}/main' /etc/apk/repositories && grep -qx 'RESOLV_CONF=\"no\"' /etc/udhcpc/udhcpc.conf && rc-service docker status >/dev/null && rc-service unbound status >/dev/null && grep -qx 'nameserver 127.0.0.1' /etc/resolv.conf && nslookup dl-cdn.alpinelinux.org 127.0.0.1 >/dev/null"
 wait_for_docker_api 120
 ssh_exec "docker info >/dev/null"
 ssh_exec "set -- \$(sysctl -n net.ipv4.ip_local_port_range); test \"\$1\" = '${TESTCONTAINERS_PORT_START}' && test \"\$2\" = '${TESTCONTAINERS_PORT_END}'"

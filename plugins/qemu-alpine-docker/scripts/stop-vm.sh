@@ -43,7 +43,7 @@ fi
 
 # Try ACPI shutdown via SSH first
 echo "Attempting graceful ACPI shutdown..." >&2
-ssh_exec "shutdown -h now" 2>/dev/null || true
+ssh_exec "poweroff" 2>/dev/null || true
 
 # Wait for process to exit
 elapsed=0

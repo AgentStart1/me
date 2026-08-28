@@ -28,6 +28,7 @@ if vm_is_running; then
 fi
 
 QEMU_BIN="$(resolve_qemu)"
+configure_qemu_acceleration "$QEMU_BIN"
 NETDEV_VALUE="$(build_netdev_value)"
 acquire_single_vm_lock
 
@@ -46,7 +47,7 @@ trap cleanup_start_failure EXIT INT TERM
 
 qemu_args=(
     -name "$VM_NAME"
-    -accel tcg,thread=multi
+    "${QEMU_ACCEL_ARGS[@]}"
     -m "$VM_MEMORY"
     -smp "$VM_CPUS"
     -drive "file=${VM_DISK},format=qcow2,if=virtio"
@@ -57,7 +58,7 @@ qemu_args=(
     -device virtio-net-pci,netdev=net0
 )
 
-echo "Starting VM '${VM_NAME}' with pure TCG and QEMU user networking..." >&2
+echo "Starting VM '${VM_NAME}' with ${QEMU_ACCELERATOR} acceleration and QEMU user networking..." >&2
 "$QEMU_BIN" "${qemu_args[@]}" &
 QEMU_PID=$!
 register_vm_process "$QEMU_PID"

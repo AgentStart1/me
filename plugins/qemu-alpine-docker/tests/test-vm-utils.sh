@@ -122,8 +122,31 @@ render_template "${PLUGIN_DIR}/templates/testcontainers-ports.conf.tpl" "${MOCK_
 assert_contains 'net.ipv4.ip_local_port_range = 20000 20255' "$(<"${MOCK_DIR}/ports.conf")" "sysctl template renders port range"
 
 render_template "${PLUGIN_DIR}/templates/docker-daemon.json.tpl" "${MOCK_DIR}/daemon.json" \
-    DOCKER_GUEST_PORT 2375
+    DOCKER_GUEST_PORT 2375 \
+    DOCKER_DNS_ADDRESS 172.17.0.1
 assert_contains 'tcp://0.0.0.0:2375' "$(<"${MOCK_DIR}/daemon.json")" "Docker template renders guest port"
+assert_contains '"dns": ["172.17.0.1"]' "$(<"${MOCK_DIR}/daemon.json")" "Docker template selects Unbound on the bridge"
+
+render_template "${PLUGIN_DIR}/templates/unbound.conf.tpl" "${MOCK_DIR}/unbound.conf" \
+    DNS_LISTEN_ADDRESS 0.0.0.0 \
+    LOCAL_DNS_NETWORK 127.0.0.1/32 \
+    DOCKER_DNS_NETWORK 172.17.0.0/16 \
+    LOCAL_DNS_PORT 53 \
+    QEMU_DNS_ADDRESS 10.0.2.3 \
+    QEMU_DNS_PORT 53
+assert_contains 'interface: 0.0.0.0' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound listens before the Docker bridge exists"
+assert_contains 'access-control: 127.0.0.1/32 allow' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound allows guest loopback"
+assert_contains 'access-control: 172.17.0.0/16 allow' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound allows the Docker bridge"
+assert_contains 'forward-addr: 10.0.2.3@53' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound forwards to QEMU DNS"
+assert_contains 'forward-tcp-upstream: yes' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound forces TCP upstream"
+
+render_template "${PLUGIN_DIR}/templates/use-local-dns.start.tpl" "${MOCK_DIR}/use-local-dns.start" \
+    LOCAL_DNS_ADDRESS 127.0.0.1
+assert_contains "nameserver %s\\n' '127.0.0.1'" "$(<"${MOCK_DIR}/use-local-dns.start")" "local DNS template selects Unbound"
+
+render_template "${PLUGIN_DIR}/templates/udhcpc.conf.tpl" "${MOCK_DIR}/udhcpc.conf" \
+    RESOLV_CONF_MODE no
+assert_contains 'RESOLV_CONF="no"' "$(<"${MOCK_DIR}/udhcpc.conf")" "DHCP template preserves local DNS"
 
 render_template "${PLUGIN_DIR}/templates/setup.start.tpl" "${MOCK_DIR}/setup.start" \
     ALPINE_FALLBACK_MIRROR https://dl-cdn.alpinelinux.org/alpine
@@ -259,13 +282,20 @@ download_file https://example.invalid/file "${MOCK_DIR}/downloaded"
 assert_file "${MOCK_DIR}/downloaded" "download helper target"
 
 start_source="$(<"${PLUGIN_DIR}/scripts/start-vm.sh")"
-assert_contains "-accel tcg,thread=multi" "$start_source" "start script uses TCG"
-assert_not_contains "whpx" "$start_source" "start script excludes WHPX"
+assert_contains 'configure_qemu_acceleration "$QEMU_BIN"' "$start_source" "start script selects the configured accelerator"
+assert_contains '"${QEMU_ACCEL_ARGS[@]}"' "$start_source" "start script uses shared acceleration arguments"
 assert_not_contains "enable-kvm" "$start_source" "start script excludes KVM"
+
+stop_source="$(<"${PLUGIN_DIR}/scripts/stop-vm.sh")"
+assert_contains 'ssh_exec "poweroff"' "$stop_source" "stop script uses Alpine's poweroff command"
 
 create_source="$(<"${PLUGIN_DIR}/scripts/create-vm.sh")"
 setup_template="$(<"${PLUGIN_DIR}/templates/setup.start.tpl")"
-assert_contains "apk add cgroupfs-mount docker" "$setup_template" "guest template installs cgroup service package"
+assert_contains 'configure_qemu_acceleration "$QEMU_BIN"' "$create_source" "provisioning selects the configured accelerator"
+assert_contains '"${QEMU_ACCEL_ARGS[@]}"' "$create_source" "provisioning and verification use shared acceleration arguments"
+assert_contains "apk add cgroupfs-mount docker docker-cli-compose openssh unbound" "$setup_template" "guest template installs Docker and Unbound"
+assert_contains "rc-update add unbound default" "$setup_template" "guest template enables Unbound"
+assert_contains "rc-update add local default" "$setup_template" "guest template enables local DNS selection"
 assert_contains 'VM_DISK_NATIVE="$(qemu_native_path "$VM_DISK")"' "$create_source" "disk path is converted explicitly"
 assert_contains 'MODIFIED_ISO_NATIVE="$(qemu_native_path "$MODIFIED_ISO")"' "$create_source" "ISO path is converted explicitly"
 assert_contains 'cp "${SCRIPT_DIR}/select-apk-mirror.sh"' "$create_source" "mirror selector is copied into guest overlay"
@@ -273,23 +303,98 @@ assert_contains '/usr/local/libexec/select-apk-mirror' "$setup_template" "guest 
 assert_contains 'render_template "${TEMPLATE_DIR}/setup-alpine.answers.tpl"' "$create_source" "answers use template rendering"
 assert_contains 'render_template "${TEMPLATE_DIR}/testcontainers-ports.conf.tpl"' "$create_source" "sysctl config uses template rendering"
 assert_contains 'render_template "${TEMPLATE_DIR}/docker-daemon.json.tpl"' "$create_source" "Docker config uses template rendering"
+assert_contains 'render_template "${TEMPLATE_DIR}/unbound.conf.tpl"' "$create_source" "Unbound config uses template rendering"
+assert_contains 'render_template "${TEMPLATE_DIR}/use-local-dns.start.tpl"' "$create_source" "local DNS selection uses template rendering"
+assert_contains 'render_template "${TEMPLATE_DIR}/udhcpc.conf.tpl"' "$create_source" "DHCP DNS behavior uses template rendering"
 assert_contains 'render_template "${TEMPLATE_DIR}/setup.start.tpl"' "$create_source" "guest setup uses template rendering"
 assert_not_contains "cat >" "$create_source" "provisioning does not generate product config with heredocs"
 assert_not_contains "mirrors.aliyun.com" "$create_source" "provisioning is not tied to Aliyun"
 assert_contains "ALPINE_MIRROR_BASE=auto" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile enables mirror detection"
+assert_contains "VM_ACCELERATOR=auto" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile selects the fastest available accelerator"
 assert_contains "VM_MEMORY=4096" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile provides multi-container memory headroom"
+assert_contains "VM_CPUS=4" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile provides CPU headroom for JVM containers under TCG"
 is_windows() { return 0; }
 assert_equals "C:/native/disk.qcow2" "$(qemu_native_path "/tmp/disk.qcow2")" "Windows native path conversion"
 
 testcontainers_source="$(<"${PLUGIN_DIR}/scripts/run-testcontainers.sh")"
+metrics_source="$(<"${PLUGIN_DIR}/scripts/collect-resource-metrics.ps1")"
 assert_contains "TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1" "$testcontainers_source" "host override"
 assert_contains "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock" "$testcontainers_source" "Ryuk guest socket"
+assert_contains 'exec env "${COMMAND_ENV[@]}" "$@"' "$testcontainers_source" "Testcontainers environment crosses the MSYS process boundary"
+assert_contains 'env "${COMMAND_ENV[@]}" "$@"' "$testcontainers_source" "metrics mode runs the command before producing its summary"
+assert_contains 'trap finish_resource_metrics EXIT' "$testcontainers_source" "metrics finalize after successful or failed commands"
+assert_contains 'exit "$command_status"' "$testcontainers_source" "metrics preserve the command exit code"
+assert_contains 'metrics/latest.json' "$testcontainers_source" "metrics overwrite the stable latest report"
+assert_contains 'ConvertTo-Json -Depth 6' "$metrics_source" "metrics report uses structured JSON"
+assert_contains 'Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor' "$metrics_source" "metrics sample host CPU"
+assert_contains 'head -n 1 /proc/stat' "$metrics_source" "metrics sample guest CPU"
+assert_contains '"TEMP=${WINDOWS_TEMP}"' "$testcontainers_source" "Windows tests use a writable native temp directory"
+assert_contains '"TMP=${WINDOWS_TEMP}"' "$testcontainers_source" "Windows tests keep TEMP and TMP aligned"
+assert_contains 'SOCKET_ENV_EXCLUSION+="TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"' "$testcontainers_source" "MSYS preserves the guest Docker socket path"
+assert_contains '"TESTCONTAINERS_PULL_PAUSE_TIMEOUT=${TESTCONTAINERS_PULL_PAUSE_TIMEOUT_VALUE}"' "$testcontainers_source" "wrapper passes the image pull pause timeout"
+assert_contains '"TESTCONTAINERS_PULL_TIMEOUT=${TESTCONTAINERS_PULL_TIMEOUT_VALUE}"' "$testcontainers_source" "wrapper passes the total image pull timeout"
 assert_not_contains "TESTCONTAINERS_RYUK_DISABLED=true" "$testcontainers_source" "Ryuk remains enabled"
+assert_contains "TESTCONTAINERS_PULL_PAUSE_TIMEOUT=300" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile tolerates slow TCG layer extraction"
+assert_contains "TESTCONTAINERS_PULL_TIMEOUT=1800" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile allows large image pulls"
+assert_contains "TESTCONTAINERS_RESOURCE_METRICS=true" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile enables resource metrics"
+assert_contains "TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=1" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile samples resource metrics each second"
+
+QEMU_ACCELERATOR=""
+QEMU_ACCEL_ARGS=()
+VM_ACCELERATOR=tcg
+configure_qemu_acceleration "${MOCK_DIR}/bin/qemu-system-x86_64"
+assert_equals "tcg" "$QEMU_ACCELERATOR" "explicit TCG selection"
+assert_equals "-accel tcg,thread=multi -cpu max" "${QEMU_ACCEL_ARGS[*]}" "TCG uses the full emulated CPU"
+
+qemu_supports_accelerator() { return 0; }
+probe_whpx() { return 0; }
+VM_ACCELERATOR=auto
+configure_qemu_acceleration "${MOCK_DIR}/bin/qemu-system-x86_64"
+assert_equals "whpx" "$QEMU_ACCELERATOR" "automatic Windows selection prefers WHPX"
+assert_equals "-accel whpx -cpu qemu64" "${QEMU_ACCEL_ARGS[*]}" "WHPX uses its compatible CPU model"
+
+probe_whpx() { return 1; }
+configure_qemu_acceleration "${MOCK_DIR}/bin/qemu-system-x86_64"
+assert_equals "tcg" "$QEMU_ACCELERATOR" "automatic selection falls back when WHPX probe fails"
+
+VM_ACCELERATOR=invalid
+if configure_qemu_acceleration "${MOCK_DIR}/bin/qemu-system-x86_64" >/dev/null 2>"${MOCK_DIR}/invalid-accelerator"; then
+    fail "Invalid accelerator should fail"
+fi
+assert_contains "VM_ACCELERATOR must be auto, whpx, or tcg" "$(<"${MOCK_DIR}/invalid-accelerator")" "invalid accelerator error"
 
 if bash "${PLUGIN_DIR}/scripts/run-testcontainers.sh" >/dev/null 2>"${MOCK_DIR}/usage"; then
     fail "Testcontainers command required"
 else
     assert_contains "No test command provided" "$(<"${MOCK_DIR}/usage")" "Testcontainers usage"
+fi
+
+cat > "${MOCK_DIR}/invalid-metrics.profile" <<'PROFILE'
+VM_NAME=test-vm
+SSH_PORT=2299
+DOCKER_DAEMON_PORT=2375
+TESTCONTAINERS_PORT_START=20000
+TESTCONTAINERS_PORT_END=20002
+TESTCONTAINERS_RESOURCE_METRICS=maybe
+PROFILE
+if bash "${PLUGIN_DIR}/scripts/run-testcontainers.sh" --profile "${MOCK_DIR}/invalid-metrics.profile" -- true >/dev/null 2>"${MOCK_DIR}/invalid-metrics"; then
+    fail "Invalid metrics switch should fail"
+else
+    assert_contains "TESTCONTAINERS_RESOURCE_METRICS must be true or false" "$(<"${MOCK_DIR}/invalid-metrics")" "invalid metrics switch error"
+fi
+
+cat > "${MOCK_DIR}/invalid-metrics-interval.profile" <<'PROFILE'
+VM_NAME=test-vm
+SSH_PORT=2299
+DOCKER_DAEMON_PORT=2375
+TESTCONTAINERS_PORT_START=20000
+TESTCONTAINERS_PORT_END=20002
+TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=0
+PROFILE
+if bash "${PLUGIN_DIR}/scripts/run-testcontainers.sh" --profile "${MOCK_DIR}/invalid-metrics-interval.profile" -- true >/dev/null 2>"${MOCK_DIR}/invalid-metrics-interval"; then
+    fail "Invalid metrics interval should fail"
+else
+    assert_contains "TESTCONTAINERS_RESOURCE_METRICS_INTERVAL must be an integer from 1 to 60" "$(<"${MOCK_DIR}/invalid-metrics-interval")" "invalid metrics interval error"
 fi
 
 echo "=== Results: ${PASS} passed, ${FAIL} failed ===" >&2

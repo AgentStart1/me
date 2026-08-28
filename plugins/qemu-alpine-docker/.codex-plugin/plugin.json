@@ -1,7 +1,7 @@
 {
   "name": "qemu-alpine-docker",
-  "version": "0.3.1-20260827112608",
-  "description": "Persistent pure-TCG QEMU Alpine Docker VM for Testcontainers development and testing on Windows.",
+  "version": "0.4.1-20260828103126",
+  "description": "Persistent accelerated QEMU Alpine Docker VM for Testcontainers development and testing on Windows.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers",
     "url": "https://github.com/storytellerF/me"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "QEMU Alpine Docker",
     "shortDescription": "Persistent Alpine Docker VM for Windows Testcontainers.",
-    "longDescription": "Creates and manages one unattended, persistent Alpine Docker VM using pure QEMU TCG and user networking. Exposes a loopback Docker API and a bounded random port range for host-side Testcontainers while preserving pulled image layers between runs.",
+    "longDescription": "Creates and manages one unattended, persistent Alpine Docker VM using WHPX when available and TCG otherwise. Exposes a loopback Docker API and a bounded random port range for host-side Testcontainers while preserving pulled image layers between runs.",
     "developerName": "QEMU Alpine Docker Maintainers",
     "category": "Developer Tools",
     "capabilities": [

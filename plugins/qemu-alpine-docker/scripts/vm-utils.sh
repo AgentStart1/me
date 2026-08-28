@@ -159,6 +159,68 @@ validate_port_range() {
     }
 }
 
+qemu_supports_accelerator() {
+    local qemu_bin="$1" accelerator="$2"
+    "$qemu_bin" -accel help 2>/dev/null | grep -qx "$accelerator"
+}
+
+probe_whpx() {
+    local qemu_bin="$1" probe_pid
+    "$qemu_bin" \
+        -name qemu-alpine-docker-whpx-probe \
+        -accel whpx \
+        -cpu qemu64 \
+        -machine q35 \
+        -m 64 \
+        -smp 1 \
+        -nodefaults \
+        -display none \
+        -S >/dev/null 2>&1 &
+    probe_pid=$!
+    sleep 1
+    if ! process_is_running "$probe_pid"; then
+        wait "$probe_pid" 2>/dev/null || true
+        return 1
+    fi
+    kill "$probe_pid" 2>/dev/null || true
+    wait_for_process_exit "$probe_pid" 5 || kill -9 "$probe_pid" 2>/dev/null || true
+}
+
+configure_qemu_acceleration() {
+    local qemu_bin="$1" requested="${VM_ACCELERATOR:-auto}"
+    case "$requested" in
+        auto)
+            if is_windows && qemu_supports_accelerator "$qemu_bin" whpx && probe_whpx "$qemu_bin"; then
+                QEMU_ACCELERATOR="whpx"
+                QEMU_ACCEL_ARGS=(-accel whpx -cpu qemu64)
+            else
+                QEMU_ACCELERATOR="tcg"
+                QEMU_ACCEL_ARGS=(-accel tcg,thread=multi -cpu max)
+            fi
+            ;;
+        whpx)
+            is_windows || {
+                echo "Error: WHPX acceleration is only supported on Windows." >&2
+                return 1
+            }
+            qemu_supports_accelerator "$qemu_bin" whpx && probe_whpx "$qemu_bin" || {
+                echo "Error: WHPX is unavailable. Enable the Windows hypervisor or set VM_ACCELERATOR=tcg." >&2
+                return 1
+            }
+            QEMU_ACCELERATOR="whpx"
+            QEMU_ACCEL_ARGS=(-accel whpx -cpu qemu64)
+            ;;
+        tcg)
+            QEMU_ACCELERATOR="tcg"
+            QEMU_ACCEL_ARGS=(-accel tcg,thread=multi -cpu max)
+            ;;
+        *)
+            echo "Error: VM_ACCELERATOR must be auto, whpx, or tcg (got '${requested}')." >&2
+            return 1
+            ;;
+    esac
+}
+
 render_template() (
     local template_path="$1" output_path="$2"
     shift 2

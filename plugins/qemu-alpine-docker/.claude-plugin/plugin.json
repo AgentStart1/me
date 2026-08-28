@@ -1,8 +1,8 @@
 {
   "name": "qemu-alpine-docker",
-  "description": "Persistent pure-TCG QEMU Alpine Docker VM for host-side Testcontainers testing on Windows, with a single-instance lock and bounded loopback port forwarding.",
+  "description": "Persistent accelerated QEMU Alpine Docker VM for host-side Testcontainers testing on Windows, with a single-instance lock and bounded loopback port forwarding.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers"
   },
-  "version": "0.3.1-20260827112608"
+  "version": "0.4.1-20260828103126"
 }
