@@ -1,22 +1,59 @@
 #!/bin/bash
 # Build an unattended Alpine system disk, verify Docker, and mark it ready.
+#
+# This is the most complex script in the plugin. It performs a full unattended
+# Alpine Linux installation using QEMU, then boots the result to verify that
+# Docker, Unbound DNS, and the Testcontainers port range are working correctly.
+#
+# Flow:
+#   1. Load profile and validate required keys
+#   2. If VM already exists and is ready → exit (idempotent)
+#   3. If VM disk exists without ready marker → error (unless VERIFY_EXISTING=true)
+#   4. Build an overlay with guest configuration (answers, Docker config, DNS, etc.)
+#   5. Inject the overlay into the Alpine ISO via xorriso (creates a modified ISO)
+#   6. Extract kernel and initramfs from the modified ISO
+#   7. Create a qcow2 disk image
+#   8. Boot QEMU with the modified ISO, kernel, and initramfs for installation
+#      (the guest runs setup-alpine.sh in unattended mode, installs Docker, etc.)
+#   9. After installation completes, boot the installed disk for verification
+#   10. Verify: SSH access, Docker daemon, DNS resolution, Testcontainers port range
+#   11. Optionally preload Docker images
+#   12. Write a ready marker file
+#
+# Key design decisions:
+#   - Uses a profile file (key=value) for configuration, not command-line args
+#   - Template rendering with {{PLACEHOLDER}} markers for all guest config files
+#   - Acceleration auto-detection (WHPX on Windows, TCG fallback)
+#   - Verification step ensures the VM is actually usable before marking it ready
+#   - Atomic write for the ready marker to avoid partial updates
+#
+# Environment variables:
+#   INSTALL_TIMEOUT — max seconds for the installation QEMU instance (default: 1800)
+#   BOOT_TIMEOUT    — max seconds for the verification QEMU instance (default: 300)
+#   PRELOAD_IMAGES  — comma-separated list of Docker images to pull after verification
+#   VERIFY_EXISTING — if true, skip installation and only run verification on existing disk
+#
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=vm-utils.sh
 source "${SCRIPT_DIR}/vm-utils.sh"
 
+# --- Load and validate profile ---
 PROFILE_ARG="${1:-${PLUGIN_DIR}/profiles/dev.profile}"
 load_profile "$PROFILE_ARG"
 
+# All these keys are required for the VM to function correctly.
 for key in VM_NAME VM_MEMORY VM_CPUS VM_DISK_SIZE SSH_PORT DOCKER_DAEMON_PORT TESTCONTAINERS_PORT_START TESTCONTAINERS_PORT_END; do
     require_profile_value "$key"
 done
+# VM_NAME must be a valid identifier (letters, digits, hyphens, dots).
 [[ "$VM_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || {
     echo "Error: VM_NAME contains unsupported characters." >&2
     exit 1
 }
 
+# --- Configuration defaults ---
 ALPINE_BRANCH="${ALPINE_BRANCH:-v3.24}"
 ALPINE_MIRROR_BASE="${ALPINE_MIRROR_BASE:-auto}"
 ALPINE_FALLBACK_MIRROR="https://dl-cdn.alpinelinux.org/alpine"
@@ -27,6 +64,7 @@ PRELOAD_IMAGES="${PRELOAD_IMAGES:-}"
 VERIFY_EXISTING="${VERIFY_EXISTING:-false}"
 VERIFY_ONLY=false
 
+# --- Per-VM file paths ---
 VM_HOME="${VM_DIR}/${VM_NAME}"
 VM_DISK="${VM_HOME}/disk.qcow2"
 MODIFIED_ISO="${VM_HOME}/alpine-auto.iso"
@@ -36,6 +74,7 @@ KERNEL_IMAGE="${VM_HOME}/vmlinuz-virt"
 INITRAMFS_IMAGE="${VM_HOME}/initramfs-virt"
 INSTALL_LOG="${VM_HOME}/install-console.log"
 BOOT_LOG="${VM_HOME}/verify-console.log"
+# Convert POSIX paths to Windows-native paths for QEMU (no-op on Linux/macOS)
 VM_DISK_NATIVE="$(qemu_native_path "$VM_DISK")"
 MODIFIED_ISO_NATIVE="$(qemu_native_path "$MODIFIED_ISO")"
 INSTALL_LOG_NATIVE="$(qemu_native_path "$INSTALL_LOG")"
@@ -44,6 +83,9 @@ KERNEL_IMAGE_NATIVE="$(qemu_native_path "$KERNEL_IMAGE")"
 INITRAMFS_IMAGE_NATIVE="$(qemu_native_path "$INITRAMFS_IMAGE")"
 READY_FILE="$(vm_ready_file)"
 
+# --- Idempotency check ---
+# If the VM disk exists and the ready marker is present, the VM has already been
+# provisioned successfully. We preserve the existing disk (with its Docker image cache).
 if [ -f "$VM_DISK" ]; then
     if [ -f "$READY_FILE" ]; then
         echo "VM '${VM_NAME}' is already provisioned; preserving its Docker image cache." >&2
@@ -67,9 +109,15 @@ require_command tar
 require_command curl
 ensure_ssh_key
 VM_ISO="$(ensure_alpine_image)"
+# Validate the network device value early (this will error if ports are invalid)
 build_netdev_value >/dev/null
+# Acquire the global singleton lock — only one VM may be created/running at a time
 acquire_single_vm_lock
 
+# --- Cleanup handler ---
+# If the script exits unexpectedly (e.g., during installation), this handler
+# kills any running QEMU process and clears the VM state. The COMPLETED flag
+# ensures we don't clean up after a successful run.
 QEMU_PID=""
 COMPLETED=false
 cleanup_create() {
@@ -83,16 +131,34 @@ cleanup_create() {
 }
 trap cleanup_create EXIT INT TERM
 
+# --- Build guest overlay (only if not in VERIFY_ONLY mode) ---
+# The overlay is a tar archive that Alpine's setup-alpine.sh injects into the
+# system as /localhost.apkovl.tar.gz. It contains:
+#   - SSH key for root access
+#   - Mirror selector script (select-apk-mirror.sh)
+#   - answers file (unattended setup configuration)
+#   - Docker daemon config (daemon.json)
+#   - Unbound DNS config (for guest DNS resolution)
+#   - Sysctl config for Testcontainers port range
+#   - DHCP client config to preserve local DNS settings
+#   - OpenRC boot scripts for local DNS and guest setup
+#
 if [ "$VERIFY_ONLY" != "true" ]; then
 mkdir -p "$VM_HOME" "${OVERLAY_DIR}/etc/local.d" "${OVERLAY_DIR}/etc/runlevels/default"
 mkdir -p "${OVERLAY_DIR}/etc/sysctl.d" "${OVERLAY_DIR}/etc/unbound"
 mkdir -p "${OVERLAY_DIR}/usr/local/libexec"
 
+# Copy the SSH public key into the overlay for guest access
 cp "${SSH_KEY}.pub" "${OVERLAY_DIR}/root-key.pub"
+# Copy the mirror selector script into the guest overlay
 cp "${SCRIPT_DIR}/select-apk-mirror.sh" "${OVERLAY_DIR}/usr/local/libexec/select-apk-mirror"
 chmod +x "${OVERLAY_DIR}/usr/local/libexec/select-apk-mirror"
+# Write mirror configuration for the guest setup script
 printf '%s\n%s\n' "$ALPINE_BRANCH" "$ALPINE_MIRROR_BASE" > "${OVERLAY_DIR}/mirror-config"
+# Strip CRLF from SSH key (prevents issues in answer files on Windows)
 ROOT_SSH_KEY="$(tr -d '\r\n' < "${SSH_KEY}.pub")"
+# --- Render all template files into the overlay ---
+# Each template uses {{PLACEHOLDER}} markers replaced with runtime values.
 render_template "${TEMPLATE_DIR}/setup-alpine.answers.tpl" "${OVERLAY_DIR}/answers" \
     VM_NAME "$VM_NAME" \
     FALLBACK_MAIN "${ALPINE_FALLBACK_MIRROR}/${ALPINE_BRANCH}/main" \
@@ -127,25 +193,42 @@ chmod +x "${OVERLAY_DIR}/etc/local.d/setup.start"
 chmod +x "${OVERLAY_DIR}/etc/local.d/use-local-dns.start"
 
 # OpenRC identifies services by the entries in the runlevel directory.
+# The "local" service is created here so it runs on boot.
 touch "${OVERLAY_DIR}/etc/runlevels/default/local"
 
+# Pack the overlay into a tar archive
 rm -f "${OVERLAY_DIR}/localhost.apkovl.tar.gz"
 (cd "$OVERLAY_DIR" && tar --owner=0 --group=0 -czf "$OVERLAY_ARCHIVE" .)
 
+# --- Create modified ISO ---
+# Use xorriso to inject the overlay into the Alpine ISO.
+# The overlay replaces /localhost.apkovl.tar.gz which Alpine's setup-alpine.sh
+# automatically extracts during boot.
 echo "Creating unattended Alpine ISO..." >&2
 rm -f "$MODIFIED_ISO"
 xorriso -indev "$VM_ISO" -outdev "$MODIFIED_ISO_NATIVE" \
     -map "$OVERLAY_ARCHIVE" /localhost.apkovl.tar.gz \
     -boot_image any replay >/dev/null
 
+# Extract kernel and initramfs from the modified ISO.
+# These are needed to boot QEMU with -kernel/-initrd (avoids BIOS boot issues).
 rm -f "$KERNEL_IMAGE" "$INITRAMFS_IMAGE"
 xorriso -osirrox on -indev "$MODIFIED_ISO_NATIVE" \
     -extract /boot/vmlinuz-virt "$KERNEL_IMAGE" \
     -extract /boot/initramfs-virt "$INITRAMFS_IMAGE" >/dev/null
 
+# --- Create persistent disk ---
 echo "Creating persistent disk ${VM_DISK} (${VM_DISK_SIZE})..." >&2
 "$QEMU_IMG_BIN" create -f qcow2 "$VM_DISK_NATIVE" "$VM_DISK_SIZE"
 
+# --- QEMU installation arguments ---
+# This QEMU instance runs the Alpine installer in unattended mode.
+# Key points:
+#   - Uses -kernel and -initrd to bypass BIOS boot (faster, more reliable)
+#   - The -append line loads kernel modules needed for virtio, networking, etc.
+#   - Serial output goes to a log file (no display needed)
+#   - Only one network device (net0) — no port forwarding during installation
+#   - The installation runs until setup-alpine.sh completes and the VM powers off
 install_args=(
     -name "${VM_NAME}-install"
     "${QEMU_ACCEL_ARGS[@]}"
@@ -163,6 +246,10 @@ install_args=(
     -device virtio-net-pci,netdev=net0
 )
 
+# --- Run the installation QEMU instance ---
+# The installer runs in the background. We wait for it to finish (the guest
+# powers off after setup-alpine.sh completes). If it doesn't finish within
+# INSTALL_TIMEOUT seconds, we assume failure.
 echo "Installing Alpine and Docker with ${QEMU_ACCELERATOR} acceleration (timeout: ${INSTALL_TIMEOUT}s)..." >&2
 "$QEMU_BIN" "${install_args[@]}" &
 QEMU_PID=$!
@@ -175,15 +262,22 @@ if ! wait "$QEMU_PID"; then
     echo "Error: installer QEMU exited unsuccessfully; see ${INSTALL_LOG}." >&2
     exit 1
 fi
+# Verify that the installer actually wrote something to the disk.
+# If the disk is less than 1MB, the installation failed.
 ACTUAL_DISK_SIZE="$("$QEMU_IMG_BIN" info --output=json "$VM_DISK_NATIVE" | sed -n 's/.*"actual-size":[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)"
 if [ -z "$ACTUAL_DISK_SIZE" ] || [ "$ACTUAL_DISK_SIZE" -lt 1048576 ]; then
     echo "Error: installer powered off without writing an Alpine system to disk; see ${INSTALL_LOG}." >&2
     exit 1
 fi
 clear_vm_process_state
+# Re-acquire the lock for the verification phase
 acquire_single_vm_lock
 fi
 
+# --- Verification phase ---
+# After installation, boot the installed disk to verify everything works.
+# This QEMU instance has port forwarding enabled (SSH, Docker API, Testcontainers).
+# We wait for SSH to become available, then run a series of checks on the guest.
 NETDEV_VALUE="$(build_netdev_value)"
 verify_args=(
     -name "${VM_NAME}-verify"
@@ -203,11 +297,27 @@ echo "Booting the installed disk for verification..." >&2
 QEMU_PID=$!
 register_vm_process "$QEMU_PID"
 wait_for_ssh "$BOOT_TIMEOUT" "$QEMU_PID"
+# Run a comprehensive verification of the guest state.
+# This checks (in a single SSH command for efficiency):
+#   - /etc/qemu-alpine-docker-image exists (marker from setup script)
+#   - /etc/qemu-alpine-docker-mirror exists and is non-empty
+#   - APK repositories contain the expected Alpine branch
+#   - udhcpc is configured to preserve local DNS (RESOLV_CONF=no)
+#   - Docker service is running
+#   - Unbound service is running
+#   - /etc/resolv.conf points to the local Unbound (127.0.0.1)
+#   - DNS resolution works via Unbound (nslookup)
 ssh_exec "test -f /etc/qemu-alpine-docker-image && test -s /etc/qemu-alpine-docker-mirror && grep -q '/${ALPINE_BRANCH}/main' /etc/apk/repositories && grep -qx 'RESOLV_CONF=\"no\"' /etc/udhcpc/udhcpc.conf && rc-service docker status >/dev/null && rc-service unbound status >/dev/null && grep -qx 'nameserver 127.0.0.1' /etc/resolv.conf && nslookup dl-cdn.alpinelinux.org 127.0.0.1 >/dev/null"
 wait_for_docker_api 120
+# Verify Docker daemon is functional
 ssh_exec "docker info >/dev/null"
+# Verify the Testcontainers port range is correctly configured in sysctl
 ssh_exec "set -- \$(sysctl -n net.ipv4.ip_local_port_range); test \"\$1\" = '${TESTCONTAINERS_PORT_START}' && test \"\$2\" = '${TESTCONTAINERS_PORT_END}'"
 
+# --- Optional image preloading ---
+# If PRELOAD_IMAGES is set, pull Docker images into the VM during provisioning.
+# This speeds up first use since the images are already cached on the persistent disk.
+# Each image reference is validated before being sent to the guest.
 if [ -n "$PRELOAD_IMAGES" ]; then
     IFS=',' read -ra preload_list <<< "$PRELOAD_IMAGES"
     for image in "${preload_list[@]}"; do
@@ -216,6 +326,9 @@ if [ -n "$PRELOAD_IMAGES" ]; then
     done
 fi
 
+# --- Shutdown the verification QEMU instance ---
+# Ask the guest to power off gracefully. If it doesn't respond within 90s,
+# force-kill the QEMU process. The VM is fully provisioned at this point.
 ssh_exec "poweroff" >/dev/null 2>&1 || true
 if ! wait_for_process_exit "$QEMU_PID" 90; then
     echo "Warning: guest did not power off; stopping QEMU after successful verification." >&2
@@ -225,8 +338,10 @@ fi
 wait "$QEMU_PID" 2>/dev/null || true
 clear_vm_process_state
 
+# Write a ready marker with a timestamp so subsequent runs skip provisioning.
 printf 'verified=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$READY_FILE"
 COMPLETED=true
+# Clear the cleanup trap since we've completed successfully.
 trap - EXIT INT TERM
 
 echo "VM '${VM_NAME}' is ready." >&2

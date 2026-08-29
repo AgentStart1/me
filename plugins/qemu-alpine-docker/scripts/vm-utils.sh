@@ -1,9 +1,28 @@
 #!/bin/bash
 # Shared utilities for the QEMU Alpine Docker plugin.
+#
+# This file is the foundation of the entire plugin — every script sources it.
+# It provides:
+#   - Path resolution (scripts, plugin root, home, VM/image/run dirs)
+#   - Platform detection (Linux/macOS/Windows via MSYS2/Cygwin)
+#   - QEMU binary resolution and acceleration configuration (WHPX on Windows, TCG fallback)
+#   - SSH key management, SSH/Docker API wait helpers
+#   - Template rendering with placeholder validation (no shell expansion)
+#   - VM state management: per-VM PID files + a global singleton lock with a
+#     separate state-guard mutex to prevent race conditions between concurrent scripts
+#   - Network device value builder that assembles QEMU user-mode port forwarding
+#
+# Directory layout under $QEMU_ALPINE_BASE_DIR (~/.qemu-alpine-docker):
+#   images/     — downloaded Alpine ISO images and checksums
+#   vms/<name>/ — per-VM persistent state (disk.qcow2, kernel, initramfs, logs, ready marker)
+#   run/        — runtime state:
+#       active-vm.lock/   — global singleton lock (directory = mutex; files: qemu.pid, launcher.pid, vm-name)
+#       vm-state.guard/   — short-lived mutex protecting lock acquisition/release sequences
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Resolve home directory; on Windows/MSYS2, prefer USERPROFILE via cygpath
 HOME_DIR="${HOME:-/home/$(id -un)}"
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
@@ -12,14 +31,17 @@ case "$(uname -s)" in
         fi
         ;;
 esac
+# Base directory for all VM state; override via QEMU_ALPINE_BASE_DIR environment variable.
 VM_BASE_DIR="${QEMU_ALPINE_BASE_DIR:-${HOME_DIR}/.qemu-alpine-docker}"
-IMAGES_DIR="${VM_BASE_DIR}/images"
-VM_DIR="${VM_BASE_DIR}/vms"
-RUN_DIR="${VM_BASE_DIR}/run"
-ACTIVE_LOCK_DIR="${RUN_DIR}/active-vm.lock"
-STATE_GUARD_DIR="${RUN_DIR}/vm-state.guard"
-SSH_KEY="${VM_BASE_DIR}/id_ed25519"
+IMAGES_DIR="${VM_BASE_DIR}/images"      # Downloaded Alpine ISOs and checksums
+VM_DIR="${VM_BASE_DIR}/vms"             # Per-VM directories (disk, kernel, logs)
+RUN_DIR="${VM_BASE_DIR}/run"            # Runtime state (locks, metrics stop files)
+ACTIVE_LOCK_DIR="${RUN_DIR}/active-vm.lock"  # Global singleton lock — only one VM may run at a time
+STATE_GUARD_DIR="${RUN_DIR}/vm-state.guard"  # Short-lived mutex protecting lock acquisition/release
+SSH_KEY="${VM_BASE_DIR}/id_ed25519"     # Ed25519 key pair used for all guest SSH connections
 
+# Returns a short tag for the current platform. Used by scripts to branch
+# platform-specific behavior (e.g., WHPX acceleration, path conversion).
 platform_tag() {
     case "$(uname -s)" in
         Linux*) echo "linux" ;;
@@ -31,6 +53,9 @@ platform_tag() {
 
 is_windows() { [ "$(platform_tag)" = "win" ]; }
 
+# Convert a POSIX path (e.g., /c/Users/...) to a Windows-native path
+# (e.g., C:/Users/...) using cygpath. Only needed on Windows/MSYS2/Cygwin.
+# QEMU on Windows requires native paths for -drive, -cdrom, -kernel, -initrd.
 qemu_native_path() {
     local path="$1"
     if is_windows && command -v cygpath >/dev/null 2>&1; then
@@ -40,6 +65,7 @@ qemu_native_path() {
     fi
 }
 
+# Validate that a command exists on PATH, with an optional human-readable label.
 require_command() {
     local cmd="$1" label="${2:-$1}"
     command -v "$cmd" >/dev/null 2>&1 || {
@@ -48,6 +74,8 @@ require_command() {
     }
 }
 
+# Locate qemu-system-x86_64 binary. On Windows, also checks common install paths
+# (Program Files, LOCALAPPDATA) since QEMU may not be on PATH by default.
 resolve_qemu() {
     local binary="qemu-system-x86_64"
     if command -v "$binary" >/dev/null 2>&1; then
@@ -70,6 +98,8 @@ resolve_qemu() {
     return 1
 }
 
+# Locate qemu-img binary. First checks for it as a sibling of qemu-system-x86_64,
+# then falls back to PATH. Handles .exe suffix on Windows.
 resolve_qemu_img() {
     local qemu_bin="${1:-$(resolve_qemu)}"
     local sibling="$(dirname "$qemu_bin")/qemu-img"
@@ -84,6 +114,9 @@ resolve_qemu_img() {
     fi
 }
 
+# On Windows/MSYS2, add common paths that contain SSH, ssh-keygen, cygpath, etc.
+# These are not always on PATH in a bare MSYS2 environment. The QEMU_ALPINE_SKIP_MSYS2_PATH
+# flag disables this if the user has already configured their own PATH.
 ensure_msys2_tools() {
     [ "${QEMU_ALPINE_SKIP_MSYS2_PATH:-0}" = "1" ] && return 0
     if is_windows; then
@@ -106,6 +139,10 @@ ensure_msys2_tools() {
 
 ensure_msys2_tools
 
+# Load a key=value profile file (like a simplified .env file).
+# Security: rejects shell expansion ($(), ${}, backticks) to prevent injection.
+# Handles Windows CRLF line endings by stripping \r.
+# Only accepts lines matching KEY=VALUE format; skips comments and blank lines.
 load_profile() {
     local profile_path="${1:-}"
     if [ -z "$profile_path" ] || [ ! -f "$profile_path" ]; then
@@ -137,6 +174,7 @@ require_profile_value() {
     }
 }
 
+# Validate that a value is a valid TCP port number (1–65535).
 validate_port() {
     local port="$1" label="${2:-port}"
     if [[ ! "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
@@ -145,6 +183,7 @@ validate_port() {
     fi
 }
 
+# Validate a port range for Testcontainers: start ≤ end, at most 512 ports.
 validate_port_range() {
     local start="$1" end="$2"
     validate_port "$start" "TESTCONTAINERS_PORT_START"
@@ -159,11 +198,17 @@ validate_port_range() {
     }
 }
 
+# Check if the QEMU binary supports a given accelerator (whpx, kvm, etc.)
+# by querying `qemu -accel help`.
 qemu_supports_accelerator() {
     local qemu_bin="$1" accelerator="$2"
     "$qemu_bin" -accel help 2>/dev/null | grep -qx "$accelerator"
 }
 
+# Probe WHPX availability by launching a minimal QEMU instance with -accel whpx.
+# The instance is started with -S (stopped) to avoid actual execution; we check
+# if it survives for 1 second, then kill it. This verifies the Windows hypervisor
+# is active and QEMU can use it without needing a full VM boot.
 probe_whpx() {
     local qemu_bin="$1" probe_pid
     "$qemu_bin" \
@@ -186,6 +231,14 @@ probe_whpx() {
     wait_for_process_exit "$probe_pid" 5 || kill -9 "$probe_pid" 2>/dev/null || true
 }
 
+# Configure QEMU acceleration. Supports three modes:
+#   auto  — on Windows, try WHPX first; fall back to TCG (software emulation)
+#   whpx  — force WHPX (Windows Hypervisor Platform); fails if unavailable
+#   tcg   — force TCG (software emulation); works everywhere but is slower
+#
+# Sets two global variables used by all QEMU launch commands:
+#   QEMU_ACCELERATOR — "whpx" or "tcg"
+#   QEMU_ACCEL_ARGS  — array of -accel and -cpu arguments
 configure_qemu_acceleration() {
     local qemu_bin="$1" requested="${VM_ACCELERATOR:-auto}"
     case "$requested" in
@@ -221,6 +274,11 @@ configure_qemu_acceleration() {
     esac
 }
 
+# Render a template file by replacing {{PLACEHOLDER}} markers with values.
+# Runs in a subshell to isolate variable modifications.
+# Security: each placeholder must be a NAME/value pair; the function rejects
+# any unresolved {{UPPERCASE_PLACEHOLDER}} after all replacements are done.
+# Uses atomic write (temp file + mv) to avoid partial writes.
 render_template() (
     local template_path="$1" output_path="$2"
     shift 2
@@ -258,6 +316,9 @@ render_template() (
     mv "$temp_path" "$output_path"
 )
 
+# Validate that a container image reference contains only safe characters
+# (alphanumeric, dots, slashes, colons, dashes, underscores, @).
+# Rejects shell metacharacters like $, ;, etc.
 validate_image_reference() {
     local image="$1"
     [[ "$image" =~ ^[A-Za-z0-9._/:@-]+$ ]] || {
@@ -266,6 +327,8 @@ validate_image_reference() {
     }
 }
 
+# Generate an Ed25519 SSH key pair if it doesn't already exist.
+# This key is used by all scripts to connect to the guest VM.
 ensure_ssh_key() {
     if [ -f "$SSH_KEY" ] && [ -f "${SSH_KEY}.pub" ]; then return 0; fi
     mkdir -p "$(dirname "$SSH_KEY")"
@@ -273,14 +336,21 @@ ensure_ssh_key() {
     echo "Generated SSH key: ${SSH_KEY}" >&2
 }
 
+# Returns the SSH port from the profile or default (2222).
 ssh_port() { echo "${SSH_PORT:-2222}"; }
 
+# Execute a command on the guest via SSH.
+# Uses StrictHostKeyChecking=no and BatchMode=yes for non-interactive operation.
+# Connects to root@127.0.0.1 on the configured SSH port with the plugin's key.
 ssh_exec() {
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -o ConnectTimeout=10 -o BatchMode=yes -p "$(ssh_port)" -i "$SSH_KEY" \
         "root@${SSH_HOST:-127.0.0.1}" "$@"
 }
 
+# Poll until the guest SSH server becomes reachable.
+# Optionally checks if a QEMU process is still running (avoids waiting for a dead VM).
+# Default timeout is 180 seconds; polls every 2 seconds.
 wait_for_ssh() {
     local timeout="${1:-180}" watched_pid="${2:-}" elapsed=0 interval=2
     echo "Waiting for SSH on 127.0.0.1:$(ssh_port) (timeout: ${timeout}s)..." >&2
@@ -300,6 +370,9 @@ wait_for_ssh() {
     return 1
 }
 
+# Poll until the Docker API on the guest becomes reachable.
+# Uses curl to check the /version endpoint on the host-forwarded Docker port.
+# Default timeout is 120 seconds; polls every 2 seconds.
 wait_for_docker_api() {
     local timeout="${1:-120}" port="${DOCKER_DAEMON_PORT:-2375}" elapsed=0
     while [ "$elapsed" -lt "$timeout" ]; do
@@ -311,6 +384,7 @@ wait_for_docker_api() {
     return 1
 }
 
+# Download a file from a URL with retries. Tries curl first, falls back to wget.
 download_file() {
     local url="$1" dest="$2"
     mkdir -p "$(dirname "$dest")"
@@ -324,9 +398,12 @@ download_file() {
     fi
 }
 
+# Default Alpine ISO URL and filename. Override via environment variables
+# for custom mirrors or Alpine versions.
 ALPINE_IMAGE_URL="${ALPINE_IMAGE_URL:-https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/alpine-virt-3.24.1-x86_64.iso}"
 ALPINE_IMAGE_NAME="${ALPINE_IMAGE_NAME:-alpine-virt-3.24.1-x86_64.iso}"
 
+# Download the Alpine ISO if not present, verify its SHA256 checksum, and return its path.
 ensure_alpine_image() {
     local image_path="${IMAGES_DIR}/${ALPINE_IMAGE_NAME}"
     local checksum_path="${image_path}.sha256"
@@ -337,13 +414,28 @@ ensure_alpine_image() {
     echo "$image_path"
 }
 
+# --- VM state query helpers ---
+# These functions read/write per-VM PID files and the global lock directory.
+# The PID file tracks the running QEMU process for a given VM.
+# The ready file is created after successful provisioning and verification.
 vm_pid_file() { echo "${VM_DIR}/${VM_NAME:-alpine-dev}.pid"; }
 vm_ready_file() { echo "${VM_DIR}/${VM_NAME:-alpine-dev}/ready"; }
 process_is_running() { local pid="${1:-}"; [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; }
 vm_pid() { [ -f "$(vm_pid_file)" ] && cat "$(vm_pid_file)"; }
 vm_is_running() { local pid; pid="$(vm_pid 2>/dev/null || true)"; process_is_running "$pid"; }
+# Read the QEMU PID from the global active VM lock.
 active_vm_pid() { [ -f "${ACTIVE_LOCK_DIR}/qemu.pid" ] && cat "${ACTIVE_LOCK_DIR}/qemu.pid"; }
 
+# --- VM state guard (mutex) ---
+# This function implements a simple mutex using a directory as a lock.
+# It creates a directory (STATE_GUARD_DIR) and only proceeds if the mkdir succeeds.
+# The lock is held for the duration of the callback function.
+# This prevents concurrent scripts from corrupting the active VM lock.
+# Key design decisions:
+#   - Uses a subshell to isolate trap handlers and cleanup
+#   - Tracks the owner PID to detect stale locks
+#   - Handles SIGINT/SIGTERM by deferring them until cleanup
+#   - Retries up to 100 times with 50ms sleep between attempts
 with_vm_state_guard() {
     local callback="$1"
     local state_guard_caller_pid="${BASHPID:-$$}"
@@ -383,6 +475,13 @@ with_vm_state_guard() {
     )
 }
 
+# Acquire the global singleton VM lock. This ensures only one VM runs at a time.
+# Uses directory-based locking (mkdir is atomic) for reliability across platforms.
+# Strategy:
+#   1. Try to create the lock directory
+#   2. If it exists, check if the owner process is still alive
+#   3. If the owner is dead, clean up and re-acquire
+#   4. Store VM name, launcher PID, and QEMU PID in the lock directory
 acquire_single_vm_lock_guarded() {
     if mkdir "$ACTIVE_LOCK_DIR" 2>/dev/null; then
         echo "${VM_NAME:-unknown}" > "${ACTIVE_LOCK_DIR}/vm-name"
@@ -414,12 +513,16 @@ acquire_single_vm_lock_guarded() {
 
 acquire_single_vm_lock() { with_vm_state_guard acquire_single_vm_lock_guarded; }
 
+# Record the QEMU process PID in both the per-VM PID file and the global lock.
+# This allows other scripts to verify the VM is running and to stop it.
 register_vm_process() {
     local pid="$1"
     echo "$pid" > "$(vm_pid_file)"
     echo "$pid" > "${ACTIVE_LOCK_DIR}/qemu.pid"
 }
 
+# Release the global singleton VM lock by removing all files and the lock directory.
+# Called by start-vm.sh after the VM is running and by stop-vm.sh after shutdown.
 release_single_vm_lock_guarded() {
     rm -f "${ACTIVE_LOCK_DIR}/qemu.pid" "${ACTIVE_LOCK_DIR}/launcher.pid" "${ACTIVE_LOCK_DIR}/vm-name"
     rmdir "$ACTIVE_LOCK_DIR" 2>/dev/null || true
@@ -427,6 +530,10 @@ release_single_vm_lock_guarded() {
 
 release_single_vm_lock() { with_vm_state_guard release_single_vm_lock_guarded; }
 
+# Clean up VM process state: remove PID file and conditionally release the global lock.
+# The lock is only released if the current VM name matches the lock's VM name AND
+# the QEMU process and launcher process are both dead. This prevents accidentally
+# releasing the lock for a different VM that might still be running.
 clear_vm_process_state_guarded() {
     rm -f "$(vm_pid_file)"
     local active_name active_pid active_launcher current_launcher
@@ -444,6 +551,8 @@ clear_vm_process_state_guarded() {
 
 clear_vm_process_state() { with_vm_state_guard clear_vm_process_state_guarded; }
 
+# Wait for a process to exit, with a timeout. Returns 0 if the process exited,
+# non-zero if it's still running after the timeout.
 wait_for_process_exit() {
     local pid="$1" timeout="$2" elapsed=0
     while process_is_running "$pid" && [ "$elapsed" -lt "$timeout" ]; do
@@ -453,6 +562,18 @@ wait_for_process_exit() {
     ! process_is_running "$pid"
 }
 
+# Build the QEMU -netdev argument for user-mode networking with port forwarding.
+#
+# This is the core networking configuration. It creates a QEMU user-mode network
+# backend with the following port mappings:
+#   - SSH:       host:SSH_PORT → guest:22
+#   - Docker API: host:DOCKER_DAEMON_PORT → guest:2375
+#   - Testcontainers port range: host:TESTCONTAINERS_PORT_START-END → guest:same ports
+#   - Custom PORT_FORWARD mappings: host:port → guest:port
+#
+# All ports are bound to 127.0.0.1 (localhost only) for security.
+# Validation ensures no port collisions between the above categories.
+# The Testcontainers port range allows up to 512 ports for container publishing.
 build_netdev_value() {
     local ssh_value="${SSH_PORT:-2222}" docker_value="${DOCKER_DAEMON_PORT:-2375}"
     local range_start="${TESTCONTAINERS_PORT_START:-20000}" range_end="${TESTCONTAINERS_PORT_END:-20255}"

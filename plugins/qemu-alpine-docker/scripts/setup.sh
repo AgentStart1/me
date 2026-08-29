@@ -1,5 +1,28 @@
 #!/bin/bash
 # setup.sh — Download Alpine image and verify prerequisites for QEMU Alpine Docker.
+#
+# This script checks that all required tools are available and downloads the
+# Alpine ISO image if it doesn't already exist. It's intended to be run once
+# before creating the first VM.
+#
+# Required tools:
+#   - qemu-system-x86_64 (QEMU emulator)
+#   - qemu-img (disk image tool)
+#   - ssh, ssh-keygen (OpenSSH client)
+#   - xorriso (ISO manipulation)
+#   - tar (archive creation)
+#   - curl (download)
+#
+# Optional tools:
+#   - rsync (for code sync; scp fallback available)
+#
+# Directories created:
+#   - $IMAGES_DIR (downloaded Alpine ISOs)
+#   - $VM_DIR (per-VM directories)
+#   - $RUN_DIR (runtime state)
+#
+# The script also generates an SSH key pair if one doesn't exist.
+#
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

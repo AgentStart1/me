@@ -1,5 +1,16 @@
 #!/bin/bash
 # Execute a Docker CLI command inside the guest over SSH.
+#
+# This is a convenience wrapper that forwards Docker CLI arguments to the guest VM
+# via SSH. It validates that the VM is running and Docker is ready before executing.
+#
+# Usage: run-docker.sh [--profile <path>] -- <docker arguments...>
+#
+# Example: run-docker.sh -- ps -a
+#          run-docker.sh -- run -d -p 8080:80 nginx
+#
+# Arguments are shell-escaped before being sent to the guest to prevent injection.
+#
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +34,9 @@ require_profile_value SSH_PORT
 vm_is_running || { echo "Error: VM is not running." >&2; exit 1; }
 ssh_exec "docker info >/dev/null" || { echo "Error: Docker is not ready in the VM." >&2; exit 1; }
 
+# Build the remote command with shell-escaped arguments.
+# This ensures that arguments with special characters (spaces, quotes, etc.)
+# are passed correctly to the Docker CLI in the guest.
 remote_command="docker"
 for arg in "$@"; do
     printf -v escaped '%q' "$arg"
