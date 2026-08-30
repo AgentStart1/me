@@ -1,0 +1,10 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "kotlin-coding-practices",
+  "description": "Coroutine-first and immutable-by-default Kotlin coding practices.",
+  "author": {
+    "name": "Local Kotlin Practices"
+  },
+  "version": "0.1.0-20260830152532",
+  "skills": ["./skills/"]
+}
