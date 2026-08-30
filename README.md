@@ -6,7 +6,7 @@ A local Codex developer plugin collection. It includes Android tooling, client U
 
 - `.agents/plugins/marketplace.json`: the in-repo `me` Codex marketplace entry.
 - `plugins/android-profile/.codex-plugin/plugin.json`: Android Profile plugin manifest.
-- `plugins/*/.claude-plugin/plugin.json`: Claude Code plugin manifests for plugins that ship custom agents.
+- `plugins/*/.claude-plugin/plugin.json`: Claude Code plugin manifests for compatible plugins.
 - `plugins/android-profile/scripts/`: Android SDK, AVD, and emulator scripts.
 - `plugins/android-profile/tests/`: smoke test scripts.
 - `plugins/android-profile/profiles/android.profile`: default Android emulator profile.
@@ -17,7 +17,9 @@ A local Codex developer plugin collection. It includes Android tooling, client U
 - `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
 - `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
 - `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
-- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, flow stabilization before end-to-end test authoring, checks and tests, rule-file maintenance, logging, root-cause-first debugging, GitHub PR & CI, repository sync, release infrastructure, and Kotlin project practice instructions.
+- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, flow stabilization before end-to-end test authoring, checks and tests, rule-file maintenance, logging, root-cause-first debugging, GitHub PR & CI, repository sync, and release infrastructure instructions.
+- `plugins/kotlin-coding-practices/.codex-plugin/plugin.json`: Kotlin Coding Practices plugin manifest.
+- `plugins/kotlin-coding-practices/skills/`: coroutine-first, immutable-by-default Kotlin and Android Kotlin practice instructions.
 - `plugins/client-ui-best-practices/.codex-plugin/plugin.json`: Client UI Best Practices plugin manifest.
 - `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, Compose state collection, handler-owned async work, database observability with reactive DAO Flow and global write events, and UI-free business test guidance.
 - `plugins/test-report-sharing/.claude-plugin/plugin.json`: Test Report Sharing plugin manifest.
@@ -44,6 +46,7 @@ codex plugin add android-profile@me
 codex plugin add android-appium-device-lock@me
 codex plugin add recyclerview-best-practice@me
 codex plugin add general-coding-practices@me
+codex plugin add kotlin-coding-practices@me
 codex plugin add client-ui-best-practices@me
 codex plugin add test-report-sharing@me
 codex plugin add qemu-alpine-docker@me
@@ -66,6 +69,7 @@ Install plugins from the marketplace:
 /plugin install android-appium-device-lock@me
 /plugin install recyclerview-best-practice@me
 /plugin install general-coding-practices@me
+/plugin install kotlin-coding-practices@me
 /plugin install client-ui-best-practices@me
 /plugin install test-report-sharing@me
 /plugin install qemu-alpine-docker@me
