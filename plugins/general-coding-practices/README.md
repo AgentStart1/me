@@ -1,6 +1,6 @@
 # General Coding Practices Plugin
 
-This Codex plugin provides focused skills for project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, and repository delivery. The plugin root also contains portable Claude-compatible agent prompts.
+This Codex plugin provides focused skills for project collaboration, README maintenance, verification, rule-file maintenance, root-cause-first debugging, and repository synchronization. The plugin root also contains portable Claude-compatible agent prompts.
 
 ## Contents
 
@@ -12,9 +12,7 @@ This Codex plugin provides focused skills for project collaboration, README main
 - `skills/project-rule-file-maintenance/SKILL.md` contains guidance for keeping `AGENTS.md`, `CLAUDE.md`, and similar project instruction files current.
 - `skills/project-logging-rules/SKILL.md` contains guidance for adding necessary, structured, and privacy-safe diagnostic logs.
 - `skills/root-cause-before-fallback/SKILL.md` contains root-cause-first debugging guidance.
-- `skills/github-pr-ci/SKILL.md` handles GitHub pull requests, code reviews, and CI workflow issues.
 - `skills/repository-sync/SKILL.md` synchronizes branches, upstream changes, and submodules.
-- `skills/release-infra/SKILL.md` handles release packaging, signing, Docker, proxy, and deployment configuration.
 
 Agent prompts are stored in the plugin-root `agents/` directory alongside `skills/`. Their Markdown
 frontmatter configures Claude with `model` and `effort`; adjacent `codex-routing.toml` metadata is

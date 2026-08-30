@@ -1,6 +1,6 @@
 {
   "name": "general-coding-practices",
-  "version": "0.3.0-20260830152532",
+  "version": "0.4.0-20260830171102",
   "description": "General coding project collaboration rules and engineering practices.",
   "author": {
     "name": "Local Coding Practices"
@@ -19,14 +19,14 @@
     "project-rules",
     "readme",
     "root-cause",
-    "repository-delivery",
+    "repository-sync",
     "subagents"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "General Coding Practices",
     "shortDescription": "Follow project collaboration and coding rules.",
-    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, add necessary structured and privacy-safe diagnostic logs, proactively maintain README, project rules, and colocated agent prompts, coordinate repository sync and PR/CI delivery, run formatting and static checks, use appropriate dependencies, and identify root causes before adding fallbacks or workarounds.",
+    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, add necessary structured and privacy-safe diagnostic logs, proactively maintain README, project rules, and colocated agent prompts, coordinate repository synchronization, run formatting and static checks, use appropriate dependencies, and identify root causes before adding fallbacks or workarounds.",
     "developerName": "Local Coding Practices",
     "category": "Developer Tools",
     "capabilities": [
@@ -37,7 +37,7 @@
     "defaultPrompt": [
       "Plan this coding change and ask for approval before implementation.",
       "Fix this bug by finding the root cause first.",
-      "Use $repository-delivery to inspect a CI or upstream-sync task."
+      "Use $repository-sync to inspect an upstream synchronization task."
     ],
     "brandColor": "#2563EB"
   }
