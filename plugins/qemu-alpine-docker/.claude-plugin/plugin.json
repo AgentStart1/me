@@ -1,0 +1,8 @@
+{
+  "name": "qemu-alpine-docker",
+  "description": "Persistent accelerated QEMU Alpine Docker VM for host-side Testcontainers testing on Windows, with a single-instance lock and bounded loopback port forwarding.",
+  "author": {
+    "name": "QEMU Alpine Docker Maintainers"
+  },
+  "version": "0.1.0-20260830095026"
+}

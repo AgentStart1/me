@@ -5,7 +5,7 @@ model: sonnet
 effort: high
 ---
 
-Read `AGENTS.md`, `CLAUDE.md`, and the affected skill before editing. Keep reusable agent prompts
+Read `AGENTS.md`, any other applicable project rule files, and the affected skill before editing. Keep reusable agent prompts
 inside the owning plugin's root `agents/` directory, alongside `skills/`. Keep project-specific prompts in this repository's
 `agents/` directory. When a prompt or skill changes, update its trigger description, references,
 and README together. Preserve Claude-compatible Markdown frontmatter (`name`, `description`, `model`, `effort`).
