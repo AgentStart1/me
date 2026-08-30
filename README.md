@@ -21,7 +21,7 @@ A local Codex developer plugin collection. It includes Android tooling, client U
 - `plugins/kotlin-coding-practices/.codex-plugin/plugin.json`: Kotlin Coding Practices plugin manifest.
 - `plugins/kotlin-coding-practices/skills/`: coroutine-first, immutable-by-default Kotlin and Android Kotlin practice instructions.
 - `plugins/client-ui-best-practices/.codex-plugin/plugin.json`: Client UI Best Practices plugin manifest.
-- `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, Compose state collection, handler-owned async work, database observability with reactive DAO Flow and global write events, and UI-free business test guidance.
+- `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, `hostScope`-confined Host work on a custom dispatcher, explicit Default/IO switching, Compose state collection, observable data, and UI-free business test guidance.
 - `plugins/test-report-sharing/.claude-plugin/plugin.json`: Test Report Sharing plugin manifest.
 - `plugins/test-report-sharing/skills/`: Test result collection, E2E recording capture, selectable Git/Difftastic diff report generation, and ngrok tunnel sharing.
 - `plugins/test-report-sharing/scripts/`: Shell scripts for collecting test results, recordings, generating diffs, and starting ngrok.
