@@ -13,9 +13,6 @@
 #   - tar (archive creation)
 #   - curl (download)
 #
-# Optional tools:
-#   - rsync (for code sync; scp fallback available)
-#
 # Directories created:
 #   - $IMAGES_DIR (downloaded Alpine ISOs)
 #   - $VM_DIR (per-VM directories)
@@ -44,13 +41,6 @@ require_command xorriso "xorriso ISO editor"
 require_command tar
 require_command curl
 echo "SSH client found." >&2
-
-# Verify rsync (optional, scp fallback available)
-if command -v rsync >/dev/null 2>&1; then
-    echo "rsync found." >&2
-else
-    echo "Warning: rsync not found. Will use scp for code sync." >&2
-fi
 
 # Create directories
 mkdir -p "${IMAGES_DIR}" "${VM_DIR}" "${RUN_DIR}"

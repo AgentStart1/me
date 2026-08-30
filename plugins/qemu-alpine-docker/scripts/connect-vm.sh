@@ -8,9 +8,6 @@
 # the same way the rest of the scripts do. This ensures consistency across
 # all scripts (create-vm.sh, start-vm.sh, run-docker.sh, etc.).
 #
-# This script was renamed from sync-code.sh to better reflect its purpose
-# (it's a general-purpose VM connection tool, not just for code sync).
-#
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

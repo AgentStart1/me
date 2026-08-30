@@ -29,6 +29,8 @@ A local Codex developer plugin collection. It includes Android tooling, client U
 
 ## Installation
 
+### Codex
+
 Add this GitHub repository as a Codex plugin marketplace:
 
 ```bash
@@ -49,48 +51,32 @@ codex plugin add qemu-alpine-docker@me
 
 Start a new Codex thread after installation so the plugin skills are loaded.
 
+### Claude Code
+
+Add this GitHub repository as a Claude Code plugin marketplace:
+
+```text
+/plugin marketplace add storytellerF/me
+```
+
+Install plugins from the marketplace:
+
+```text
+/plugin install android-profile@me
+/plugin install android-appium-device-lock@me
+/plugin install recyclerview-best-practice@me
+/plugin install general-coding-practices@me
+/plugin install client-ui-best-practices@me
+/plugin install test-report-sharing@me
+/plugin install qemu-alpine-docker@me
+```
+
+Run `/reload-plugins` after installation to load the installed plugins in the current Claude Code session.
+
 ### Agent prompts
 
 Claude Code loads the Markdown agents from each plugin's root `agents/` directory. The repository
 also maintains `agents/me-agent-config-maintainer.md` for prompts specific to this collection.
-
-### Claude Code
-
-Create a `CLAUDE.md` file in the target project and reference the skills needed from this repository:
-
-```markdown
-@plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
-@plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
-@plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md
-@plugins/general-coding-practices/skills/project-readme-maintenance/SKILL.md
-@plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
-@plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
-@plugins/general-coding-practices/skills/project-logging-rules/SKILL.md
-@plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
-@plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
-@plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
-@plugins/test-report-sharing/skills/test-report-sharing/SKILL.md
-@plugins/qemu-alpine-docker/skills/qemu-alpine-docker/SKILL.md
-```
-
-Alternatively, clone this repository locally and reference the skill files with absolute paths from the target project's `CLAUDE.md`:
-
-```markdown
-@/path/to/me/plugins/recyclerview-best-practice/skills/android-recyclerview-best-practice/SKILL.md
-@/path/to/me/plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md
-@/path/to/me/plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md
-@/path/to/me/plugins/general-coding-practices/skills/project-readme-maintenance/SKILL.md
-@/path/to/me/plugins/general-coding-practices/skills/project-checks-and-tests/SKILL.md
-@/path/to/me/plugins/general-coding-practices/skills/project-rule-file-maintenance/SKILL.md
-@/path/to/me/plugins/general-coding-practices/skills/project-logging-rules/SKILL.md
-@/path/to/me/plugins/general-coding-practices/skills/root-cause-before-fallback/SKILL.md
-@/path/to/me/plugins/general-coding-practices/skills/kotlin-project-rules/SKILL.md
-@/path/to/me/plugins/client-ui-best-practices/skills/client-ui-best-practices/SKILL.md
-@/path/to/me/plugins/test-report-sharing/skills/test-report-sharing/SKILL.md
-@/path/to/me/plugins/qemu-alpine-docker/skills/qemu-alpine-docker/SKILL.md
-```
-
-Claude Code loads these instructions automatically when a conversation starts.
 
 ## Running Scripts Directly
 

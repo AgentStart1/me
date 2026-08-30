@@ -298,8 +298,13 @@ assert_contains 'ssh_exec "poweroff"' "$stop_source" "stop script uses Alpine's 
 assert_file "${PLUGIN_DIR}/scripts/connect-vm.sh" "VM connection script uses an accurate name"
 assert_not_file "${PLUGIN_DIR}/scripts/sync-code.sh" "misleading code-sync script name is removed"
 connect_source="$(<"${PLUGIN_DIR}/scripts/connect-vm.sh")"
+assert_not_contains "sync-code.sh" "$connect_source" "VM connection script omits obsolete rename history"
 assert_contains '--sftp' "$connect_source" "VM connection script supports SFTP"
 assert_contains 'exec ssh' "$connect_source" "VM connection script supports SSH"
+
+setup_source="$(<"${PLUGIN_DIR}/scripts/setup.sh")"
+assert_not_contains "rsync" "$setup_source" "setup omits obsolete code-sync tooling"
+assert_not_contains "code sync" "$setup_source" "setup omits obsolete code-sync messaging"
 
 create_source="$(<"${PLUGIN_DIR}/scripts/create-vm.sh")"
 setup_template="$(<"${PLUGIN_DIR}/templates/setup.start.tpl")"

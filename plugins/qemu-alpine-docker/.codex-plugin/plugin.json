@@ -1,6 +1,6 @@
 {
   "name": "qemu-alpine-docker",
-  "version": "0.1.2-20260829233941",
+  "version": "0.1.0-20260830095026",
   "description": "Persistent accelerated QEMU Alpine Docker VM for Testcontainers development and testing on Windows.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers",
