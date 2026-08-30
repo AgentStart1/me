@@ -7,6 +7,7 @@ This plugin creates one persistent Alpine Linux VM for host-side Docker and Test
 - Alpine is installed unattended to a persistent qcow2 system disk.
 - Automatic acceleration uses `whpx + qemu64` on compatible Windows hosts and `tcg,thread=multi + max` otherwise. Both expose the instructions needed by current x86-64-v2 container images.
 - Provisioning configuration is rendered from files under `templates/`; scripts supply explicit placeholder values instead of embedding generated files in heredocs.
+- Shared shell behavior is loaded through `scripts/vm-utils.sh`, which initializes common paths and sources focused modules under `scripts/lib/` for runtime, configuration, templating, QEMU, guest access, Alpine images, and VM state.
 - During first provisioning, Alpine selects the fastest mirror from its official list, upgrades the result to HTTPS, validates it, and falls back to the official HTTPS CDN when needed.
 - Unbound accepts guest DNS queries from loopback and the Docker bridge, then forwards them over TCP to QEMU's virtual DNS server at `10.0.2.3`. Docker containers use the bridge gateway at `172.17.0.1` as their resolver. This avoids unreliable upstream UDP return traffic in Windows user-mode networking without depending on a host DNS listener. DHCP lease renewals are prevented from replacing the local resolver selection.
 - Docker and SSH start automatically in the guest.

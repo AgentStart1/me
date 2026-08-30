@@ -82,6 +82,12 @@ export QEMU_ALPINE_BASE_DIR="${MOCK_DIR}/home"
 export HOME="${MOCK_DIR}/home"
 # shellcheck source=../scripts/vm-utils.sh
 source "${PLUGIN_DIR}/scripts/vm-utils.sh"
+utility_modules=(runtime config templates qemu guest alpine-image vm-state)
+vm_utils_source="$(<"${PLUGIN_DIR}/scripts/vm-utils.sh")"
+for utility_module in "${utility_modules[@]}"; do
+    assert_file "${PLUGIN_DIR}/scripts/lib/${utility_module}.sh" "${utility_module} utility module exists"
+    assert_contains "/lib/${utility_module}.sh" "$vm_utils_source" "vm-utils loads ${utility_module} utility module"
+done
 VM_DIR="${MOCK_DIR}/vms"
 RUN_DIR="${MOCK_DIR}/run"
 ACTIVE_LOCK_DIR="${RUN_DIR}/active-vm.lock"

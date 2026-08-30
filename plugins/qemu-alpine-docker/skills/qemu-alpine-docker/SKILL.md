@@ -34,6 +34,9 @@ Use this skill for the bundled Alpine VM instead of configuring a Windows bridge
 - `scripts/collect-resource-metrics.ps1`: Windows host and Alpine guest resource sampler used by the Testcontainers wrapper
 - `scripts/run-docker.sh`: guest Docker CLI over SSH
 - `scripts/connect-vm.sh`: connect to the guest through an interactive SSH or SFTP session
+- `scripts/vm-utils.sh`: stable shared-utility facade and common path initialization
+- `scripts/lib/`: focused runtime, configuration, template, QEMU, guest, Alpine-image, and VM-state modules loaded by the facade
+
 - `templates/`: Alpine answers, guest setup, sysctl, and Docker daemon configuration templates
 - `templates/unbound.conf.tpl`: guest and Docker bridge DNS service with forced TCP forwarding to QEMU DNS
 - `profiles/dev.profile`
