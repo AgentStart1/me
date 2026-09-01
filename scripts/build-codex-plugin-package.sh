@@ -2,25 +2,28 @@
 set -euo pipefail
 
 # Builds Codex-compatible plugin packages without modifying Claude-oriented
-# source skills. All generated Codex artifacts live under the repository build/codex/.
+# source skills. By default, generated artifacts are written to ../me.codex.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$REPOSITORY_DIR/build/codex"
+DEFAULT_OUTPUT_DIR="$REPOSITORY_DIR/../me.codex"
 MARKETPLACE_TEMPLATE="$SCRIPT_DIR/templates/marketplace.json.template"
+README_TEMPLATE="$SCRIPT_DIR/templates/codex-readme.md.template"
 
 usage() {
     cat <<'EOF'
 Usage:
-  build-codex-plugin-package.sh --all
+  build-codex-plugin-package.sh --all [--output-dir directory]
 
 Build Codex-compatible plugin packages. Generated packages have their own
 .codex-plugin/plugin.json and ./skills/ directory. Claude routing fields
-(context and agent) are removed only from generated SKILL.md copies.
+(context and agent) are removed only from generated SKILL.md copies. Output is
+written directly to the standalone sibling repository ../me.codex by default.
 
 Options:
   --all               Build every plugin under plugins/ and generate the
-                      Codex marketplace at build/codex/.agents/plugins/marketplace.json.
+                      Codex marketplace in ../me.codex.
+  --output-dir DIR    Override the output directory (primarily for tests).
   --help, -h          Show this help message.
 EOF
 }
@@ -74,25 +77,44 @@ build_plugin() {
 }
 
 build_all() {
-    local plugin_dir plugin_name
+    local output_dir="$1"
+    local source_root output_root plugin_dir plugin_name
 
     if [[ ! -f "$MARKETPLACE_TEMPLATE" ]]; then
         echo "Error: marketplace template is missing: $MARKETPLACE_TEMPLATE" >&2
         return 1
     fi
+    if [[ ! -f "$README_TEMPLATE" ]]; then
+        echo "Error: Codex README template is missing: $README_TEMPLATE" >&2
+        return 1
+    fi
 
-    rm -rf "$BUILD_DIR"
-    mkdir -p "$BUILD_DIR/plugins" "$BUILD_DIR/.agents/plugins"
+    mkdir -p "$output_dir"
+    source_root="$(cd "$REPOSITORY_DIR" && pwd -P)"
+    output_root="$(cd "$output_dir" && pwd -P)"
+
+    if [[ "$output_root" == "$source_root" ]]; then
+        echo "Error: refusing to generate over the source repository" >&2
+        return 1
+    fi
+    if [[ "$(basename "$output_root")" != "me.codex" ]]; then
+        echo "Error: output directory must be named me.codex: $output_root" >&2
+        return 1
+    fi
+
+    rm -rf "$output_root/plugins" "$output_root/.agents/plugins"
+    mkdir -p "$output_root/plugins" "$output_root/.agents/plugins"
 
     for plugin_dir in "$REPOSITORY_DIR"/plugins/*; do
         [[ -d "$plugin_dir/.codex-plugin" ]] || continue
         plugin_name="$(basename "$plugin_dir")"
-        build_plugin "$plugin_dir" "$BUILD_DIR/plugins/$plugin_name"
+        build_plugin "$plugin_dir" "$output_root/plugins/$plugin_name"
     done
 
-    cp "$MARKETPLACE_TEMPLATE" "$BUILD_DIR/.agents/plugins/marketplace.json"
-    echo "Codex marketplace built: $BUILD_DIR/.agents/plugins/marketplace.json"
-    echo "Build root: $BUILD_DIR"
+    cp "$MARKETPLACE_TEMPLATE" "$output_root/.agents/plugins/marketplace.json"
+    cp "$README_TEMPLATE" "$output_root/README.md"
+    echo "Codex marketplace built: $output_root/.agents/plugins/marketplace.json"
+    echo "Codex output root: $output_root"
 }
 
 if [[ $# -eq 0 ]]; then
@@ -106,11 +128,17 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
 fi
 
 if [[ "$1" == "--all" ]]; then
-    [[ $# -eq 1 ]] || { echo "Error: --all does not accept additional arguments" >&2; exit 1; }
-    build_all
+    OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
+    if [[ $# -eq 3 && "$2" == "--output-dir" ]]; then
+        OUTPUT_DIR="$3"
+    elif [[ $# -ne 1 ]]; then
+        echo "Error: expected --all with an optional --output-dir directory" >&2
+        exit 1
+    fi
+    build_all "$OUTPUT_DIR"
     exit 0
 fi
 
-echo "Error: only --all is supported; Codex packages are generated together under build/codex/." >&2
+echo "Error: only --all is supported; Codex packages are generated together in ../me.codex." >&2
 usage >&2
 exit 1
