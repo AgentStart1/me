@@ -1,0 +1,10 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "diff-sharing",
+  "description": "Generate Difftastic-first code diffs and share the resulting static site through ngrok.",
+  "author": {
+    "name": "Diff Sharing"
+  },
+  "version": "0.1.0-20260830213405",
+  "skills": ["./skills/"]
+}

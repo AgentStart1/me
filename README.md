@@ -2,42 +2,29 @@
 
 A local Codex developer plugin collection. It includes Android tooling, client UI and coding guidance, test report sharing with ngrok tunnel support, plus a persistent pure-TCG QEMU Alpine Docker test environment for Windows.
 
-## Package Structure
+## What is included
 
-- `.agents/plugins/marketplace.json`: the in-repo `me` Codex marketplace entry.
-- `plugins/android-profile/.codex-plugin/plugin.json`: Android Profile plugin manifest.
-- `plugins/*/.claude-plugin/plugin.json`: Claude Code plugin manifests for compatible plugins.
-- `plugins/android-profile/scripts/`: Android SDK, AVD, and emulator scripts.
-- `plugins/android-profile/tests/`: smoke test scripts.
-- `plugins/android-profile/profiles/android.profile`: default Android emulator profile.
-- `plugins/android-profile/skills/android-profile/SKILL.md`: Codex-facing Android Profile instructions.
-- `plugins/android-appium-device-lock/.codex-plugin/plugin.json`: Appium device lock plugin manifest.
-- `plugins/android-appium-device-lock/scripts/adb-device-lock.sh`: adb-based device-side file lock script.
-- `plugins/android-appium-device-lock/skills/android-appium-device-lock/SKILL.md`: Codex-facing Appium device lock instructions, including parent waiting for delegated device-verification reports.
-- `plugins/recyclerview-best-practice/.codex-plugin/plugin.json`: RecyclerView best-practice plugin manifest.
-- `plugins/recyclerview-best-practice/skills/`: RecyclerView adapter, diffing, paging, sentinel ViewHolder, and related practice instructions.
-- `plugins/general-coding-practices/.codex-plugin/plugin.json`: General Coding Practices plugin manifest.
-- `plugins/general-coding-practices/skills/`: project collaboration, README maintenance, flow stabilization before end-to-end test authoring, checks and tests, rule-file maintenance, logging, root-cause-first debugging, and repository synchronization instructions.
-- `plugins/kotlin-coding-practices/.codex-plugin/plugin.json`: Kotlin Coding Practices plugin manifest.
-- `plugins/kotlin-coding-practices/skills/`: coroutine-first, immutable-by-default Kotlin and Android Kotlin practice instructions.
-- `plugins/client-ui-best-practices/.codex-plugin/plugin.json`: Client UI Best Practices plugin manifest.
-- `plugins/client-ui-best-practices/skills/`: UI-thread boundaries, `hostScope`-confined Host work on a custom dispatcher, explicit Default/IO switching, Compose state collection, observable data, and UI-free business test guidance.
-- `plugins/test-report-sharing/.claude-plugin/plugin.json`: Test Report Sharing plugin manifest.
-- `plugins/test-report-sharing/skills/`: Test result collection, E2E recording capture, selectable Git/Difftastic diff report generation, and ngrok tunnel sharing.
-- `plugins/test-report-sharing/scripts/`: Shell scripts for collecting test results, recordings, generating diffs, and starting ngrok.
-- `plugins/qemu-alpine-docker/`: accelerated unattended Alpine/Docker provisioning, single-VM lifecycle, loopback Docker API and Testcontainers port-range forwarding.
-- `plugins/*/agents/`: portable agent prompts at the plugin root, alongside `skills/`.
-- `agents/`: prompts specific to maintaining this plugin collection.
+- Android emulator provisioning, profiles, and Appium device locking.
+- Android, Kotlin, RecyclerView, client-UI, and general engineering guidance.
+- Test-report and code-diff site generation with optional ngrok sharing.
+- A persistent QEMU Alpine/Docker environment for Windows-hosted test runs.
+- Portable Claude agent prompts bundled with their owning plugins.
+
+Codex-compatible packages and the marketplace are checked in under `build/codex/`. Maintainers regenerate them with `scripts/build-codex-plugin-package.sh --all` and commit the synchronized output whenever plugin sources change.
 
 ## Installation
 
 ### Codex
 
-Add this GitHub repository as a Codex plugin marketplace:
+Add the checked-in marketplace directly from GitHub; cloning and local generation are not required:
 
-```bash
-codex plugin marketplace add https://github.com/storytellerF/me
-```
+| Field | Value |
+|---|---|
+| Repository | `https://github.com/storytellerF/me` |
+| Path | `build/codex` |
+| Branch | `main` |
+
+Use the marketplace sync action to receive newer committed plugin packages.
 
 Install plugins from the marketplace:
 
@@ -49,6 +36,7 @@ codex plugin add general-coding-practices@me
 codex plugin add kotlin-coding-practices@me
 codex plugin add client-ui-best-practices@me
 codex plugin add test-report-sharing@me
+codex plugin add diff-sharing@me
 codex plugin add qemu-alpine-docker@me
 ```
 
@@ -72,6 +60,7 @@ Install plugins from the marketplace:
 /plugin install kotlin-coding-practices@me
 /plugin install client-ui-best-practices@me
 /plugin install test-report-sharing@me
+/plugin install diff-sharing@me
 /plugin install qemu-alpine-docker@me
 ```
 
@@ -79,8 +68,7 @@ Run `/reload-plugins` after installation to load the installed plugins in the cu
 
 ### Agent prompts
 
-Claude Code loads the Markdown agents from each plugin's root `agents/` directory. The repository
-also maintains `agents/me-agent-config-maintainer.md` for prompts specific to this collection.
+Claude Code loads the Markdown agents from each plugin's root `agents/` directory.
 
 ## Running Scripts Directly
 

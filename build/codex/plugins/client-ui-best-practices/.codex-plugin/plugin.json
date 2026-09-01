@@ -1,0 +1,37 @@
+{
+  "name": "client-ui-best-practices",
+  "version": "0.2.1-20260830180000",
+  "description": "Client UI threading and state-driven rendering practices.",
+  "author": {
+    "name": "Local developer"
+  },
+  "license": "MIT",
+  "keywords": [
+    "android",
+    "async",
+    "client",
+    "main-thread",
+    "sharedflow",
+    "stateflow",
+    "ui"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Client UI Best Practices",
+    "shortDescription": "Keep rendering responsive and state-driven.",
+    "longDescription": "Guides client development so UI-thread work stays focused on view updates and rendering, while business logic and I/O run asynchronously and update screens through observable UI state and one-time effects.",
+    "developerName": "Local developer",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Code Review",
+      "Code Generation",
+      "Debugging"
+    ],
+    "defaultPrompt": [
+      "Review this client screen for main-thread violations.",
+      "Refactor this UI flow to StateFlow-driven rendering.",
+      "Move business work off the UI thread safely."
+    ],
+    "brandColor": "#0F766E"
+  }
+}

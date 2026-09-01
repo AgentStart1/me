@@ -1,0 +1,20 @@
+KEYMAPOPTS=none
+HOSTNAMEOPTS={{VM_NAME}}
+DEVDOPTS=mdev
+INTERFACESOPTS="auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet dhcp
+"
+TIMEZONEOPTS="-z UTC"
+PROXYOPTS=none
+APKREPOSOPTS="{{FALLBACK_MAIN}} {{FALLBACK_COMMUNITY}}"
+USEROPTS=none
+SSHDOPTS=openssh
+ROOTSSHKEY="{{ROOT_SSH_KEY}}"
+NTPOPTS=chrony
+DISKOPTS="-m sys /dev/vda"
+LBUOPTS=none
+APKCACHEOPTS=none
+ERASE_DISKS=/dev/vda

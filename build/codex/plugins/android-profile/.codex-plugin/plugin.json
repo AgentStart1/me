@@ -1,0 +1,41 @@
+{
+  "name": "android-profile",
+  "version": "0.2.0-20260811225000",
+  "description": "Shared Android SDK and AVD profile scripts for Docker-based Android emulator images.",
+  "author": {
+    "name": "Android Profile Maintainers",
+    "email": "fake@example.com",
+    "url": "https://github.com/storytellerF/me"
+  },
+  "homepage": "https://github.com/storytellerF/me",
+  "repository": "https://github.com/storytellerF/me",
+  "license": "UNLICENSED",
+  "keywords": [
+    "android",
+    "avd",
+    "emulator",
+    "docker",
+    "profile"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Android Profile",
+    "shortDescription": "Install Android SDK tools, create AVDs, and start emulator profiles.",
+    "longDescription": "Bundles portable Android SDK and AVD helper scripts plus a default emulator profile for Docker-based Android emulator images.",
+    "developerName": "Android Profile Maintainers",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/storytellerF/me",
+    "privacyPolicyURL": "https://github.com/storytellerF/me",
+    "termsOfServiceURL": "https://github.com/storytellerF/me",
+    "defaultPrompt": [
+      "Create an Android AVD from the default profile.",
+      "Start the configured Android emulator.",
+      "Run the Docker smoke test for start-avd.sh."
+    ],
+    "brandColor": "#3B82F6"
+  }
+}
