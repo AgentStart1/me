@@ -1,0 +1,33 @@
+{
+  "name": "diff-sharing",
+  "version": "0.1.0-20260830213405",
+  "description": "Generate Difftastic-first code diffs and share the resulting static site through ngrok.",
+  "author": {
+    "name": "Diff Sharing"
+  },
+  "license": "MIT",
+  "keywords": [
+    "diff",
+    "difftastic",
+    "git",
+    "ngrok",
+    "code-review"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Diff Sharing",
+    "shortDescription": "Share Difftastic-first code diffs through ngrok.",
+    "longDescription": "Generates a static Difftastic-first structural diff site with a Git fallback, inline and side-by-side layouts, then exposes it through ngrok.",
+    "developerName": "Diff Sharing",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Difftastic Diff Generation",
+      "Git Diff Fallback",
+      "Ngrok Tunnel"
+    ],
+    "defaultPrompt": [
+      "Generate a Difftastic-first code diff and expose it publicly."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

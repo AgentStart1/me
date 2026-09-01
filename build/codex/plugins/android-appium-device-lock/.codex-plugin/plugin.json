@@ -1,0 +1,36 @@
+{
+  "name": "android-appium-device-lock",
+  "version": "0.2.0-20260811225000",
+  "description": "Serialize Android Appium and end-to-end test runs with a device-side adb file lock.",
+  "author": {
+    "name": "Local Android Practices"
+  },
+  "license": "MIT",
+  "keywords": [
+    "android",
+    "appium",
+    "adb",
+    "testing",
+    "e2e",
+    "lock"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Android Appium Device Lock",
+    "shortDescription": "Serialize Appium tests on one Android device.",
+    "longDescription": "Guides Codex to acquire a device-side file lock before Android Appium, UIAutomator, Espresso, or end-to-end test runs so only one app test controls a phone or emulator at a time.",
+    "developerName": "Local Android Practices",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Code Generation",
+      "Testing",
+      "Android"
+    ],
+    "defaultPrompt": [
+      "Add a device lock around this Android Appium test command.",
+      "Serialize these Android E2E tests so one device only runs one suite at a time.",
+      "Use adb to wait for an existing Appium device lock before starting tests."
+    ],
+    "brandColor": "#0F766E"
+  }
+}
