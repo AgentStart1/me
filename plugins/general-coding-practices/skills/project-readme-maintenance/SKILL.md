@@ -11,7 +11,7 @@ Keep README files useful for people trying to understand and use the project.
 
 ## Rules
 
-- Update README content when user-facing features, installation steps, configuration, commands, plugin lists, package structure, public APIs, examples, or usage flows change.
+- Update README content when user-facing features, installation steps, configuration, commands, plugin lists, examples, or usage flows change.
 - Prefer describing what the project is, what it includes, how to install or configure it, and how to use it.
 - Do not turn a README into an exhaustive directory tree or file inventory. Mention a path only when it is needed to run a command, configure the project, find a primary entry point, or make a user-facing decision.
 - Keep README examples practical and runnable for users, with clear paths, command names, inputs, and expected high-level outcomes.
