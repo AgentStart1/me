@@ -1,0 +1,77 @@
+name: Sync me.codex
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM_REPOSITORY: storytellerF/me.codex
+      SYNC_BRANCH: sync/me-${{ github.sha }}
+      UPSTREAM_GITHUB_TOKEN: ${{ secrets.UPSTREAM_GITHUB_TOKEN }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify upstream credentials
+        shell: bash
+        run: |
+          if [[ -z "$UPSTREAM_GITHUB_TOKEN" ]]; then
+            echo "The UPSTREAM_GITHUB_TOKEN Actions secret is required." >&2
+            exit 1
+          fi
+
+      - name: Check out upstream Codex repository
+        shell: bash
+        run: |
+          git clone "https://x-access-token:${UPSTREAM_GITHUB_TOKEN}@github.com/${UPSTREAM_REPOSITORY}.git" "$RUNNER_TEMP/me.codex"
+
+      - name: Generate Codex packages
+        shell: bash
+        run: bash scripts/build-codex-plugin-package.sh --all --output-dir "$RUNNER_TEMP/me.codex"
+
+      - name: Commit generated packages
+        id: commit
+        shell: bash
+        working-directory: ${{ runner.temp }}/me.codex
+        run: |
+          git add README.md .agents/plugins plugins
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name "me sync bot"
+          git config user.email "me-sync-bot@users.noreply.github.com"
+          git checkout -B "$SYNC_BRANCH"
+          git commit -m "chore: sync generated Codex plugins from ${GITHUB_SHA}"
+          git push --force origin "HEAD:refs/heads/${SYNC_BRANCH}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update upstream pull request
+        if: steps.commit.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_GITHUB_TOKEN }}
+        run: |
+          existing_pr="$(gh pr list --repo "$UPSTREAM_REPOSITORY" --head "$SYNC_BRANCH" --state open --json url --jq '.[0].url')"
+          if [[ -n "$existing_pr" ]]; then
+            echo "Updated existing pull request: $existing_pr"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$UPSTREAM_REPOSITORY" \
+            --base main \
+            --head "$SYNC_BRANCH" \
+            --title "chore: sync generated Codex plugins" \
+            --body "Generated from storytellerF/me commit ${GITHUB_SHA}."

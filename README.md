@@ -55,6 +55,12 @@ and `plugins/` paths while preserving `.git` and unrelated paths. Existing
 changes in `me.codex` do not block regeneration. Review and commit the result
 there, then open the upstream PR from that repository.
 
+Pushes to `main` also run the **Sync me.codex** GitHub Actions workflow. Set
+the `UPSTREAM_GITHUB_TOKEN` Actions secret to a token with contents write and
+pull-request write access to `storytellerF/me.codex`; the workflow generates
+the package, pushes a `sync/me-<source-commit>` branch, and opens a PR against
+upstream `main` when generated content changed.
+
 ### Claude Code
 
 Add this GitHub repository as a Claude Code plugin marketplace:
