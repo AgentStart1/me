@@ -27,6 +27,11 @@ jobs:
         with:
           node-version: 22
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
       - name: Verify upstream credentials
         shell: bash
         run: |
@@ -44,6 +49,12 @@ jobs:
         shell: bash
         run: bash scripts/build-codex-plugin-package.sh --all --output-dir "$RUNNER_TEMP/me.codex"
 
+      - name: Validate generated skills
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check "PyYAML==6.0.3"
+          python scripts/validate-generated-codex-skills.py "$RUNNER_TEMP/me.codex/plugins"
+
       - name: Validate generated Codex marketplace
         shell: bash
         env:
@@ -53,6 +64,9 @@ jobs:
           mkdir -p "$CODEX_HOME"
           codex plugin marketplace add "$RUNNER_TEMP/me.codex"
           codex plugin list --marketplace me --available --json
+          while IFS= read -r plugin_name; do
+            codex plugin add "${plugin_name}@me" --json
+          done < <(python -c 'import json, sys; print(*[plugin["name"] for plugin in json.load(open(sys.argv[1], encoding="utf-8"))["plugins"]], sep="\n")' "$RUNNER_TEMP/me.codex/.agents/plugins/marketplace.json")
 
       - name: Commit generated packages
         id: commit
