@@ -10,14 +10,14 @@ A local Codex developer plugin collection. It includes Android tooling, client U
 - A persistent QEMU Alpine/Docker environment for Windows-hosted test runs.
 - Portable Claude agent prompts bundled with their owning plugins.
 
-Codex-compatible content is generated directly into the standalone sibling
-repository `../me.codex`, which is the repository used by Codex users.
+Codex-compatible content is generated and synchronized automatically to the
+standalone `me.codex` repository, which Codex users consume directly.
 
 ## Installation
 
 ### Codex
 
-Use the dedicated [`me.codex`](https://github.com/AgentStart1/me.codex)
+Use the dedicated [`me.codex`](https://github.com/storytellerF/me.codex)
 repository as the Codex marketplace. From a clone of that repository:
 
 ```bash
@@ -39,21 +39,6 @@ codex plugin add qemu-alpine-docker@me
 ```
 
 Start a new Codex thread after installation so the plugin skills are loaded.
-
-### Updating the Codex repository
-
-Develop and review plugin source changes in this repository. Once the branch is
-ready, clone `me.codex` next to this repository and regenerate its contents:
-
-```bash
-scripts/build-codex-plugin-package.sh --all
-git -C ../me.codex diff
-```
-
-The generator replaces `me.codex`'s generated `README.md`, `.agents/plugins/`,
-and `plugins/` paths while preserving `.git` and unrelated paths. Existing
-changes in `me.codex` do not block regeneration. Review and commit the result
-there, then open the upstream PR from that repository.
 
 ### Claude Code
 
