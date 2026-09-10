@@ -10,7 +10,7 @@ This Codex plugin provides an Android RecyclerView skill for creating, reviewing
 
 ## Codex Marketplace Entry
 
-The repository synchronization workflow generates the `me.codex` marketplace entry after source changes merge to `main`. Contributors should not generate or publish this package from a local `me.codex` checkout. The generated entry is:
+Contributors may generate the `me.codex` marketplace locally to review and validate source changes, but should not commit, push, or open a pull request from the local generated checkout. After source changes merge to `main`, the repository synchronization workflow generates and publishes the entry:
 
 ```json
 {

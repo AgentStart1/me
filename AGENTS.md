@@ -11,11 +11,12 @@ This repository is the source of truth for the `me` plugin collection and its po
 
 ## Codex package generation and validation
 
-- Treat `.github/workflows/sync-me-codex.yml` as the only supported path for generating, validating, committing, and proposing changes to `me.codex`. It runs after changes merge to `main` and may also be started manually through GitHub Actions.
-- Do not generate into a local sibling `../me.codex` checkout, commit generated packages there, push synchronization branches, or open `me.codex` pull requests manually.
-- Keep generation and validation logic in the source repository so the workflow remains reproducible. `scripts/build-codex-plugin-package.sh` and `scripts/validate-generated-codex-skills.py` are workflow implementation details, not a contributor handoff procedure.
-- Never run Codex-only validation directly against Claude-oriented source skills. The workflow validates the generated skill copies, plugin manifests, marketplace, and plugin installation behavior.
-- Validate source changes before handoff and rely on the synchronization workflow for generated-package validation. Tell the user when a new Codex thread is needed after the synchronized plugin changes are published.
+- Run `scripts/build-codex-plugin-package.sh --all` after source changes to generate packages into the local sibling `../me.codex` checkout for review and validation. The command replaces previously generated content, so inspect the sibling checkout before running it and preserve unrelated work.
+- Validate the generated skill copies, plugin manifests, marketplace, and relevant plugin installation behavior locally before handoff. Never run Codex-only validation directly against Claude-oriented source skills.
+- Treat `.github/workflows/sync-me-codex.yml` as the only supported path for committing, pushing, and proposing generated changes to the upstream `me.codex` repository. It runs after changes merge to `main` and may also be started manually through GitHub Actions.
+- Do not commit generated packages in the local `me.codex` checkout, push synchronization branches, or open `me.codex` pull requests manually.
+- Keep generation and validation logic in the source repository so local checks and the workflow remain reproducible.
+- Validate source and locally generated changes before handoff. Tell the user when a new Codex thread is needed after the workflow publishes the synchronized plugin changes.
 
 ## Documentation and versioning
 
