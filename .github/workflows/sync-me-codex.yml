@@ -79,8 +79,10 @@ jobs:
             exit 0
           fi
 
-          git config user.name "me sync bot"
-          git config user.email "me-sync-bot@users.noreply.github.com"
+          source_author_name="$(git -C "$GITHUB_WORKSPACE" show -s --format='%an' "$GITHUB_SHA")"
+          source_author_email="$(git -C "$GITHUB_WORKSPACE" show -s --format='%ae' "$GITHUB_SHA")"
+          git config user.name "$source_author_name"
+          git config user.email "$source_author_email"
           git checkout -B "$SYNC_BRANCH"
           git commit -m "chore: sync generated Codex plugins from ${GITHUB_SHA}"
           git push --force origin "HEAD:refs/heads/${SYNC_BRANCH}"
