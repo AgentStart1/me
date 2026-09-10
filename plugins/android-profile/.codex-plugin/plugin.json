@@ -1,7 +1,7 @@
 {
   "name": "android-profile",
-  "version": "0.2.0-20260811225000",
-  "description": "Shared Android SDK and AVD profile scripts for Docker-based Android emulator images.",
+  "version": "0.3.0-20260910024855",
+  "description": "Profile-driven Android AVD creation and Docker-friendly emulator startup.",
   "author": {
     "name": "Android Profile Maintainers",
     "email": "fake@example.com",
