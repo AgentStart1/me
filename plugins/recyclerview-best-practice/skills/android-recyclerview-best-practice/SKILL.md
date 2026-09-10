@@ -5,8 +5,6 @@ description: Use when creating, reviewing, or refactoring Android RecyclerView c
 
 # Android RecyclerView Best Practice
 
-Use this skill whenever the task touches Android `RecyclerView`, `Adapter`, `ViewHolder`, `DiffUtil`, Paging 3, list rendering, or item interactions.
-
 ## Core Decision
 
 Always choose an adapter with built-in diffing unless the codebase has a strong existing abstraction that prevents it.
@@ -131,21 +129,6 @@ viewLifecycleOwner.lifecycleScope.launch {
 - Keep each ViewHolder small and type-specific.
 - Diff by stable id plus row type; two different row types should not be treated as the same item.
 - Use `ConcatAdapter` when sections have independent ownership, loading states, or update cadence.
-
-## Code Review Checklist
-
-When reviewing RecyclerView code, flag these issues:
-
-- Uses `RecyclerView.Adapter` with mutable list updates but no `DiffUtil`, `AsyncListDiffer`, `ListAdapter`, or `PagingDataAdapter`.
-- Calls `notifyDataSetChanged()` for normal list updates.
-- Uses position as item identity or stores positions across binds.
-- Mutates submitted lists after `submitList`.
-- Performs I/O, heavy formatting, database work, or network calls from binding.
-- Leaves recycled visual state uncleared.
-- Collects flows outside `viewLifecycleOwner.repeatOnLifecycle`.
-- Mixes Paging 3 with manual list mutation.
-- Puts Fragment, Activity, ViewModel, or coroutine scope references inside ViewHolder.
-- Lacks tests for diff identity/content behavior when the adapter has custom diff logic.
 
 ## Testing Guidance
 

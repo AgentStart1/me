@@ -5,11 +5,10 @@ description: Use when RecyclerView needs a stable start anchor so prepended item
 
 # RecyclerView Sentinel ViewHolder
 
-Use this skill when a list prepends items near the top and the expected UX is: new content should be considered inserted inside the visible area, not above an invisible off-screen boundary.
-
 ## Core Trick
 
 Add a stable sentinel row at the beginning of the adapter data.
+Prefer normal diffing first. Add a sentinel only when prepend anchoring is a real UX or correctness problem.
 
 Without sentinel:
 
@@ -30,15 +29,6 @@ diff: insert item 0 at adapter position 1
 ```
 
 The sentinel remains the stable first row. The new item is inserted after the sentinel, so the update is modeled as a visible-area insertion below a known anchor.
-
-## When To Use
-
-- Timeline, feed, notification, comment, or chat-like screens where new items can be inserted before the first real item.
-- Top refresh that should reveal or animate newly inserted content instead of silently preserving the previous first item as if the insert happened off-screen.
-- Lists where the first real item is not a good stable anchor because it can be replaced, filtered, or moved.
-- Custom `RecyclerView.Adapter`, `ListAdapter`, or `PagingDataAdapter` implementations that already support multiple view types.
-
-Do not use this by default for every RecyclerView. Prefer normal diffing first. Add a sentinel only when prepend anchoring is a real UX or correctness problem.
 
 ## Data Model
 
@@ -147,15 +137,3 @@ Options:
 - Or map paging items into row models only if the codebase already has a row-model pipeline.
 
 Do not inject the sentinel into the database paging source. It is UI structure, not domain data.
-
-## Review Checklist
-
-When reviewing a sentinel implementation, check:
-
-- The sentinel is always present at adapter position `0`.
-- Its diff identity is stable and cannot collide with normal rows.
-- Prepend transition is modeled as `sentinel 1 2` to `sentinel 0 1 2`.
-- Adapter-position math accounts for the sentinel.
-- Empty, loading, error, and retry states still render correctly.
-- Accessibility does not announce a meaningless row.
-- Tests cover prepend behavior and scroll or selection offsets.
