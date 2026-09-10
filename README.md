@@ -17,28 +17,8 @@ standalone `me.codex` repository, which Codex users consume directly.
 
 ### Codex
 
-Use the dedicated [`me.codex`](https://github.com/storytellerF/me.codex)
-repository as the Codex marketplace. From a clone of that repository:
-
-```bash
-codex plugin marketplace add .
-```
-
-Install plugins from the marketplace:
-
-```bash
-codex plugin add android-profile@me
-codex plugin add android-appium-device-lock@me
-codex plugin add recyclerview-best-practice@me
-codex plugin add general-coding-practices@me
-codex plugin add kotlin-coding-practices@me
-codex plugin add client-ui-best-practices@me
-codex plugin add test-report-sharing@me
-codex plugin add diff-sharing@me
-codex plugin add qemu-alpine-docker@me
-```
-
-Start a new Codex thread after installation so the plugin skills are loaded.
+Codex users should follow the installation instructions in the dedicated
+[`me.codex`](https://github.com/storytellerF/me.codex) repository.
 
 ### Claude Code
 
