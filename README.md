@@ -44,35 +44,6 @@ Install plugins from the marketplace:
 
 Run `/reload-plugins` after installation to load the installed plugins in the current Claude Code session.
 
-## Running Scripts Directly
-
-You can also run the bundled scripts directly from the plugin root:
-
-```bash
-cd plugins/android-profile
-ANDROID_HOME=$HOME/android-sdk ./scripts/install-sdk.sh
-./scripts/create-avd.sh ./profiles/android.profile
-./scripts/start-avd.sh ./profiles/android.profile
-```
-
-Custom profiles may define standard Android path variables directly, including `ANDROID_HOME`, `ANDROID_AVD_HOME`, and `ANDROID_USER_HOME`. The scripts load the profile first, then locate SDK tools and AVD files. The bundled `profiles/android.profile` does not preset these paths.
-
-Run the `start-avd.sh` smoke test with fake emulator commands from the repository root:
-
-```bash
-plugins/android-profile/tests/test-start-avd-docker.sh
-```
-
-Provision and run the persistent Alpine Docker test VM from Git Bash or MSYS2:
-
-```bash
-cd plugins/qemu-alpine-docker
-./scripts/setup.sh
-./scripts/create-vm.sh ./profiles/dev.profile
-./scripts/start-vm.sh ./profiles/dev.profile
-./scripts/run-testcontainers.sh -- <test command>
-```
-
 ## Host Emulator Access From a VM
 
 If the Android emulator runs on the host machine and a VM needs to access the host ADB port, add port forwarding and firewall rules on the host. This example assumes the VM subnet is `192.168.80.0/24` and the host address on that virtual network is `192.168.80.1`:
@@ -98,3 +69,5 @@ If it is not listening, restart the service:
 
 ```shell
 net stop iphlpsvc
+net start iphlpsvc
+```
