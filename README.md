@@ -17,28 +17,8 @@ standalone `me.codex` repository, which Codex users consume directly.
 
 ### Codex
 
-Use the dedicated [`me.codex`](https://github.com/storytellerF/me.codex)
-repository as the Codex marketplace. From a clone of that repository:
-
-```bash
-codex plugin marketplace add .
-```
-
-Install plugins from the marketplace:
-
-```bash
-codex plugin add android-profile@me
-codex plugin add android-appium-device-lock@me
-codex plugin add recyclerview-best-practice@me
-codex plugin add general-coding-practices@me
-codex plugin add kotlin-coding-practices@me
-codex plugin add client-ui-best-practices@me
-codex plugin add test-report-sharing@me
-codex plugin add diff-sharing@me
-codex plugin add qemu-alpine-docker@me
-```
-
-Start a new Codex thread after installation so the plugin skills are loaded.
+Codex users should follow the installation instructions in the dedicated
+[`me.codex`](https://github.com/storytellerF/me.codex) repository.
 
 ### Claude Code
 
@@ -63,39 +43,6 @@ Install plugins from the marketplace:
 ```
 
 Run `/reload-plugins` after installation to load the installed plugins in the current Claude Code session.
-
-### Agent prompts
-
-Claude Code loads the Markdown agents from each plugin's root `agents/` directory.
-
-## Running Scripts Directly
-
-You can also run the bundled scripts directly from the plugin root:
-
-```bash
-cd plugins/android-profile
-ANDROID_HOME=$HOME/android-sdk ./scripts/install-sdk.sh
-./scripts/create-avd.sh ./profiles/android.profile
-./scripts/start-avd.sh ./profiles/android.profile
-```
-
-Custom profiles may define standard Android path variables directly, including `ANDROID_HOME`, `ANDROID_AVD_HOME`, and `ANDROID_USER_HOME`. The scripts load the profile first, then locate SDK tools and AVD files. The bundled `profiles/android.profile` does not preset these paths.
-
-Run the `start-avd.sh` smoke test with fake emulator commands from the repository root:
-
-```bash
-plugins/android-profile/tests/test-start-avd-docker.sh
-```
-
-Provision and run the persistent Alpine Docker test VM from Git Bash or MSYS2:
-
-```bash
-cd plugins/qemu-alpine-docker
-./scripts/setup.sh
-./scripts/create-vm.sh ./profiles/dev.profile
-./scripts/start-vm.sh ./profiles/dev.profile
-./scripts/run-testcontainers.sh -- <test command>
-```
 
 ## Host Emulator Access From a VM
 
