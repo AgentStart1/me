@@ -1,13 +1,13 @@
 ---
 name: diff-sharing
-description: Render and share code diffs through a static site and ngrok, using Difftastic by default when it is available.
+description: Use when generating, previewing, or sharing code differences for branches, pull requests, commits, or uncommitted working-tree changes. Render Git or Difftastic output as a static site and return either a local preview URL or an ngrok public URL.
 context: fork
 agent: diff-sharing-operator
 ---
 
 # Diff Sharing
 
-Use this skill to compare the current Git branch with a base ref and share the resulting diff. Use `test-report-sharing` when the task is to collect test results or E2E recordings.
+Use `test-report-sharing` instead when the task is to collect test results or E2E recordings.
 
 ## Required Behavior
 
