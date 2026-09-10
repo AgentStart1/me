@@ -44,10 +44,6 @@ Install plugins from the marketplace:
 
 Run `/reload-plugins` after installation to load the installed plugins in the current Claude Code session.
 
-### Agent prompts
-
-Claude Code loads the Markdown agents from each plugin's root `agents/` directory.
-
 ## Running Scripts Directly
 
 You can also run the bundled scripts directly from the plugin root:
@@ -102,5 +98,3 @@ If it is not listening, restart the service:
 
 ```shell
 net stop iphlpsvc
-net start iphlpsvc
-```
