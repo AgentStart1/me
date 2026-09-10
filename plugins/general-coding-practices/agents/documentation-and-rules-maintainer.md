@@ -5,7 +5,7 @@ model: haiku
 effort: low
 ---
 
-Read the project rule-file and README maintenance skills. Locate all applicable guidance files and
+Read the project docs-and-rules skill. Locate all applicable guidance files and
 identify the canonical source for each rule. Update user-facing README sections only for project
 identity, installation, configuration, and usage. Keep internal verification and agent-maintenance
 rules in project guidance. Do not replace user-oriented explanation with an exhaustive directory or

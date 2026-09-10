@@ -1,21 +1,37 @@
 ---
 name: project-collaboration-rules
-description: Use for coding project work to follow collaboration rules for user-approved planning, commit boundaries, privacy-safe examples, maintainable file generation, avoiding duplicated code, keeping large files modular, and choosing appropriate dependencies.
+description: Use for every coding project task to enforce user-approved design and refactoring decisions, explicit commit boundaries, root-cause-first debugging, focused verification, privacy-safe logging and examples, maintainable generated files, appropriate dependencies, and consistent plugin versioning.
 ---
 
 # Project Collaboration Rules
 
-For coding tasks in this project, follow these rules:
+## Approval and commit boundaries
 
-- Before making design decisions, choosing an implementation approach, or deleting/refactoring code, explain the proposed plan and wait for user approval.
-- Treat approval as applying only to the plan that was explicitly explained. Generic instructions such as "continue" do not approve design choices discovered later.
-- If inspection, compilation, tests, or static analysis reveals a new choice that changes module boundaries, dependencies, public APIs, data models, or architecture, pause. Explain the options, trade-offs, and recommendation, then wait for fresh approval before changing direction.
-- When changes can be split into multiple commits by independent concerns, ask whether the user wants separate commits before committing.
-- Whenever plugin content changes, update that plugin's `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions together in the same change. Keep both manifest versions identical, follow the repository's versioning convention, and keep installed marketplace versions aligned with the modified content.
+- Before making any design decision, choosing an implementation approach, deleting code, or refactoring, explain the proposed plan and wait for user approval.
+- Treat approval as applying only to the plan explicitly explained. Generic instructions such as "continue" do not approve design choices discovered later.
+- If inspection, compilation, tests, or static analysis reveals a new design or refactoring choice, pause, explain the options and recommendation, and obtain fresh approval before changing direction.
+- When independent concerns can be separate commits, ask how the user wants them split before committing.
 - Do not include session-specific identifiers in commit messages.
-- Do not put personal private information in code, tests, fixtures, docs, examples, or commit messages. Use placeholders for real emails, phone numbers, addresses, and similar data.
-- Avoid duplicated code. Reuse existing helpers and patterns, or introduce a suitable abstraction when it meaningfully reduces duplication.
-- When a script generates a maintained configuration, script, or structured data file, keep the file body in a template and render it by replacing explicit placeholders. Reserve direct writes for short runtime state files and test fixtures.
-- When a code file exceeds 1000 lines, split it by feature or responsibility into appropriate separate files instead of continuing to grow the same file.
-- Treat names as maintainable design artifacts. As the domain, responsibilities, or public behavior evolve, proactively rename stale, misleading, overly narrow, or ambiguous classes, functions, files, modules, APIs, tests, and documentation so their names describe the current intent. Include necessary reference updates and preserve compatibility only where it is explicitly required.
-- Implement the correct solution even when that requires adding an appropriate dependency.
+
+## Project integrity
+
+- Whenever plugin content changes, update its `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions together. Keep both versions and descriptions aligned and follow the repository's versioning convention.
+- Do not put personal private information in code, tests, fixtures, documentation, examples, or commit messages. Use placeholders for real emails, phone numbers, addresses, and similar data.
+- Avoid duplicated code. Reuse existing helpers and patterns, or introduce an abstraction when it meaningfully reduces duplication.
+- When a script generates a maintained configuration, script, or structured data file, keep the body in a template and render explicit placeholders. Reserve direct writes for short runtime state files and test fixtures.
+- Split code files that exceed 1000 lines by feature or responsibility instead of continuing to grow the same file.
+- Rename stale, misleading, overly narrow, or ambiguous classes, functions, files, modules, APIs, tests, and documentation when responsibilities or public behavior change. Preserve compatibility only where explicitly required.
+- Implement the correct solution even when it requires an appropriate dependency.
+
+## Root-cause-first debugging
+
+- Reproduce or localize bugs, regressions, flaky behavior, unexpected output, build errors, test failures, crashes, and performance anomalies when practical.
+- Identify the first broken assumption or invalid state before choosing a fix.
+- Add fallbacks, guards, retries, defaults, or workarounds only after the root cause shows they are justified.
+- Prefer removing the bad state or broken assumption over hiding its symptoms.
+- Keep necessary workarounds narrow and document the condition that requires them.
+
+## Conditional guidance
+
+- For implementation or debugging work, read [`references/logging.md`](references/logging.md) and apply its diagnostic logging rules.
+- After code or CI changes, read [`references/testing-and-verification.md`](references/testing-and-verification.md) and verify the changed surface.
