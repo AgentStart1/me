@@ -8,9 +8,9 @@ This Codex plugin provides an Android RecyclerView skill for creating, reviewing
 - `skills/android-recyclerview-best-practice/SKILL.md` contains the RecyclerView guidance.
 - `skills/recyclerview-sentinel-viewholder/SKILL.md` contains the start-sentinel ViewHolder trick for prepend anchoring.
 
-## Local Marketplace Entry
+## Codex Marketplace Entry
 
-Run `scripts/build-codex-plugin-package.sh --all` to generate `build/.agents/plugins/marketplace.json`, which contains the local plugin entry:
+The repository synchronization workflow generates the `me.codex` marketplace entry after source changes merge to `main`. Contributors should not generate or publish this package from a local `me.codex` checkout. The generated entry is:
 
 ```json
 {

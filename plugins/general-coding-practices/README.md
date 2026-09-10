@@ -11,5 +11,6 @@ This plugin provides project collaboration rules plus focused README and project
 - Portable Claude documentation-agent delegation.
 
 When a skill delegates to a bundled Claude agent, the parent waits for its required final report
-before dependent work or its final response. To use this plugin in Codex, generate the local
-marketplace from the repository root with `scripts/build-codex-plugin-package.sh --all`.
+before dependent work or its final response. Codex-compatible packages are generated, validated,
+and proposed to the standalone `me.codex` repository by the source repository's synchronization
+workflow after changes merge to `main`.
