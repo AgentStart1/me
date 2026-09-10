@@ -10,7 +10,7 @@ repository.
 Add this repository as a Codex plugin marketplace:
 
 ```bash
-codex plugin marketplace add .
+codex plugin marketplace add https://github.com/storytellerF/me.codex.git
 ```
 
 Install the plugins you need from the `me` marketplace. For example:
