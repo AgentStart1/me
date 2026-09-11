@@ -7,7 +7,7 @@ agent: diff-sharing-operator
 
 # Diff Sharing
 
-Use `test-report-sharing` instead when the task is to collect test results or E2E recordings.
+Use `test-report-sharing` instead when the task is to collect, preview, or share test reports.
 
 ## Required Behavior
 

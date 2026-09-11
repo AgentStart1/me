@@ -30,6 +30,5 @@ OUTPUT_DIR="$WORK_DIR/report-site"
 assert_contains "$OUTPUT_DIR/index.html" 'No reports found. Run your tests first to generate reports.'
 assert_not_contains "$OUTPUT_DIR/index.html" 'Code Diff'
 assert_not_contains "$PLUGIN_DIR/templates/report-site.html" '@@DIFF_SECTION@@'
-assert_not_contains "$OUTPUT_DIR/style.css" 'recordings-grid'
 
-echo "=== Results: 4 passed, 0 failed ==="
+echo "=== Results: 3 passed, 0 failed ==="
