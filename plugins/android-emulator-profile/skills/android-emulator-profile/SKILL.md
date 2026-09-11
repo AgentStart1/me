@@ -1,9 +1,9 @@
 ---
-name: android-profile
+name: android-emulator-profile
 description: Use when creating or starting an Android Virtual Device (AVD) from a profile, including required SDK tool setup, system-image selection, Docker-friendly emulator launch, and the start-avd smoke test.
 ---
 
-# Android Profile
+# Android Emulator Profile
 
 ## Bundled Paths
 

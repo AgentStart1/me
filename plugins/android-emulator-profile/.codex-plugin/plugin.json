@@ -1,9 +1,9 @@
 {
-  "name": "android-profile",
+  "name": "android-emulator-profile",
   "version": "0.3.0-20260910024855",
   "description": "Profile-driven Android AVD creation and Docker-friendly emulator startup.",
   "author": {
-    "name": "Android Profile Maintainers",
+    "name": "Android Emulator Profile Maintainers",
     "email": "fake@example.com",
     "url": "https://github.com/storytellerF/me"
   },
@@ -19,10 +19,10 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Android Profile",
+    "displayName": "Android Emulator Profile",
     "shortDescription": "Install Android SDK tools, create AVDs, and start emulator profiles.",
     "longDescription": "Bundles portable Android SDK and AVD helper scripts plus a default emulator profile for Docker-based Android emulator images.",
-    "developerName": "Android Profile Maintainers",
+    "developerName": "Android Emulator Profile Maintainers",
     "category": "Productivity",
     "capabilities": [
       "Interactive",

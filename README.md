@@ -31,7 +31,7 @@ Add this GitHub repository as a Claude Code plugin marketplace:
 Install plugins from the marketplace:
 
 ```text
-/plugin install android-profile@me
+/plugin install android-emulator-profile@me
 /plugin install android-appium-device-lock@me
 /plugin install recyclerview-best-practice@me
 /plugin install general-coding-practices@me

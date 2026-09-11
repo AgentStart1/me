@@ -8,8 +8,8 @@
   },
   "plugins": [
     {
-      "name": "android-profile",
-      "source": "./plugins/android-profile",
+      "name": "android-emulator-profile",
+      "source": "./plugins/android-emulator-profile",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
