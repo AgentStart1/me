@@ -1,7 +1,7 @@
 {
   "name": "qemu-alpine-docker",
-  "version": "0.1.0-20260830095026",
-  "description": "Persistent accelerated QEMU Alpine Docker VM for Testcontainers development and testing on Windows.",
+  "version": "0.2.0-20260910024855",
+  "description": "Persistent QEMU Alpine Docker VM for Windows-hosted Docker API and Testcontainers workflows.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers",
     "url": "https://github.com/storytellerF/me"

@@ -11,10 +11,12 @@ This repository is the source of truth for the `me` plugin collection and its po
 
 ## Codex package generation and validation
 
-- Run `scripts/build-codex-plugin-package.sh --all` after source changes. It writes generated packages and the marketplace directly to the sibling repository `../me.codex`, replacing previously generated content even when that target has uncommitted changes.
-- Validate the generated copies in `../me.codex`, review and commit the resulting diff there, then open the upstream PR from `me.codex`.
-- Run `skill-creator/scripts/quick_validate.py` only against generated skill copies, never against Claude-oriented source skills. Validate the corresponding generated plugin manifests as well.
-- Validate changed skills and manifests before handoff. Tell the user when a new Codex thread is needed to load plugin changes.
+- Run `scripts/build-codex-plugin-package.sh --all` after source changes to generate packages into the local sibling `../me.codex` checkout for review and validation. The command replaces previously generated content, so inspect the sibling checkout before running it and preserve unrelated work.
+- Validate the generated skill copies, plugin manifests, marketplace, and relevant plugin installation behavior locally before handoff. Never run Codex-only validation directly against Claude-oriented source skills.
+- Treat `.github/workflows/sync-me-codex.yml` as the only supported path for committing, pushing, and proposing generated changes to the upstream `me.codex` repository. It runs after changes merge to `main` and may also be started manually through GitHub Actions.
+- Do not commit generated packages in the local `me.codex` checkout, push synchronization branches, or open `me.codex` pull requests manually.
+- Keep generation and validation logic in the source repository so local checks and the workflow remain reproducible.
+- Validate source and locally generated changes before handoff. Tell the user when a new Codex thread is needed after the workflow publishes the synchronized plugin changes.
 
 ## Documentation and versioning
 

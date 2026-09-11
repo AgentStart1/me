@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "android-profile",
+      "name": "android-emulator-profile",
       "source": {
         "source": "local",
-        "path": "./plugins/android-profile"
+        "path": "./plugins/android-emulator-profile"
       },
       "policy": {
         "installation": "AVAILABLE",

@@ -1,7 +1,7 @@
 {
   "name": "general-coding-practices",
-  "version": "0.4.2-20260908145317",
-  "description": "General coding project collaboration rules and engineering practices.",
+  "version": "0.5.0-20260910024855",
+  "description": "Coding collaboration, debugging, verification, logging, and project documentation rules.",
   "author": {
     "name": "Local Coding Practices"
   },

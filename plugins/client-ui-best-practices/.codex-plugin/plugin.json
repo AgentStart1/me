@@ -1,7 +1,7 @@
 {
   "name": "client-ui-best-practices",
-  "version": "0.2.1-20260830180000",
-  "description": "Client UI threading and state-driven rendering practices.",
+  "version": "0.3.0-20260910024855",
+  "description": "Cross-platform Host architecture for client UI state, effects, lifecycle, and thread confinement.",
   "author": {
     "name": "Local developer"
   },

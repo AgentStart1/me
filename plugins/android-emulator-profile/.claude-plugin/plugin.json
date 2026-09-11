@@ -1,0 +1,8 @@
+{
+  "name": "android-emulator-profile",
+  "description": "Profile-driven Android AVD creation and Docker-friendly emulator startup.",
+  "author": {
+    "name": "Android Emulator Profile Maintainers"
+  },
+  "version": "0.3.0-20260910024855"
+}

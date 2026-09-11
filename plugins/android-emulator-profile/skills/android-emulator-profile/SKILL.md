@@ -1,11 +1,9 @@
 ---
-name: android-profile
-description: Use the bundled Android SDK and AVD configuration scripts to install Android SDK tools, create Android Virtual Devices, launch Docker-friendly emulators, and run the start-avd smoke test.
+name: android-emulator-profile
+description: Use when creating or starting an Android Virtual Device (AVD) from a profile, including required SDK tool setup, system-image selection, Docker-friendly emulator launch, and the start-avd smoke test.
 ---
 
-# Android Profile
-
-Use this skill when the task involves this plugin's Android SDK, AVD, emulator, or Docker smoke test scripts.
+# Android Emulator Profile
 
 ## Bundled Paths
 

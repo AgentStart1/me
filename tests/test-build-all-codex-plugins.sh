@@ -58,7 +58,7 @@ assert_not_exists "$OUTPUT_DIR/.agents/plugins/stale.txt" "stale marketplace con
 
 for plugin_name in \
     android-appium-device-lock \
-    android-profile \
+    android-emulator-profile \
     client-ui-best-practices \
     diff-sharing \
     general-coding-practices \

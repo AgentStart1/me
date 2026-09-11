@@ -1,10 +1,10 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "general-coding-practices",
-  "description": "General coding collaboration, debugging, verification, and project guidance.",
+  "description": "Coding collaboration, debugging, verification, logging, and project documentation rules.",
   "author": {
     "name": "Local Coding Practices"
   },
-  "version": "0.4.2-20260908145317",
+  "version": "0.5.0-20260910024855",
   "skills": ["./skills/"]
 }
