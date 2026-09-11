@@ -1,6 +1,6 @@
 ---
 name: project-collaboration-rules
-description: Use for every coding project task to enforce user-approved design and refactoring decisions, explicit commit boundaries, root-cause-first debugging, focused verification, privacy-safe logging and examples, maintainable generated files, appropriate dependencies, and consistent plugin versioning.
+description: Use for every coding project task to enforce user-approved design and refactoring decisions, explicit commit boundaries, root-cause-first debugging, focused verification, privacy-safe logging and examples, maintainable generated files, and appropriate dependencies.
 ---
 
 # Project Collaboration Rules
@@ -15,7 +15,6 @@ description: Use for every coding project task to enforce user-approved design a
 
 ## Project integrity
 
-- Whenever plugin content changes, update its `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions together. Keep both versions and descriptions aligned and follow the repository's versioning convention.
 - Do not put personal private information in code, tests, fixtures, documentation, examples, or commit messages. Use placeholders for real emails, phone numbers, addresses, and similar data.
 - Avoid duplicated code. Reuse existing helpers and patterns, or introduce an abstraction when it meaningfully reduces duplication.
 - When a script generates a maintained configuration, script, or structured data file, keep the body in a template and render explicit placeholders. Reserve direct writes for short runtime state files and test fixtures.
