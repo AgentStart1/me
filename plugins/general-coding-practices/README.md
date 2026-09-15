@@ -4,7 +4,7 @@ This plugin provides project collaboration rules plus focused README and project
 
 ## Included guidance
 
-- Project collaboration, approval, privacy, dependency, generated-file, and commit practices.
+- Project collaboration that follows the existing plan autonomously and asks for user input only when a blocker prevents further progress, plus privacy, dependency, generated-file, and focused commit practices.
 - Root-cause-first debugging with structured, privacy-safe logging guidance.
 - Focused test, formatter, lint, static-analysis, and build verification.
 - README and project-rule maintenance that keeps guidance concise and audience-appropriate.

@@ -1,16 +1,15 @@
 ---
 name: project-collaboration-rules
-description: Use for every coding project task to enforce user-approved design and refactoring decisions, explicit commit boundaries, root-cause-first debugging, focused verification, privacy-safe logging and examples, maintainable generated files, and appropriate dependencies.
+description: Use for every coding project task to follow the existing plan autonomously, escalate only when blocked, keep focused commit boundaries, debug root causes first, verify changed surfaces, protect private data, maintain generated files, and choose appropriate dependencies.
 ---
 
 # Project Collaboration Rules
 
-## Approval and commit boundaries
+## Execution and commit boundaries
 
-- Before making any design decision, choosing an implementation approach, deleting code, or refactoring, explain the proposed plan and wait for user approval.
-- Treat approval as applying only to the plan explicitly explained. Generic instructions such as "continue" do not approve design choices discovered later.
-- If inspection, compilation, tests, or static analysis reveals a new design or refactoring choice, pause, explain the options and recommendation, and obtain fresh approval before changing direction.
-- When independent concerns can be separate commits, ask how the user wants them split before committing.
+- Follow the existing plan within the user's requested scope, making routine implementation decisions and resolving issues autonomously. Do not ask the user merely because a problem or new implementation detail appears.
+- Ask the user only when an issue prevents further progress under the existing plan and no safe, reasonable plan-consistent path remains. Explain the blocker, the attempted resolution, and the decision or information needed to continue.
+- When committing is within the requested scope, split independent concerns into focused commits using the project's conventions and any user-specified boundaries.
 - Do not include session-specific identifiers in commit messages.
 
 ## Project integrity
