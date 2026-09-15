@@ -1,6 +1,6 @@
 {
   "name": "general-coding-practices",
-  "version": "0.5.0-20260910024855",
+  "version": "0.5.1-20260915011343",
   "description": "Coding collaboration, debugging, verification, logging, and project documentation rules.",
   "author": {
     "name": "Local Coding Practices"
@@ -25,7 +25,7 @@
   "interface": {
     "displayName": "General Coding Practices",
     "shortDescription": "Follow project collaboration and coding rules.",
-    "longDescription": "Guides Codex to confirm plans before design or refactor decisions, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, add necessary structured and privacy-safe diagnostic logs, proactively maintain README, project rules, and colocated agent prompts, run formatting and static checks, use appropriate dependencies, and identify root causes before adding fallbacks or workarounds.",
+    "longDescription": "Guides Codex to follow the existing plan autonomously and ask for user input only when a blocker prevents further progress, keep commits focused, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, add necessary structured and privacy-safe diagnostic logs, proactively maintain README, project rules, and colocated agent prompts, run formatting and static checks, use appropriate dependencies, and identify root causes before adding fallbacks or workarounds.",
     "developerName": "Local Coding Practices",
     "category": "Developer Tools",
     "capabilities": [
@@ -34,7 +34,7 @@
       "Debugging"
     ],
     "defaultPrompt": [
-      "Plan this coding change and ask for approval before implementation.",
+      "Carry out this coding change and ask me only if you cannot continue under the existing plan.",
       "Fix this bug by finding the root cause first."
     ],
     "brandColor": "#2563EB"
