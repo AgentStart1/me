@@ -31,6 +31,7 @@ plugins/diff-sharing/scripts/start-ngrok.sh
 - `REPORT_OUTPUT_DIR`: Directory for generated artifacts (default: `~/.cache/diff-reports/<project-hash>`)
 - `NGROK_AUTHTOKEN`: ngrok authentication token (required for public tunnel)
 - `NGROK_PORT`: Local port to expose (default: `8080`)
+- `PYTHON_COMMAND`: Python 3 executable used by the local server (default: first working command among `python3` and `python`)
 - `GIT_BASE_REF`: Base ref for diff comparison (default: `main`)
 - `GIT_COMPARE_REF`: Compare ref (default: `HEAD`)
 - `GIT_INCLUDE_UNCOMMITTED`: Include uncommitted changes (default: `true`)
@@ -51,3 +52,4 @@ plugins/diff-sharing/scripts/start-ngrok.sh
 - If Git or the requested base ref is unavailable, report the failure instead of publishing a misleading comparison.
 - If Difftastic is unavailable or cannot produce a structural diff, keep the Git diff usable and state why it became the default.
 - If ngrok is unavailable or unconfigured, fall back to a local HTTP server URL.
+- If `python3` exists but cannot run, use a working `python` command; honor `PYTHON_COMMAND` when the interpreter needs an explicit path.
