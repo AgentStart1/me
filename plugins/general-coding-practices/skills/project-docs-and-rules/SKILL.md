@@ -1,38 +1,50 @@
 ---
 name: project-docs-and-rules
-description: Use when project features, commands, configuration, installation, public APIs, workflows, architecture, tests, conventions, or agent guidance change and README or project rule files may need updates. Maintain user-facing README files and contributor or agent guidance such as AGENTS.md, CLAUDE.md, .cursorrules, and copilot instructions without duplicating content.
+description: Use when project features, installation, configuration, commands, APIs, workflows, architecture, tests, conventions, or AI guidance change. Keep user documentation in README.md, developer documentation in DEVELOPMENT.md, and AI instructions in AGENTS.md without duplicating content.
 context: fork
 agent: documentation-and-rules-maintainer
 ---
 
 # Project Docs and Rules
 
-Keep user documentation and project guidance aligned with the behavior and conventions future users, contributors, and agents need.
+Keep project documentation aligned with current behavior, using one canonical file for each audience:
+
+- `README.md` is for users installing, configuring, and using the project.
+- `DEVELOPMENT.md` is for developers building, testing, debugging, or contributing to the project.
+- `AGENTS.md` is for AI agents working in the repository.
+
+Do not create or maintain `CLAUDE.md`, `.cursorrules`, or `.github/copilot-instructions.md`. Put generally applicable AI guidance in `AGENTS.md` instead.
 
 ## Locate the canonical guidance
 
-- Inspect existing README and rule files before adding new documentation.
-- Include applicable `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`, contributor docs, and nested instruction files.
-- Identify the audience and canonical source for each rule. Do not duplicate the same guidance unless separate consumers genuinely require it.
-- Keep multiple instruction files consistent, or explain intentional platform-specific differences.
+- Inspect existing `README.md`, `DEVELOPMENT.md`, and applicable root or nested `AGENTS.md` files before adding documentation.
+- Classify each statement by audience and place it in the corresponding canonical file.
+- Link between canonical files when another audience needs a pointer; do not copy the same instructions into multiple files.
+- When relevant content exists in a deprecated AI instruction file, migrate the unique, still-applicable guidance to the appropriate `AGENTS.md` rather than continuing to maintain both.
 
 ## README content
 
-- Update README files when user-facing features, installation, configuration, commands, plugin lists, examples, public APIs, or usage flows change.
+- Update README files when user-facing features, installation, deployment, configuration, supported integrations, examples, or usage flows change.
 - Describe what the project is, what it provides, and how users install, configure, and use it.
 - Keep examples practical and runnable, with the paths, commands, inputs, and expected high-level outcomes users need.
-- Do not turn a README into an exhaustive directory tree or internal file inventory.
-- Keep internal validation, lint, CI, and agent-maintenance details in contributor or rule files unless users need those commands to use the project.
+- Do not put contributor setup, architecture, internal APIs, test commands, lint commands, CI details, repository conventions, or AI instructions in README files.
+- Add a concise link to `DEVELOPMENT.md` when contributors need a clear entry point.
 
-## Project rule files
+## DEVELOPMENT.md content
 
-- Update rule files when setup, test, build, release, generation, or collaboration workflows change.
-- Record architecture and code-style conventions only when future contributors or agents need them to make correct changes.
+- Update `DEVELOPMENT.md` when developer setup, architecture, internal or public APIs, build, test, lint, debugging, release, or contribution workflows change.
+- Keep commands runnable and document prerequisites, paths, inputs, and expected outcomes that developers need.
+- Record project conventions that human contributors need to make correct changes, but keep AI-only operating instructions in `AGENTS.md`.
+
+## AGENTS.md content
+
+- Update the applicable root or nested `AGENTS.md` when AI-specific repository guidance, constraints, generated-file ownership, validation expectations, or collaboration workflows change.
+- Keep instructions scoped to the directory tree governed by that `AGENTS.md`; use nested files only when a subtree genuinely needs different guidance.
 - Prefer concise commands, paths, decision rules, and concrete conventions over broad advice.
 - Keep generated-file ownership and canonical-source instructions explicit.
 
 ## Cleanup
 
-- Remove stale paths, commands, plugin lists, agent references, and unsupported workflows.
+- Remove stale paths, commands, integration lists, agent references, and unsupported workflows.
 - Preserve useful existing guidance outside the changed scope.
-- Verify links, commands, names, and cross-file references against the repository after editing.
+- Verify links, commands, names, file ownership, and cross-file references against the repository after editing.
