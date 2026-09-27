@@ -19,6 +19,7 @@ When `difft` is on `PATH`, the generated page opens with Difftastic selected. Ot
 | `REPORT_OUTPUT_DIR` | Output directory for generated artifacts | `~/.cache/diff-reports/<project-hash>` |
 | `NGROK_AUTHTOKEN` | ngrok authentication token | Required for a public tunnel |
 | `NGROK_PORT` | Local port to expose | `8080` |
+| `PYTHON_COMMAND` | Python 3 executable used by the local server | `python3`, then `python` |
 | `GIT_BASE_REF` | Base Git ref | `main` |
 | `GIT_COMPARE_REF` | Compare Git ref | `HEAD` |
 | `GIT_INCLUDE_UNCOMMITTED` | Include uncommitted changes | `true` |
@@ -33,7 +34,7 @@ When `difft` is on `PATH`, the generated page opens with Difftastic selected. Ot
 - **Git** for code-diff sharing.
 - **Difftastic (`difft`)** for the preferred structural renderer.
 - **ngrok** for public sharing; otherwise use the local server URL.
-- **Python 3** for the local HTTP-server fallback.
+- **Python 3** for the local HTTP-server fallback. The launcher asks `python3` and then `python` to execute a Python 3 version check, skipping Python 2 and non-functional command aliases such as the Windows Store placeholder.
 
 ## License
 

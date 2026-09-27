@@ -32,6 +32,7 @@ description: Use on Windows when creating, configuring, starting, stopping, or t
 - `scripts/run-testcontainers.sh`: host test command using guest Docker
 - `scripts/collect-resource-metrics.ps1`: Windows host and Alpine guest resource sampler used by the Testcontainers wrapper
 - `scripts/run-docker.sh`: guest Docker CLI over SSH
+- `scripts/sync-workspace.sh`: copy a host workspace into the guest over SSH without running project commands
 - `scripts/connect-vm.sh`: connect to the guest through an interactive SSH or SFTP session
 - `scripts/vm-utils.sh`: stable shared-utility facade and common path initialization
 - `scripts/lib/`: focused runtime, configuration, template, QEMU, guest, Alpine-image, and VM-state modules loaded by the facade
@@ -61,6 +62,14 @@ Daily testing:
 ./scripts/stop-vm.sh ./profiles/dev.profile
 ```
 
+When project files must exist inside the guest, sync them separately and then run the project's own build or test command:
+
+```bash
+./scripts/sync-workspace.sh --remote-dir /root/my-project /path/to/project
+```
+
+The sync command excludes common generated and private paths by default, accepts repeated `--exclude` options, and never runs a project-specific build.
+
 The start script returns after SSH and the Docker API are ready. The test wrapper sets:
 
 - `DOCKER_HOST=tcp://127.0.0.1:<DOCKER_DAEMON_PORT>`
@@ -80,4 +89,5 @@ resource metrics, bind-mount behavior, or incomplete provisioning recovery.
 ```bash
 ./tests/test-apk-mirror-selection.sh
 ./tests/test-vm-utils.sh
+./tests/test-sync-workspace.sh
 ```

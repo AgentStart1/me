@@ -6,9 +6,6 @@ set -euo pipefail
 #
 # Usage: start-ngrok.sh [--port PORT] [--output-dir DIR]
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
-
 # Generate cache directory based on project path hash
 get_cache_dir() {
     local project_dir="${1:-$PWD}"
@@ -21,6 +18,28 @@ get_cache_dir() {
 OUTPUT_DIR="${REPORT_OUTPUT_DIR:-$(get_cache_dir)}"
 PORT="${NGROK_PORT:-8080}"
 NGROK_AUTHTOKEN="${NGROK_AUTHTOKEN:-}"
+PYTHON_COMMAND="${PYTHON_COMMAND:-}"
+
+find_python() {
+    local candidate
+    local -a candidates=(python3 python)
+
+    if [[ -n "$PYTHON_COMMAND" ]]; then
+        candidates=("$PYTHON_COMMAND")
+    fi
+
+    for candidate in "${candidates[@]}"; do
+        if command -v "$candidate" > /dev/null 2>&1 &&
+            "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info.major >= 3 else 1)' > /dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    echo "Error: No working Python 3 interpreter found" >&2
+    echo "Set PYTHON_COMMAND to the Python executable to use." >&2
+    return 1
+}
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -47,6 +66,7 @@ while [[ $# -gt 0 ]]; do
             echo "  NGROK_AUTHTOKEN     ngrok authentication token (required for public tunnel)"
             echo "  NGROK_PORT          Local port to expose (default: 8080)"
             echo "  REPORT_OUTPUT_DIR   Directory containing the report site"
+            echo "  PYTHON_COMMAND      Python 3 executable (default: python3, then python)"
             exit 0
             ;;
         *)
@@ -101,7 +121,8 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$OUTPUT_DIR"
-python3 -m http.server "$PORT" &
+PYTHON_EXECUTABLE="$(find_python)"
+"$PYTHON_EXECUTABLE" -m http.server "$PORT" &
 HTTP_PID=$!
 sleep 1
 
