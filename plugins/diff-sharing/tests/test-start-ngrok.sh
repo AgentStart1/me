@@ -14,13 +14,16 @@ printf '<!doctype html>\n' > "$OUTPUT_DIR/index.html"
 
 cat > "$BIN_DIR/python3" <<'EOF'
 #!/usr/bin/env bash
-exit 1
+if [[ "${1:-}" == "-c" ]]; then
+    # Simulate an executable Python 2 interpreter rejecting the Python 3 check.
+    exit 1
+fi
+printf 'Python 2.7.18\n'
 EOF
 
 cat > "$BIN_DIR/python" <<'EOF'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "--version" ]]; then
-    printf 'Python 3.12.0\n'
+if [[ "${1:-}" == "-c" ]]; then
     exit 0
 fi
 printf '%s\n' "$*" > "$PYTHON_LOG"
@@ -44,4 +47,4 @@ if [[ "$(cat "$PYTHON_LOG")" != "-m http.server 18080" ]]; then
     exit 1
 fi
 
-echo "PASS: start-ngrok.sh skips a broken python3 command and uses python"
+echo "PASS: start-ngrok.sh skips a non-Python-3 python3 command and uses Python 3"

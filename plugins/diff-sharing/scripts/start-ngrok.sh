@@ -29,7 +29,8 @@ find_python() {
     fi
 
     for candidate in "${candidates[@]}"; do
-        if command -v "$candidate" > /dev/null 2>&1 && "$candidate" --version > /dev/null 2>&1; then
+        if command -v "$candidate" > /dev/null 2>&1 &&
+            "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info.major >= 3 else 1)' > /dev/null 2>&1; then
             printf '%s\n' "$candidate"
             return 0
         fi
