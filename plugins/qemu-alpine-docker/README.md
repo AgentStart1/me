@@ -19,6 +19,14 @@ This plugin creates one persistent Alpine Linux VM for host-side Docker and Test
 
 Host bind mounts are not directly available to the remote guest daemon. Use Docker build contexts or named volumes when tests need host files.
 
+To copy a host workspace into the guest before running project-specific commands:
+
+```bash
+./scripts/sync-workspace.sh --remote-dir /root/my-project /path/to/project
+```
+
+The script sends a tar stream over SSH into a staging directory and replaces the destination only after the transfer succeeds, retaining the prior copy as `<destination>.previous`. It excludes `.git`, `target`, `node_modules`, `dist`, and `.env` by default; pass `--exclude <pattern>` for additional project-specific exclusions. It intentionally does not build or test the project.
+
 ## Prerequisites
 
 Run the scripts from Git Bash or MSYS2 with:
@@ -68,6 +76,7 @@ Other operations:
 
 ```bash
 ./scripts/run-docker.sh -- ps
+./scripts/sync-workspace.sh --remote-dir /root/my-project /path/to/project
 ./scripts/connect-vm.sh               # interactive SSH session
 ./scripts/connect-vm.sh --sftp        # SFTP session
 ./scripts/stop-vm.sh ./profiles/dev.profile
