@@ -19,6 +19,27 @@ This plugin creates one persistent Alpine Linux VM for host-side Docker and Test
 
 Host bind mounts are not directly available to the remote guest daemon. Use Docker build contexts or named volumes when tests need host files.
 
+### Host Docker commands over SSH
+
+For host Gradle tasks that call Docker, compile the native proxy once:
+
+```bash
+./scripts/build-docker-proxy.sh
+./scripts/run-testcontainers.sh -- ./gradlew test
+```
+
+Compilation needs Go 1.23+; `QEMU_DOCKER_GO` can select a Go executable outside PATH.
+The wrapper puts the proxy on PATH, so `docker build` filters the local context using Docker's
+upstream ignore matcher and sends a tar archive over SSH to guest `docker buildx build --load`.
+Dockerfile-specific ignore files override the context's `.dockerignore`. Project Gradle tasks
+remain responsible for preparing distributions, selecting targets and naming images.
+Other commands run in the guest without copying host files; host bind mounts and `docker cp`
+are not translated. Named contexts, build secrets and SSH mounts are rejected until explicit
+transport support exists. No unfiltered workspace transfer is performed.
+
+The compiled helper is stored in the repository-level `build/qemu-docker-proxy` directory.
+Use the same `QEMU_DOCKER_PROXY_DIR` override for compilation and test execution if necessary.
+
 To copy a host workspace into the guest before running project-specific commands:
 
 ```bash
@@ -36,6 +57,7 @@ Run the scripts from Git Bash or MSYS2 with:
 - `xorriso`
 - OpenSSH client and key generator
 - `curl`, `tar`, and `sha256sum`
+- Go 1.23+ to compile the Docker proxy before the first `run-testcontainers.sh` invocation
 
 ## First-time provisioning
 
@@ -65,6 +87,7 @@ Start the VM in the background:
 Run host tests through the guest Docker API:
 
 ```bash
+./scripts/build-docker-proxy.sh # once, and after proxy source updates
 ./scripts/run-testcontainers.sh -- npm test
 ```
 
@@ -99,6 +122,12 @@ The bundled development profile selects acceleration automatically and allocates
 Fixed host ports must not overlap the Testcontainers range. All forwards bind to `127.0.0.1`.
 
 ## Measured resource reference
+
+The test wrapper preserves the `env` executable from its owning Bash installation before
+adding tool directories to `PATH`. Mixing an MSYS2 `env.exe` with Git Bash can make
+native Windows OpenSSH exit 255 without diagnostics, even for `ssh -V`.
+The proxy also follows Docker's Windows archive permissions: it adds execute bits and removes
+group/world write permissions so scripts can run in Linux images without Dockerfile workarounds.
 
 A Windows host with 28 logical processors and 31.8 GiB RAM ran a cached Elasticsearch 8.17 Testcontainers integration test through the bundled 4-vCPU, 4-GiB profile with automatic resource collection enabled. `VM_ACCELERATOR=auto` selected WHPX. The wrapper recorded a successful 20-second command, Gradle reported 16 seconds, the test case took 14.89 seconds, and Elasticsearch became ready in 10.41 seconds. The collector produced 13 valid samples with no sampling errors. The VM reached SSH and Docker readiness in 26 seconds from a cold VM start. On the same persistent disk, an earlier TCG run needed about 3 minutes 12 seconds for Elasticsearch startup.
 
