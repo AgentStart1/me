@@ -48,11 +48,11 @@ def parse_lock(output, now):
         return {"state": "unknown", "detail": "Lock exists but metadata is incomplete or unreadable; treat the device as occupied"}
 
 
-def inspect_device(device, path, now):
+def inspect_device(device, path):
     if device["connection"] != "device":
         return {**device, "lock": {"state": "unavailable", "detail": "Device is not online; lock ownership is unknown"}}
     try:
-        result = parse_lock(adb(["shell", read_command(path)], device["serial"]), now)
+        result = parse_lock(adb(["shell", read_command(path)], device["serial"]), time.time())
     except ProbeError as error:
         result = {"state": "unavailable", "detail": str(error)}
     return {**device, "lock": result}
@@ -60,8 +60,14 @@ def inspect_device(device, path, now):
 
 def collect_status():
     path = lock_path()
+    adb_status, items, warnings = collect_devices(lambda device: inspect_device(device, path))
+    # Earlier probes may expire while waiting for the remaining devices.
     now = time.time()
-    adb_status, items, warnings = collect_devices(lambda device: inspect_device(device, path, now))
+    for item in items:
+        lease = item["lock"]
+        if lease["state"] in ("held", "expired"):
+            lease["state"] = "expired" if lease["expiresAt"] <= now else "held"
+            lease["remainingSeconds"] = max(0, int(lease["expiresAt"] - now))
     return {"observedAt": observed_at(), "adb": adb_status, "devices": items, "lockPath": path,
             "warnings": warnings, "clockNote": "Lease expiry uses this host's clock. No waiting queue is recorded by the lock helper."}
 

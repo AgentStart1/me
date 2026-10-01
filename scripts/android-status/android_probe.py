@@ -40,7 +40,7 @@ def adb_command():
 
 
 def validate_serial(serial):
-    if not isinstance(serial, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:\[\]%-]{0,255}", serial):
+    if not isinstance(serial, str) or not re.fullmatch(r"[A-Za-z0-9\[][A-Za-z0-9._:\[\]%-]{0,255}", serial):
         raise ProbeError("Invalid ADB serial")
     return serial
 
@@ -64,7 +64,8 @@ def adb(args, serial=None, binary=False):
     return result.stdout if binary else result.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n")
 
 
-def devices():
+def devices(warnings=None):
+    warnings = warnings if warnings is not None else []
     output = adb(["devices", "-l"])
     result = []
     for line in output.splitlines():
@@ -72,11 +73,16 @@ def devices():
             continue
         fields = line.split()
         if len(fields) < 2:
-            raise ProbeError("ADB returned an invalid device list")
+            warnings.append("Skipped a malformed ADB device record")
+            continue
         serial, connection = fields[:2]
         if fields[1:3] == ["no", "permissions"]:
             connection = "no permissions"
-        validate_serial(serial)
+        try:
+            validate_serial(serial)
+        except ProbeError:
+            warnings.append("Skipped an ADB device record with an unsupported serial")
+            continue
         values = dict(item.split(":", 1) for item in fields[2:] if ":" in item)
         result.append({"serial": serial, "connection": connection,
                        "model": values.get("model", "").replace("_", " ")[:200]})
@@ -84,11 +90,11 @@ def devices():
 
 
 def collect_devices(inspect):
+    warnings = []
     try:
-        found = devices()
+        found = devices(warnings)
     except ProbeError as error:
         return {"state": "unavailable", "detail": str(error)}, [], []
-    warnings = []
     if len(found) > MAX_DEVICES:
         warnings.append(f"Only the first {MAX_DEVICES} devices are shown")
     with ThreadPoolExecutor(max_workers=8) as pool:

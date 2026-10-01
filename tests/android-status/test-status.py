@@ -115,6 +115,44 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(snapshot['devices'][0]['connection'],'no permissions')
         self.assertEqual(snapshot['devices'][0]['lock']['state'],'unavailable')
 
+    def test_ipv6_serials_remain_available_alongside_other_devices(self):
+        serials = ['emulator-5554', '[::1]:5555', '[fe80::1%eth0]:5555']
+        self.fixture.write([{**DEVICE, 'serial': serial} for serial in serials])
+        snapshot = lock_status.collect_status()
+        self.assertEqual(snapshot['adb']['state'], 'available')
+        self.assertEqual([item['serial'] for item in snapshot['devices']], serials)
+        self.assertEqual(snapshot['warnings'], [])
+        for serial in serials:
+            self.assertTrue(any(command[:2] == ['-s', serial] for command in self.fixture.commands()))
+
+    def test_bad_device_records_do_not_hide_valid_devices(self):
+        output = 'List of devices attached\ninvalid-row\n???????????? no permissions\nemulator-5554 device model:Pixel\n'
+        with patch.object(android_probe, 'adb', return_value=output):
+            status, items, warnings = android_probe.collect_devices(lambda device: device)
+        self.assertEqual(status['state'], 'available')
+        self.assertEqual([item['serial'] for item in items], ['emulator-5554'])
+        self.assertEqual(len(warnings), 2)
+        self.assertNotIn('????????????', json.dumps(warnings))
+
+    def test_lease_timing_uses_end_of_batch_for_all_devices(self):
+        current = [100]
+        leases = {'first': 105, 'second': 130}
+        def probe(args, serial):
+            return 'present\n' + json.dumps({'expires_at_epoch': leases[serial]})
+        def collect(inspect):
+            first = inspect({'serial': 'first', 'connection': 'device'})
+            current[0] = 110  # Another device delays the completed snapshot.
+            second = inspect({'serial': 'second', 'connection': 'device'})
+            current[0] = 120
+            return {'state': 'available'}, [first, second], []
+        with patch.object(lock_status, 'collect_devices', side_effect=collect), \
+             patch.object(lock_status, 'adb', side_effect=probe), \
+             patch.object(lock_status.time, 'time', side_effect=lambda: current[0]):
+            snapshot = lock_status.collect_status()
+        expired, held = [item['lock'] for item in snapshot['devices']]
+        self.assertEqual((expired['state'], expired['remainingSeconds']), ('expired', 0))
+        self.assertEqual((held['state'], held['remainingSeconds']), ('held', 10))
+
     def test_unavailable_adb_does_not_claim_no_devices(self):
         self.fixture.write([],fail=True)
         self.assertEqual(lock_status.collect_status()['adb']['state'],'unavailable')
