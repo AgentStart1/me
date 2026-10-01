@@ -14,7 +14,7 @@
 #     TEMP/TMP directory alignment, socket path exclusion)
 #
 # Resource metrics:
-#   When TESTCONTAINERS_RESOURCE_METRICS=true (default), the script spawns a
+#   When TESTCONTAINERS_RESOURCE_METRICS=auto (default), the script spawns a
 #   PowerShell process that periodically samples CPU/memory usage of the host,
 #   QEMU process, and guest. The results are written to a JSON report file.
 #   This is only available on Windows.
@@ -57,7 +57,7 @@ validate_port_range "$TESTCONTAINERS_PORT_START" "$TESTCONTAINERS_PORT_END"
 # because TCG (software emulation) is slow and large image layers take time.
 TESTCONTAINERS_PULL_PAUSE_TIMEOUT_VALUE="${TESTCONTAINERS_PULL_PAUSE_TIMEOUT:-300}"
 TESTCONTAINERS_PULL_TIMEOUT_VALUE="${TESTCONTAINERS_PULL_TIMEOUT:-1800}"
-TESTCONTAINERS_RESOURCE_METRICS_VALUE="${TESTCONTAINERS_RESOURCE_METRICS:-true}"
+TESTCONTAINERS_RESOURCE_METRICS_VALUE="${TESTCONTAINERS_RESOURCE_METRICS:-auto}"
 TESTCONTAINERS_RESOURCE_METRICS_INTERVAL_VALUE="${TESTCONTAINERS_RESOURCE_METRICS_INTERVAL:-1}"
 # --- Validate timeout and metrics configuration ---
 # All timeouts must be positive integers; metrics interval must be 1–60.
@@ -69,9 +69,13 @@ for timeout_key in TESTCONTAINERS_PULL_PAUSE_TIMEOUT_VALUE TESTCONTAINERS_PULL_T
     fi
 done
 case "$TESTCONTAINERS_RESOURCE_METRICS_VALUE" in
+    auto)
+        if is_windows; then TESTCONTAINERS_RESOURCE_METRICS_VALUE=true
+        else TESTCONTAINERS_RESOURCE_METRICS_VALUE=false; fi
+        ;;
     true|false) ;;
     *)
-        echo "Error: TESTCONTAINERS_RESOURCE_METRICS must be true or false (got '${TESTCONTAINERS_RESOURCE_METRICS_VALUE}')." >&2
+        echo "Error: TESTCONTAINERS_RESOURCE_METRICS must be auto, true, or false (got '${TESTCONTAINERS_RESOURCE_METRICS_VALUE}')." >&2
         exit 1
         ;;
 esac

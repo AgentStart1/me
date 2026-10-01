@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "qemu-docker-status": {
+      "command": "uv",
+      "args": ["run", "--script", "scripts/status-server.py"],
+      "cwd": "."
+    }
+  }
+}

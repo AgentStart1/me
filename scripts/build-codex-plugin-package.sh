@@ -50,7 +50,9 @@ build_plugin() {
                 continue
                 ;;
         esac
-        cp -R "$source_entry" "$output_dir/"
+        # Development dependencies and bytecode are not plugin runtime assets.
+        tar -C "$plugin_dir" --exclude=node_modules --exclude=__pycache__ -cf - "$entry_name" |
+            tar -C "$output_dir" -xf -
     done
     shopt -u nullglob
 
@@ -59,6 +61,9 @@ build_plugin() {
         skill_name="$(basename "$source_skill")"
         output_skill="$output_dir/skills/$skill_name"
         mkdir -p "$output_skill"
+        # Keep referenced skill documentation alongside the converted SKILL.md.
+        tar -C "$source_skill" --exclude='./SKILL.md' --exclude=node_modules --exclude=__pycache__ -cf - . |
+            tar -C "$output_skill" -xf -
 
         awk '
             NR == 1 && $0 == "---" { in_frontmatter = 1 }

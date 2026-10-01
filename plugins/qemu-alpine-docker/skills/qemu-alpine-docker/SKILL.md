@@ -1,22 +1,22 @@
 ---
 name: qemu-alpine-docker
-description: Use on Windows when creating, configuring, starting, stopping, or troubleshooting this persistent QEMU Alpine VM for a local Docker API or host-side Testcontainers development and testing. Do not trigger for ordinary Docker, Linux Docker, or Testcontainers workflows that do not use this QEMU VM.
+description: Use when creating, starting, stopping, troubleshooting, or viewing status for a persistent QEMU Alpine Docker VM on Linux, inside Linux containers, or on Windows. Includes KVM, WHPX, and TCG workflows for Docker and Testcontainers; do not trigger for Docker workflows that do not use QEMU.
 ---
 
 # QEMU Alpine Docker
 
 ## Design invariants
 
-- Use the bundled persistent Alpine VM instead of configuring a Windows bridge or a disposable VM.
+- Use the bundled persistent Alpine VM with unprivileged user networking on Linux and Windows.
 - Run at most one plugin VM at a time. The scripts serialize lock-state updates with an atomic guard and enforce a global VM lock.
-- Prefer WHPX hardware acceleration with QEMU's compatible `qemu64` CPU model on Windows, and fall back to multi-threaded TCG with the `max` CPU model when WHPX is unavailable.
+- In auto mode, probe KVM with `-cpu host` on Linux or WHPX with `-cpu qemu64` on Windows. Fall back to multi-threaded TCG with `-cpu max` if hardware acceleration is unavailable. Explicit `kvm`/`whpx` must fail clearly instead of silently falling back.
 - Use QEMU user-mode networking with either accelerator.
 - Bind every host forward to `127.0.0.1`.
 - Reuse the persistent qcow2 disk so Docker images survive between test runs.
 - Resolve guest and container DNS through local Unbound. Let the guest use loopback, configure Docker containers to use bridge gateway `172.17.0.1`, and forward upstream only over TCP to QEMU's virtual DNS server at `10.0.2.3`.
 - Keep Testcontainers Ryuk enabled.
 - Pass the profile's extended Testcontainers pull pause and total timeouts to host test processes because large image extraction can be quiet under TCG fallback.
-- Collect host, QEMU-process, and guest CPU and memory metrics around every Testcontainers command by default. Preserve the command exit code, print only the final summary, and atomically replace the privacy-safe `metrics/latest.json` report.
+- Use platform-aware `auto` resource metrics: collect Windows/guest metrics through PowerShell on Windows; run Linux commands without that collector. Preserve test exit codes. Explicit `true` requires the Windows collector.
 - Keep Docker's automatic published-port range equal to the QEMU same-port forwarding range.
 - Never silently delete an incomplete disk or use `docker image prune -a`.
 - Treat TCP port 2375 as a root-equivalent, unauthenticated API; do not expose it beyond loopback.
@@ -42,6 +42,20 @@ description: Use on Windows when creating, configuring, starting, stopping, or t
 - `profiles/dev.profile`
 - `tests/test-vm-utils.sh`
 - `tests/test-apk-mirror-selection.sh`
+
+## Linux containers
+
+Read `container/README.md` at the plugin root for the ordinary, non-root container workflow. KVM can be enabled with `/dev/kvm` device access and the matching supplementary group; do not require `--privileged`. Use TCG if KVM is unavailable. Keep the test process, QEMU, and MCP status server in the same outer container's process/network namespace. Preserve loopback-only Docker and Testcontainers forwards. The guest is x86-64; KVM requires a compatible Linux host CPU.
+
+## Read-only status panel
+
+For requests to view VM state, service health, or containers, call `qemu_docker_status` to open **VM & Containers** in hosts supporting MCP Apps. It has an `openai/ui` thread entrypoint and takes no arguments. Refresh remains within the panel. Never start a VM or provision resources merely to populate this view.
+
+Without MCP Apps support, run `scripts/status.py` with Python 3 and summarize its JSON snapshot. Read `QEMU_STATUS_PROFILE` for a custom profile and `QEMU_ALPINE_BASE_DIR` for existing state overrides; do not invent a running state from the ready marker. Unknown probes, unavailable lists, and stale PID files must be reported as such. SSH health means a banner was received, not successful authentication. Resource counts and accelerator policy are profile configuration, not measured utilization. The separate accelerator field is read from the running process when available.
+
+- `scripts/status.py`: read-only local status collection.
+- `scripts/status-server.py`: stdio MCP App server with a thread entrypoint.
+- `templates/status-panel.html`: bundled dashboard, rebuilt from `ui/`.
 
 ## Workflow
 

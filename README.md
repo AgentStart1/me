@@ -1,13 +1,13 @@
 # me
 
-A local Codex developer plugin collection. It includes Android tooling, client UI and coding guidance, test report sharing with ngrok tunnel support, plus a persistent pure-TCG QEMU Alpine Docker test environment for Windows.
+A local Codex developer plugin collection. It includes Android tooling, client UI and coding guidance, test report sharing with ngrok tunnel support, plus a persistent QEMU Alpine Docker environment for Linux, Linux containers, and Windows.
 
 ## What is included
 
 - Android emulator provisioning, profiles, and Appium device locking.
 - Android, Kotlin, RecyclerView, client-UI, and general engineering guidance.
 - Test-report and code-diff site generation with optional ngrok sharing.
-- A persistent QEMU Alpine/Docker environment for Windows-hosted test runs.
+- A persistent QEMU Alpine/Docker environment with Linux KVM, Windows WHPX, and portable TCG fallback, including ordinary Linux container workflows.
 - Portable Claude agent prompts bundled with their owning plugins.
 
 Codex-compatible content is generated and synchronized automatically to the
@@ -71,3 +71,5 @@ If it is not listening, restart the service:
 net stop iphlpsvc
 net start iphlpsvc
 ```
+
+The [QEMU Alpine Docker plugin](plugins/qemu-alpine-docker/README.md#vm--containers-status-panel) includes a read-only VM, service-health, and container status panel for MCP Apps hosts.

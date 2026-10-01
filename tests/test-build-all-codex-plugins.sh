@@ -76,3 +76,12 @@ if grep -R -Eq '^(context|agent):[[:space:]]*' "$OUTPUT_DIR/plugins"; then
 fi
 
 echo "PASS: generated skills omit Claude routing fields"
+
+assert_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/.mcp.json" "QEMU status MCP configuration"
+assert_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/templates/status-panel.html" "QEMU status panel bundle"
+assert_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/scripts/status.py" "QEMU status collector"
+assert_contains "$OUTPUT_DIR/plugins/qemu-alpine-docker/.codex-plugin/plugin.json" '"mcpServers": "./.mcp.json"' "QEMU status MCP manifest registration"
+assert_not_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/ui/node_modules" "UI development dependencies excluded"
+
+assert_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/skills/qemu-alpine-docker/references/configuration-and-recovery.md" "QEMU configuration reference retained"
+assert_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/container/Dockerfile" "QEMU Linux container runtime"

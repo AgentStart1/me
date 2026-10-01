@@ -1,7 +1,7 @@
 {
   "name": "qemu-alpine-docker",
-  "version": "0.3.0-20260927110646",
-  "description": "Persistent QEMU Alpine Docker VM for Windows-hosted Docker API and Testcontainers workflows.",
+  "version": "0.4.0-20261001152233",
+  "description": "Persistent QEMU Alpine Docker VM and status panel for Linux, Linux containers, and Windows.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers",
     "url": "https://github.com/storytellerF/me"
@@ -14,13 +14,16 @@
     "alpine",
     "docker",
     "vm",
-    "windows"
+    "windows",
+    "linux",
+    "kvm",
+    "tcg"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "QEMU Alpine Docker",
-    "shortDescription": "Persistent Alpine Docker VM for Windows Testcontainers.",
-    "longDescription": "Creates and manages one unattended, persistent Alpine Docker VM using WHPX when available and TCG otherwise. Exposes a loopback Docker API and a bounded random port range for host-side Testcontainers while preserving pulled image layers between runs.",
+    "shortDescription": "QEMU Docker on Linux and Windows, with a live status panel.",
+    "longDescription": "Manages a persistent Alpine Docker VM with KVM on Linux, WHPX on Windows, and portable TCG fallback. Runs inside ordinary Linux containers without privileged mode and exposes a read-only VM, service, and container status panel.",
     "developerName": "QEMU Alpine Docker Maintainers",
     "category": "Developer Tools",
     "capabilities": [
@@ -36,5 +39,6 @@
       "Run host Testcontainers tests against Docker in the Alpine VM."
     ],
     "brandColor": "#3B82F6"
-  }
+  },
+  "mcpServers": "./.mcp.json"
 }
