@@ -4,5 +4,6 @@
   "author": {
     "name": "Local Android Practices"
   },
-  "version": "0.3.0-20260910024855"
+  "version": "0.4.0-20261001211958",
+  "mcpServers": "./.mcp.json"
 }

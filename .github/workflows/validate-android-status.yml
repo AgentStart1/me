@@ -1,0 +1,46 @@
+name: Validate Android status panels
+on:
+  pull_request:
+    paths:
+      - 'plugins/android-emulator-profile/**'
+      - 'plugins/android-appium-device-lock/**'
+      - 'scripts/android-status/**'
+      - 'scripts/build-codex-plugin-package.sh'
+      - 'tests/android-status/**'
+      - 'tests/test-build-all-codex-plugins.sh'
+      - '.github/workflows/validate-android-status.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/android-emulator-profile/**'
+      - 'plugins/android-appium-device-lock/**'
+      - 'scripts/android-status/**'
+      - 'scripts/build-codex-plugin-package.sh'
+      - 'tests/android-status/**'
+      - 'tests/test-build-all-codex-plugins.sh'
+      - '.github/workflows/validate-android-status.yml'
+permissions:
+  contents: read
+jobs:
+  android-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v6
+      - run: npm ci --prefix scripts/android-status
+      - run: npm run build --prefix scripts/android-status
+      - name: Check generated assets
+        run: git diff --exit-code -- plugins/android-emulator-profile/templates plugins/android-emulator-profile/scripts/android_probe.py plugins/android-appium-device-lock/templates plugins/android-appium-device-lock/scripts/android_probe.py
+      - run: npm test --prefix scripts/android-status
+      - run: uv run --script tests/android-status/test-status.py
+      - run: uv run --with playwright==1.62.0 playwright install --with-deps chromium
+      - run: uv run --script tests/android-status/test-panels.py
+      - run: bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
+      - run: bash tests/test-build-all-codex-plugins.sh
+      - name: Validate generated Codex skills
+        run: |
+          bash scripts/build-codex-plugin-package.sh --all --output-dir "${RUNNER_TEMP}/me.codex"
+          uv run --with PyYAML==6.0.3 python scripts/validate-generated-codex-skills.py "${RUNNER_TEMP}/me.codex"

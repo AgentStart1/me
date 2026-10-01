@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "android-appium-device-lock-status": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--script",
+        "scripts/status-server.py"
+      ],
+      "cwd": "."
+    }
+  }
+}

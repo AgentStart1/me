@@ -73,3 +73,5 @@ net start iphlpsvc
 ```
 
 The [QEMU Alpine Docker plugin](plugins/qemu-alpine-docker/README.md#vm--containers-status-panel) includes a read-only VM, service-health, and container status panel for MCP Apps hosts.
+
+Android tooling also provides [emulator status and on-demand screen previews](plugins/android-emulator-profile/README.md#android-emulators-status-panel) and a [device lease panel](plugins/android-appium-device-lock/README.md#device-leases-status-panel).

@@ -13,3 +13,7 @@ local deterministic routes, fixtures, and fake services over live maps or extern
 Run the narrowest meaningful flow, collect logs and screenshots on failure, release the lock in all
 exit paths, and report commands, artifact paths, skipped checks, and residual risk. Do not reset an
 emulator or alter unrelated apps.
+
+For a status-only request, use the read-only Device Leases panel or JSON collector. Do not acquire,
+renew, or release a lease merely to inspect it. Report unknown/offline ownership conservatively,
+keep owner tokens out of displayed results, and do not infer a waiting queue from an active lock.

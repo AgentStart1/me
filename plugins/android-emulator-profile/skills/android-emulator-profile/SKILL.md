@@ -1,6 +1,6 @@
 ---
 name: android-emulator-profile
-description: Use when creating or starting an Android Virtual Device (AVD) from a profile, including required SDK tool setup, system-image selection, Docker-friendly emulator launch, and the start-avd smoke test.
+description: Use when viewing Android emulator status or screen previews, or creating or starting an Android Virtual Device (AVD) from a profile, including required SDK tool setup, system-image selection, Docker-friendly emulator launch, and the start-avd smoke test.
 ---
 
 # Android Emulator Profile
@@ -62,3 +62,9 @@ tests/test-start-avd-docker.sh
 - Before running workflows that download SDK packages or start long-running emulator processes, ask the user first.
 - `test-start-avd-docker.sh` uses fake `emulator` and `adb` commands; it does not start Docker or a real emulator.
 - If the emulator runs on the host and a VM needs to access the host ADB port, prompt the user to set up `netsh interface portproxy` port forwarding on the host and add firewall rules allowing the VM subnet to access port `5555`.
+
+## Read-only status and screen preview
+
+Call `android_emulator_status` to open the **Android Emulators** conversation panel. It reads configured AVDs, ADB connectivity, and boot readiness without starting or resetting a device. If MCP Apps are unavailable, run `scripts/emulator_status.py` with Python 3 and summarize the JSON snapshot.
+
+Screen capture is an explicit panel action through the app-only `android_emulator_screenshot` tool. Do not add automatic screenshot polling. A missing ADB connection is unavailable/unknown, not proof that every AVD stopped. Use `ANDROID_AVD_HOME` for an alternate inventory and `ANDROID_ADB_COMMAND` for an explicit ADB executable; see the owning README for all lookup rules.

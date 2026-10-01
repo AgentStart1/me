@@ -1,6 +1,6 @@
 ---
 name: android-appium-device-lock
-description: Use when adding or running Android UI or end-to-end tests with Appium, UIAutomator, Espresso, adb, CI mobile tests, or a physical device or emulator. Serialize device access with a device-side file lock so every test run is safe when the Android device is shared.
+description: Use when viewing device lock ownership or lease status, or adding or running Android UI or end-to-end tests with Appium, UIAutomator, Espresso, adb, CI mobile tests, or a physical device or emulator. Serialize device access with a device-side file lock so every test run is safe when the Android device is shared.
 context: fork
 agent: android-e2e-operator
 ---
@@ -53,3 +53,9 @@ For manual acquisition, release, and lease renewal, read
 ## Bundled Resource
 
 - `scripts/adb-device-lock.sh`: deterministic adb lock helper with `acquire`, `release`, `renew`, and `run` commands.
+
+## Read-only lease status
+
+For requests to view device occupancy, current owner, task, or expiry, call `android_device_lock_status` to open **Device Leases**. Observation requires no acquisition or release. If MCP Apps are unavailable, run `scripts/lock_status.py` with Python 3 and summarize its JSON snapshot.
+
+Never disclose the owner token in tool results or UI. Expired metadata means a stale lease is still present, not that the panel has released the device. Offline devices and unreadable metadata must remain unknown/unavailable. The helper has no durable waiting queue, so do not invent waiting-task data. For custom lock locations, set `ANDROID_DEVICE_LOCK_PATH` to the same path used by `--lock-path`.

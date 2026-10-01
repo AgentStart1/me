@@ -85,3 +85,10 @@ assert_not_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/ui/node_modules" "UI d
 
 assert_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/skills/qemu-alpine-docker/references/configuration-and-recovery.md" "QEMU configuration reference retained"
 assert_exists "$OUTPUT_DIR/plugins/qemu-alpine-docker/container/Dockerfile" "QEMU Linux container runtime"
+
+for plugin_name in android-emulator-profile android-appium-device-lock; do
+    assert_exists "$OUTPUT_DIR/plugins/$plugin_name/.mcp.json" "$plugin_name status MCP configuration"
+    assert_exists "$OUTPUT_DIR/plugins/$plugin_name/templates/status-panel.html" "$plugin_name panel bundle"
+    assert_exists "$OUTPUT_DIR/plugins/$plugin_name/scripts/android_probe.py" "$plugin_name standalone ADB helper"
+    assert_contains "$OUTPUT_DIR/plugins/$plugin_name/.codex-plugin/plugin.json" '"mcpServers": "./.mcp.json"' "$plugin_name MCP registration"
+done

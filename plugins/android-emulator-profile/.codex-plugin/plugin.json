@@ -1,6 +1,6 @@
 {
   "name": "android-emulator-profile",
-  "version": "0.3.0-20260910024855",
+  "version": "0.4.0-20261001211958",
   "description": "Profile-driven Android AVD creation and Docker-friendly emulator startup.",
   "author": {
     "name": "Android Emulator Profile Maintainers",
@@ -34,8 +34,10 @@
     "defaultPrompt": [
       "Create an Android AVD from the default profile.",
       "Start the configured Android emulator.",
-      "Run the Docker smoke test for start-avd.sh."
+      "Run the Docker smoke test for start-avd.sh.",
+      "Show the Android emulator status panel."
     ],
     "brandColor": "#3B82F6"
-  }
+  },
+  "mcpServers": "./.mcp.json"
 }
