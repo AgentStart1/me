@@ -21,4 +21,4 @@ jobs:
       - name: Test both distributions
         run: |
           python tests/test-plugin-packages.py
-          bash tests/test-build-all-codex-plugins.sh
+          bash tests/test-build-plugin-cli.sh

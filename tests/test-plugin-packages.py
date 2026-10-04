@@ -19,6 +19,8 @@ with tempfile.TemporaryDirectory() as temporary:
         build(client, output)
         validation.validate(client, output)
         before = {p.relative_to(output): p.read_bytes() for p in output.rglob('*') if p.is_file()}
+        marketplace_dir = output / ('.agents/plugins' if client == 'codex' else '.claude-plugin')
+        (marketplace_dir / 'stale.txt').write_text('stale')
         stale = output / 'plugins/stale'
         stale.mkdir()
         (stale / 'stale.txt').write_text('stale')
