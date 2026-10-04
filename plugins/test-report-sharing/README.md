@@ -30,3 +30,7 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 ## License
 
 This plugin is part of the me plugin collection.
+
+## Plugin packaging
+
+`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Claude agent routing remains in source skills and is removed only from generated Codex copies.

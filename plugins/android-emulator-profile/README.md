@@ -8,3 +8,7 @@ This plugin provides profile-driven Android Virtual Device creation and emulator
 - Create AVDs from mobile, tablet, desktop, TV, and watch profiles.
 - Start emulators with architecture-aware defaults.
 - Run a fake-command smoke test without starting a real emulator.
+
+## Plugin packaging
+
+`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Claude agent routing remains in source skills and is removed only from generated Codex copies.

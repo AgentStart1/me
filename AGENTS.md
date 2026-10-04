@@ -9,6 +9,12 @@ This repository is the source of truth for the `me` plugin collection and its po
 - Preserve `context: fork` and `agent: <agent-name>` in source skill frontmatter when they route work to a Claude agent. Do not remove those fields merely to satisfy a Codex-only validator.
 - Do not claim that installing a plugin automatically installs agents.
 
+## Portable sources and client generation
+
+- Maintain plugin identity and version only in `plugins/*/plugin.json`, using the Agent Plugins 1.0.0 schema. Store client manifest fields under `extensions.com.openai.codex` and `extensions.com.anthropic.claude`; generate client manifests instead of maintaining duplicate source manifests.
+- Generate Claude packages with `scripts/build-claude-plugin-package.sh --all` into `../me.claude`, inspecting and preserving unrelated work first. Validate both distributions with `scripts/validate-plugin-packages.py`.
+- `.github/workflows/sync-me-codex.yml` synchronizes both `me.codex` and `me.claude`; only that workflow may commit, push, or propose generated distribution changes.
+
 ## Codex package generation and validation
 
 - Run `scripts/build-codex-plugin-package.sh --all` after source changes to generate packages into the local sibling `../me.codex` checkout for review and validation. The command replaces previously generated content, so inspect the sibling checkout before running it and preserve unrelated work.
@@ -21,7 +27,7 @@ This repository is the source of truth for the `me` plugin collection and its po
 ## Documentation and versioning
 
 - When a skill or agent changes, update its owning `SKILL.md`, `README.md`, and any applicable `CLAUDE.md` references. Custom agent prompts remain at the plugin root.
-- Use `MAJOR.MINOR.PATCH-YYYYMMDDHHMMSS` for every plugin version. Keep `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions identical, and do not add environment or tool labels.
+- Use `MAJOR.MINOR.PATCH-YYYYMMDDHHMMSS` for every plugin version. Keep generated `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions identical to the portable manifest, and do not add environment or tool labels.
 - Upgrade a plugin version at most once in the same PR. After that first upgrade, do not change its version or refresh its timestamp for later commits in that PR; the timestamp records when the version was initially updated. Make a further version change only in a new PR.
 
 ## Privacy

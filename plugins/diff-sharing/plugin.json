@@ -1,0 +1,43 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "diff-sharing",
+  "version": "0.2.2-20261004053826",
+  "description": "Generate Git or Difftastic code-diff sites for local preview or ngrok sharing.",
+  "author": {
+    "name": "Diff Sharing"
+  },
+  "license": "MIT",
+  "keywords": [
+    "diff",
+    "difftastic",
+    "git",
+    "ngrok",
+    "code-review"
+  ],
+  "extensions": {
+    "com.openai.codex": {
+      "skills": "./skills/",
+      "interface": {
+        "displayName": "Diff Sharing",
+        "shortDescription": "Share Difftastic-first code diffs through ngrok.",
+        "longDescription": "Generates a static Difftastic-first structural diff site with a Git fallback, inline and side-by-side layouts, then exposes it through ngrok.",
+        "developerName": "Diff Sharing",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Difftastic Diff Generation",
+          "Git Diff Fallback",
+          "Ngrok Tunnel"
+        ],
+        "defaultPrompt": [
+          "Generate a Difftastic-first code diff and expose it publicly."
+        ],
+        "brandColor": "#2563EB"
+      }
+    },
+    "com.anthropic.claude": {
+      "skills": [
+        "./skills/"
+      ]
+    }
+  }
+}

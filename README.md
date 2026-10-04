@@ -1,6 +1,6 @@
 # me
 
-A local Codex developer plugin collection. It includes Android tooling, client UI and coding guidance, test report sharing with ngrok tunnel support, plus a persistent pure-TCG QEMU Alpine Docker test environment for Windows.
+A portable [Agent Plugins](https://agent-plugins.org) collection. It includes Android tooling, client UI and coding guidance, test report sharing with ngrok tunnel support, plus a persistent pure-TCG QEMU Alpine Docker test environment for Windows.
 
 ## What is included
 
@@ -10,8 +10,9 @@ A local Codex developer plugin collection. It includes Android tooling, client U
 - A persistent QEMU Alpine/Docker environment for Windows-hosted test runs.
 - Portable Claude agent prompts bundled with their owning plugins.
 
-Codex-compatible content is generated and synchronized automatically to the
-standalone `me.codex` repository, which Codex users consume directly.
+This repository is the source of truth. Each `plugins/*/plugin.json` targets Agent Plugins 1.0.0; client metadata lives in reverse-domain `extensions`. Complete skill resources are shared. Claude-specific source routing and root-level agent prompts are retained for the Claude adapter; Codex generation removes routing fields only from generated copies.
+
+GitHub Actions generates distribution pull requests in `me.claude` and `me.codex` after changes merge to `main`, or on manual dispatch. Install from those repositories.
 
 ## Installation
 
@@ -22,27 +23,16 @@ Codex users should follow the installation instructions in the dedicated
 
 ### Claude Code
 
-Add this GitHub repository as a Claude Code plugin marketplace:
+Claude Code users should follow the installation and migration instructions in the dedicated
+[`me.claude`](https://github.com/storytellerF/me.claude) repository.
 
-```text
-/plugin marketplace add storytellerF/me
-```
+## Development and synchronization
 
-Install plugins from the marketplace:
+Run `bash scripts/build-claude-plugin-package.sh --all` and `bash scripts/build-codex-plugin-package.sh --all` to generate sibling directories. Inspect existing sibling checkouts first: generated `plugins/`, marketplace directories, and README are replaced; unrelated files are preserved. Do not commit or push generated repositories locally.
 
-```text
-/plugin install android-emulator-profile@me
-/plugin install android-appium-device-lock@me
-/plugin install recyclerview-best-practice@me
-/plugin install general-coding-practices@me
-/plugin install kotlin-coding-practices@me
-/plugin install client-ui-best-practices@me
-/plugin install test-report-sharing@me
-/plugin install diff-sharing@me
-/plugin install qemu-alpine-docker@me
-```
+Run `python scripts/validate-plugin-packages.py --client claude ../me.claude` and `python scripts/validate-plugin-packages.py --client codex ../me.codex`, plus `bash tests/test-build-all-codex-plugins.sh` and `python tests/test-plugin-packages.py`. Validation dependencies are in `scripts/requirements-validation.txt`.
 
-Run `/reload-plugins` after installation to load the installed plugins in the current Claude Code session.
+The sync workflow needs `UPSTREAM_GITHUB_TOKEN` with repository write and pull-request permissions for both existing destination repositories. It opens a separate generated PR for each client; destination PRs must merge before users receive updates. Start a new Codex thread after synchronized plugin updates are published and installed.
 
 ## Host Emulator Access From a VM
 

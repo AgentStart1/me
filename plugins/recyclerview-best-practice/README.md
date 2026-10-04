@@ -4,6 +4,10 @@ This Codex plugin provides an Android RecyclerView skill for creating, reviewing
 
 ## Contents
 
-- `.codex-plugin/plugin.json` declares the plugin.
+- `plugin.json` declares the portable plugin and client extensions.
 - `skills/android-recyclerview-best-practice/SKILL.md` contains the RecyclerView guidance.
 - `skills/recyclerview-sentinel-viewholder/SKILL.md` contains the start-sentinel ViewHolder trick for prepend anchoring.
+
+## Plugin packaging
+
+`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Claude agent routing remains in source skills and is removed only from generated Codex copies.
