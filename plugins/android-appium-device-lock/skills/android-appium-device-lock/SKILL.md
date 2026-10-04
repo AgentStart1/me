@@ -1,8 +1,6 @@
 ---
 name: android-appium-device-lock
 description: Use when adding or running Android UI or end-to-end tests with Appium, UIAutomator, Espresso, adb, CI mobile tests, or a physical device or emulator. Serialize device access with a device-side file lock so every test run is safe when the Android device is shared.
-context: fork
-agent: android-e2e-operator
 ---
 
 # Android Appium Device Lock

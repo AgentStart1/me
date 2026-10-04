@@ -1,8 +1,6 @@
 ---
 name: project-docs-and-rules
 description: Use when project features, installation, configuration, commands, APIs, workflows, architecture, tests, conventions, or AI guidance change. Keep user documentation in README.md, developer documentation in DEVELOPMENT.md, and AI instructions in AGENTS.md without duplicating content.
-context: fork
-agent: documentation-and-rules-maintainer
 ---
 
 # Project Docs and Rules

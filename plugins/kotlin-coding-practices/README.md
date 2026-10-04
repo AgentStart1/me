@@ -16,4 +16,4 @@ The repository marketplaces register this plugin as `kotlin-coding-practices` at
 
 ## Plugin packaging
 
-`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Claude agent routing remains in source skills and is removed only from generated Codex copies.
+`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.

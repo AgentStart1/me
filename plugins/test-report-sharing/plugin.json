@@ -34,7 +34,13 @@
     "com.anthropic.claude": {
       "skills": [
         "./skills/"
-      ]
+      ],
+      "skillFrontmatter": {
+        "test-report-sharing": {
+          "context": "fork",
+          "agent": "test-report-operator"
+        }
+      }
     }
   }
 }

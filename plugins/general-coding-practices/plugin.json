@@ -46,7 +46,13 @@
     "com.anthropic.claude": {
       "skills": [
         "./skills/"
-      ]
+      ],
+      "skillFrontmatter": {
+        "project-docs-and-rules": {
+          "context": "fork",
+          "agent": "documentation-and-rules-maintainer"
+        }
+      }
     }
   }
 }

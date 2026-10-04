@@ -10,7 +10,7 @@ A portable [Agent Plugins](https://agent-plugins.org) collection. It includes An
 - A persistent QEMU Alpine/Docker environment for Windows-hosted test runs.
 - Portable Claude agent prompts bundled with their owning plugins.
 
-This repository is the source of truth. Each `plugins/*/plugin.json` targets Agent Plugins 1.0.0; client metadata lives in reverse-domain `extensions`. Complete skill resources are shared. Claude-specific source routing and root-level agent prompts are retained for the Claude adapter; Codex generation removes routing fields only from generated copies.
+This repository is the source of truth. Each `plugins/*/plugin.json` targets Agent Plugins 1.0.0; client metadata lives in reverse-domain `extensions`. Complete skill resources are shared. Source skills use portable frontmatter so other Agent Plugins clients can load them directly. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only when generating `me.claude`. Codex skill files are copied unchanged. Reusable agent prompts remain at each plugin’s `agents/` directory.
 
 GitHub Actions generates distribution pull requests in `me.claude` and `me.codex` after changes merge to `main`, or on manual dispatch. Install from those repositories.
 

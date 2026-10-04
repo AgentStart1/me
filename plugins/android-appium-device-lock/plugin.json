@@ -37,6 +37,13 @@
         "brandColor": "#0F766E"
       }
     },
-    "com.anthropic.claude": {}
+    "com.anthropic.claude": {
+      "skillFrontmatter": {
+        "android-appium-device-lock": {
+          "context": "fork",
+          "agent": "android-e2e-operator"
+        }
+      }
+    }
   }
 }

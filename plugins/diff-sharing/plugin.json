@@ -37,7 +37,13 @@
     "com.anthropic.claude": {
       "skills": [
         "./skills/"
-      ]
+      ],
+      "skillFrontmatter": {
+        "diff-sharing": {
+          "context": "fork",
+          "agent": "diff-sharing-operator"
+        }
+      }
     }
   }
 }

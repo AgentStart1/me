@@ -29,6 +29,25 @@ def build(client, output):
     for source, manifest in manifests:
         if manifest['name'] != source.name:
             raise ValueError(f'plugin name does not match directory: {source}')
+        routes = manifest.get('extensions', {}).get(NAMESPACES['claude'], {}).get('skillFrontmatter', {})
+        if not isinstance(routes, dict):
+            raise ValueError('skillFrontmatter must be an object')
+        for name, route in routes.items():
+            if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name):
+                raise ValueError(f'invalid routed skill name: {name}')
+            if not (source / 'skills' / name / 'SKILL.md').is_file():
+                raise ValueError(f'missing routed skill: {name}')
+            if not isinstance(route, dict) or set(route) != {'context', 'agent'} or route['context'] != 'fork':
+                raise ValueError(f'invalid Claude route: {name}')
+            agent = route['agent']
+            if not isinstance(agent, str) or not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', agent):
+                raise ValueError(f'invalid Claude agent: {name}')
+            if not (source / 'agents' / f'{agent}.md').is_file():
+                raise ValueError(f'missing Claude agent: {agent}')
+        for skill in (source / 'skills').glob('*/SKILL.md'):
+            match = re.match(r'^---\n(.*?)\n---', skill.read_text(), re.S)
+            if not match or re.search(r'^(context|agent):', match[1], re.M):
+                raise ValueError(f'source skill must use portable frontmatter: {skill}')
     marketplace_dir = output / ('.agents/plugins' if client == 'codex' else '.claude-plugin')
     for owned in [output / 'plugins', marketplace_dir]:
         if owned.is_symlink():
@@ -43,15 +62,16 @@ def build(client, output):
         (destination / 'plugin.json').unlink()
         if client == 'codex':
             shutil.rmtree(destination / 'agents', ignore_errors=True)
-            for skill in (destination / 'skills').glob('*/SKILL.md'):
+        else:
+            routes = portable.get('extensions', {}).get(NAMESPACES['claude'], {}).get('skillFrontmatter', {})
+            for name, route in routes.items():
+                skill = destination / 'skills' / name / 'SKILL.md'
                 content = skill.read_text()
                 match = re.match(r'^---\n(.*?)\n---', content, re.S)
-                if not match:
-                    raise ValueError(f'missing frontmatter: {skill}')
-                frontmatter = re.sub(r'^(context|agent):[^\n]*\n?', '', match[1], flags=re.M)
-                skill.write_text('---\n' + frontmatter.rstrip() + '\n---' + content[match.end():])
+                additions = ''.join(f'\n{key}: {json.dumps(value)}' for key, value in route.items())
+                skill.write_text('---\n' + match[1] + additions + '\n---' + content[match.end():])
         manifest = {k: v for k, v in portable.items() if k in CORE}
-        extra = portable.get('extensions', {}).get(NAMESPACES[client], {})
+        extra = {k: v for k, v in portable.get('extensions', {}).get(NAMESPACES[client], {}).items() if k != 'skillFrontmatter'}
         if set(extra) & CORE:
             raise ValueError('client extensions cannot override portable identity')
         manifest.update(extra)

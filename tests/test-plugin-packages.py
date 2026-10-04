@@ -3,6 +3,8 @@
 import importlib.util
 from pathlib import Path
 import tempfile
+import json
+import shutil
 
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('validation', ROOT / 'scripts/validate-plugin-packages.py')
@@ -31,4 +33,28 @@ with tempfile.TemporaryDirectory() as temporary:
             pass
         else:
             raise AssertionError(f'accepted unsafe output: {unsafe}')
-print('Distribution integrity, determinism, and path guards passed.')
+# Invalid extension routes must fail before replacing existing output.
+with tempfile.TemporaryDirectory() as temporary:
+    fixture = Path(temporary) / 'source'
+    fixture.mkdir()
+    shutil.copytree(ROOT / 'plugins', fixture / 'plugins')
+    output = Path(temporary) / 'me.claude'
+    output.mkdir()
+    (output / 'README.md').write_text('preserve before validation')
+    original_root = validation.builder.ROOT
+    validation.builder.ROOT = fixture
+    manifest_path = fixture / 'plugins/android-appium-device-lock/plugin.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['extensions']['com.anthropic.claude']['skillFrontmatter']['android-appium-device-lock']['agent'] = 'missing-agent'
+    manifest_path.write_text(json.dumps(manifest))
+    try:
+        try:
+            build('claude', output)
+        except ValueError as error:
+            assert 'missing Claude agent' in str(error)
+        else:
+            raise AssertionError('accepted missing agent route')
+        assert (output / 'README.md').read_text() == 'preserve before validation'
+    finally:
+        validation.builder.ROOT = original_root
+print('Distribution integrity, routing, determinism, and path guards passed.')

@@ -38,6 +38,13 @@
         "brandColor": "#0F766E"
       }
     },
-    "com.anthropic.claude": {}
+    "com.anthropic.claude": {
+      "skillFrontmatter": {
+        "client-ui-best-practices": {
+          "context": "fork",
+          "agent": "client-ui-architecture-reviewer"
+        }
+      }
+    }
   }
 }

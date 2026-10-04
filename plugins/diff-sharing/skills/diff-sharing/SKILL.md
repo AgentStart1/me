@@ -1,8 +1,6 @@
 ---
 name: diff-sharing
 description: Use when generating, previewing, or sharing code differences for branches, pull requests, commits, or uncommitted working-tree changes. Render Git or Difftastic output as a static site and return either a local preview URL or an ngrok public URL.
-context: fork
-agent: diff-sharing-operator
 ---
 
 # Diff Sharing
