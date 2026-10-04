@@ -1,8 +1,0 @@
-{
-  "name": "client-ui-best-practices",
-  "description": "Cross-platform Host architecture for client UI state, effects, lifecycle, and thread confinement.",
-  "author": {
-    "name": "Local developer"
-  },
-  "version": "0.3.0-20260910024855"
-}

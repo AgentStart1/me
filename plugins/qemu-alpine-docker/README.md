@@ -118,3 +118,7 @@ Host and QEMU CPU percentages are normalized across all host logical processors;
 ```
 
 The smoke tests use deterministic command mocks; they do not boot QEMU or use the network.
+
+## Plugin packaging
+
+`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.
