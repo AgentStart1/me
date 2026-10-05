@@ -17,12 +17,12 @@ SNAPSHOTS={
   {'name':'Pixel · API 35','serial':'emulator-5554','state':'online','configured':True,'androidVersion':'15','api':'35','abi':'x86_64','memory':'2048','resolution':'1080 × 2400'},
   {'name':'Tablet · API 35','serial':'emulator-5556','state':'booting','configured':True,'abi':'x86_64','api':'35'},
   {'name':'Wear OS','serial':None,'state':'disconnected','configured':True,'api':'34'}]},
- 'locks':{**COMMON,'lockPath':'/data/local/tmp/appium-device-test.lock.d','clockNote':"Lease expiry uses this host's clock. No waiting queue is recorded by the lock helper.",'devices':[
+ 'locks':{**COMMON,'lockPath':'/data/local/tmp/android-device-test.lock.d','clockNote':"Lease expiry uses this host's clock. No waiting queue is recorded by the lock helper.",'devices':[
   {'serial':'emulator-5554','model':'Pixel','connection':'device','lock':{'state':'held','task':'Login smoke test','project':'mobile-app','host':'ci-runner','pid':1234,'remainingSeconds':30,'expiresAt':4102444800}},
   {'serial':'emulator-5556','model':'Tablet','connection':'device','lock':{'state':'free','detail':'No lock directory at observation time'}},
   {'serial':'phone-01','model':'Test phone','connection':'device','lock':{'state':'expired','task':'Checkout suite','host':'local-runner','pid':4321,'remainingSeconds':0}},
   {'serial':'phone-02','model':'Offline phone','connection':'offline','lock':{'state':'unavailable','detail':'Lock ownership is unknown'}}]}}
-PLUGINS={'emulator':'android-emulator-profile','locks':'android-appium-device-lock'}
+PLUGINS={'emulator':'android-emulator-profile','locks':'android-device-lock'}
 HOST='''<!doctype html><iframe id="panel" src="/MODE" style="width:100%;height:850px;border:0"></iframe><script>
 window.snapshot=SNAPSHOT;window.calls=0;window.captures=0;window.fail=false;
 const send=data=>document.getElementById('panel').contentWindow.postMessage({jsonrpc:'2.0',...data},'*');

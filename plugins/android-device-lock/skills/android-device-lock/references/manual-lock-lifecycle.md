@@ -4,13 +4,13 @@ Use manual acquisition when the test runner cannot use the bundled `run` command
 
 ```bash
 token_file="$(mktemp)"
-plugins/android-appium-device-lock/scripts/adb-device-lock.sh acquire \
+plugins/android-device-lock/scripts/adb-device-lock.sh acquire \
   --project-dir "$PWD" \
-  --test-name "appium-login-suite" \
+  --test-name "android-device-suite" \
   --token-file "$token_file"
 
-trap 'plugins/android-appium-device-lock/scripts/adb-device-lock.sh release --token-file "$token_file"' EXIT
-npm run test:appium
+trap 'plugins/android-device-lock/scripts/adb-device-lock.sh release --token-file "$token_file"' EXIT
+./gradlew connectedAndroidTest
 ```
 
 Renew the lease periodically for long-running suites:
@@ -19,12 +19,12 @@ Renew the lease periodically for long-running suites:
 (
   while kill -0 "$$" 2>/dev/null; do
     sleep 1200
-    plugins/android-appium-device-lock/scripts/adb-device-lock.sh renew \
+    plugins/android-device-lock/scripts/adb-device-lock.sh renew \
       --token-file "$token_file" || break
   done
 ) &
 renew_pid=$!
-trap 'kill "$renew_pid" 2>/dev/null; plugins/android-appium-device-lock/scripts/adb-device-lock.sh release --token-file "$token_file"' EXIT
+trap 'kill "$renew_pid" 2>/dev/null; plugins/android-device-lock/scripts/adb-device-lock.sh release --token-file "$token_file"' EXIT
 npm run test:long-suite
 ```
 

@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as temporary:
         (output / 'unrelated.txt').write_text('keep')
         build(client, output)
         validation.validate(client, output)
-        for name in ['qemu-alpine-docker', 'android-emulator-profile', 'android-appium-device-lock']:
+        for name in ['qemu-alpine-docker', 'android-emulator-profile', 'android-device-lock']:
             plugin = output / 'plugins' / name
             manifest = json.loads((plugin / f'.{client}-plugin/plugin.json').read_text())
             assert manifest['mcpServers'] == './.mcp.json'
@@ -53,9 +53,9 @@ with tempfile.TemporaryDirectory() as temporary:
     (output / 'README.md').write_text('preserve before validation')
     original_root = validation.builder.ROOT
     validation.builder.ROOT = fixture
-    manifest_path = fixture / 'plugins/android-appium-device-lock/plugin.json'
+    manifest_path = fixture / 'plugins/android-device-lock/plugin.json'
     manifest = json.loads(manifest_path.read_text())
-    manifest['extensions']['com.anthropic.claude']['skillFrontmatter']['android-appium-device-lock']['agent'] = 'missing-agent'
+    manifest['extensions']['com.anthropic.claude']['skillFrontmatter']['android-device-lock']['agent'] = 'missing-agent'
     manifest_path.write_text(json.dumps(manifest))
     try:
         try:

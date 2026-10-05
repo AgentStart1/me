@@ -1,13 +1,17 @@
 ---
 name: qemu-alpine-docker
-description: Use when creating, starting, stopping, troubleshooting, or viewing status for a persistent QEMU Alpine Docker VM on Linux, inside Linux containers, or on Windows. Includes KVM, WHPX, and TCG workflows for Docker and Testcontainers; do not trigger for Docker workflows that do not use QEMU.
+description: Use when creating, starting, stopping, troubleshooting, or viewing status for a persistent QEMU Alpine Docker VM inside Linux Docker containers or on Windows. Includes KVM, WHPX, and TCG workflows for Docker and Testcontainers; On Linux hosts outside containers, use Docker directly without this plugin; do not trigger for ordinary Docker workflows.
 ---
 
 # QEMU Alpine Docker
 
+## Current scope
+
+For now, use this plugin for Linux Docker container environments and Windows environments. On Linux hosts running outside containers, use Docker directly without provisioning a QEMU VM through this plugin.
+
 ## Design invariants
 
-- Use the bundled persistent Alpine VM with unprivileged user networking on Linux and Windows.
+- Use the bundled persistent Alpine VM with unprivileged user networking inside Linux Docker containers and on Windows.
 - Run at most one plugin VM at a time. The scripts serialize lock-state updates with an atomic guard and enforce a global VM lock.
 - In auto mode, probe KVM with `-cpu host` on Linux or WHPX with `-cpu qemu64` on Windows. Fall back to multi-threaded TCG with `-cpu max` if hardware acceleration is unavailable. Explicit `kvm`/`whpx` must fail clearly instead of silently falling back.
 - Use QEMU user-mode networking with either accelerator.

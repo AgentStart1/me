@@ -1,15 +1,14 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "android-appium-device-lock",
+  "name": "android-device-lock",
   "version": "0.4.0-20261001211958",
-  "description": "Serialize Android UI and end-to-end test runs with a device-side adb file lock.",
+  "description": "Serialize any Android device test runs with a device-side adb file lock.",
   "author": {
     "name": "Local Android Practices"
   },
   "license": "MIT",
   "keywords": [
     "android",
-    "appium",
     "adb",
     "testing",
     "e2e",
@@ -19,9 +18,9 @@
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
-        "displayName": "Android Appium Device Lock",
-        "shortDescription": "Serialize Appium tests on one Android device.",
-        "longDescription": "Guides Codex to acquire a device-side file lock before Android Appium, UIAutomator, Espresso, or end-to-end test runs so only one app test controls a phone or emulator at a time.",
+        "displayName": "Android Device Lock",
+        "shortDescription": "Serialize any Android tests on a shared device.",
+        "longDescription": "Acquire a device-side adb file lock before any Android device test run, regardless of test framework, so only one test controls a physical device or emulator at a time.",
         "developerName": "Local Android Practices",
         "category": "Developer Tools",
         "capabilities": [
@@ -30,9 +29,9 @@
           "Android"
         ],
         "defaultPrompt": [
-          "Add a device lock around this Android Appium test command.",
-          "Serialize these Android E2E tests so one device only runs one suite at a time.",
-          "Use adb to wait for an existing Appium device lock before starting tests.",
+          "Add a device lock around this Android device test command.",
+          "Serialize these Android device tests so one device only runs one suite at a time.",
+          "Use adb to wait for an existing device lock before starting tests.",
           "Show device lock ownership and lease expiry."
         ],
         "brandColor": "#0F766E"
@@ -41,7 +40,7 @@
     },
     "com.anthropic.claude": {
       "skillFrontmatter": {
-        "android-appium-device-lock": {
+        "android-device-lock": {
           "context": "fork",
           "agent": "android-e2e-operator"
         }

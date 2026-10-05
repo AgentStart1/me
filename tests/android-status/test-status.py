@@ -15,7 +15,7 @@ from unittest.mock import patch
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 EMULATOR = ROOT / 'plugins/android-emulator-profile'
-LOCKS = ROOT / 'plugins/android-appium-device-lock'
+LOCKS = ROOT / 'plugins/android-device-lock'
 sys.path[:0] = [str(EMULATOR / 'scripts'),str(LOCKS / 'scripts')]
 import android_probe
 import emulator_status

@@ -6,7 +6,7 @@ import shlex
 import time
 from android_probe import ProbeError, adb, collect_devices, observed_at
 
-DEFAULT_LOCK_PATH = "/data/local/tmp/appium-device-test.lock.d"
+DEFAULT_LOCK_PATH = "/data/local/tmp/android-device-test.lock.d"
 
 
 def lock_path():

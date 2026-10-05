@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOCK_PATH="/data/local/tmp/appium-device-test.lock.d"
+LOCK_PATH="/data/local/tmp/android-device-test.lock.d"
 PROJECT_DIR=""
 TEST_NAME=""
 MAX_TIMEOUT_SECONDS="1800"
@@ -21,7 +21,7 @@ Usage:
 
 Options:
   --serial SERIAL                  adb device serial; optional when only one device is connected
-  --lock-path PATH                 device-side lock directory (default: /data/local/tmp/appium-device-test.lock.d)
+  --lock-path PATH                 device-side lock directory (default: /data/local/tmp/android-device-test.lock.d)
   --project-dir DIR                project directory recorded in lock metadata
   --test-name NAME                 test name recorded in lock metadata
   --max-timeout-seconds SECONDS    lease duration before a lock is stale (default: 1800)
@@ -288,7 +288,7 @@ parse_args() {
     PROJECT_DIR="$(pwd)"
   fi
   if [[ -z "$TEST_NAME" ]]; then
-    TEST_NAME="android-appium-test"
+    TEST_NAME="android-device-test"
   fi
   if [[ -z "$TOKEN_FILE" ]]; then
     TOKEN_FILE="$(mktemp)"

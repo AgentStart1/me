@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qemu-alpine-docker",
   "version": "0.4.0-20261001152233",
-  "description": "Persistent QEMU Alpine Docker VM and status panel for Linux, Linux containers, and Windows.",
+  "description": "Persistent QEMU Alpine Docker VM and status panel for Linux Docker containers and Windows.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers",
     "url": "https://github.com/storytellerF/me"
@@ -25,8 +25,8 @@
       "skills": "./skills/",
       "interface": {
         "displayName": "QEMU Alpine Docker",
-        "shortDescription": "QEMU Docker on Linux and Windows, with a live status panel.",
-        "longDescription": "Manages a persistent Alpine Docker VM with KVM on Linux, WHPX on Windows, and portable TCG fallback. Runs inside ordinary Linux containers without privileged mode and exposes a read-only VM, service, and container status panel.",
+        "shortDescription": "QEMU Docker in Linux Docker containers and on Windows.",
+        "longDescription": "Manages a persistent Alpine Docker VM inside Linux Docker containers or on Windows, with KVM or WHPX acceleration and portable TCG fallback. Runs inside ordinary Linux Docker containers without privileged mode and exposes a read-only VM, service, and container status panel. On Linux hosts outside containers, use Docker directly without this plugin.",
         "developerName": "QEMU Alpine Docker Maintainers",
         "category": "Developer Tools",
         "capabilities": [

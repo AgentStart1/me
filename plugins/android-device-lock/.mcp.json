@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "android-appium-device-lock-status": {
+    "android-device-lock-status": {
       "command": "uv",
       "args": [
         "run",

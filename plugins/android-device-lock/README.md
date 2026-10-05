@@ -1,6 +1,6 @@
-# Android Appium Device Lock
+# Android Device Lock
 
-Serialize Android UI and end-to-end tests using the bundled `scripts/adb-device-lock.sh` helper. The device-side directory and token-checked lease remain the source of truth; see `skills/android-appium-device-lock/SKILL.md` for acquisition, renewal, and release workflows.
+Serialize any Android device tests on physical devices or emulators, regardless of test framework, using the bundled `scripts/adb-device-lock.sh` helper. The device-side directory and token-checked lease remain the source of truth; see `skills/android-device-lock/SKILL.md` for acquisition, renewal, and release workflows.
 
 ## Device Leases status panel
 
@@ -15,7 +15,7 @@ States are deliberately distinct:
 
 The countdown uses the server's reported remaining duration and elapsed panel time. Reaching zero requests a refresh to verify ownership; it never automatically frees a device. The existing helper does not persist a waiting queue, so none is invented. Lease expiry follows the observing host's clock, matching the helper's timestamp basis.
 
-Only allowlisted display fields leave the collector. `owner_token`, raw metadata, and full project paths are omitted. Observing the panel never acquires, renews, releases, or cleans up a lease, and it does not start an Appium session.
+Only allowlisted display fields leave the collector. `owner_token`, raw metadata, and full project paths are omitted. Observing the panel never acquires, renews, releases, or cleans up a lease, and it does not start a device test session.
 
 ## Local MCP runtime
 
@@ -29,7 +29,7 @@ python3 scripts/lock_status.py
 
 ADB resolution honors `ANDROID_ADB_COMMAND`, PATH, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then `~/android-sdk`. ADB's usual server environment variables remain available; querying ADB may start its local server. All device reads use an explicit serial.
 
-The inspected path defaults to `/data/local/tmp/appium-device-test.lock.d`. For workflows using a custom `--lock-path`, set `ANDROID_DEVICE_LOCK_PATH` to that same absolute Android path. Shell quoting preserves spaces and special characters without evaluating the path as code.
+The plugin and skill now use the `android-device-lock` identifier. Replace the previous plugin installation with this package after publication. Finish existing test runs before switching to the new default lock path so all runners and the status collector use the same path. The inspected path defaults to `/data/local/tmp/android-device-test.lock.d`. For workflows using a custom `--lock-path`, set `ANDROID_DEVICE_LOCK_PATH` to that same absolute Android path. Shell quoting preserves spaces and special characters without evaluating the path as code.
 
 The panel requires a host supporting MCP Apps and the OpenAI thread entrypoint. This change does not deploy a remote ChatGPT service. Shared UI build and test instructions live in the repository's `scripts/android-status/README.md`.
 

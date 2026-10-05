@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'plugins/android-emulator-profile/**'
-      - 'plugins/android-appium-device-lock/**'
+      - 'plugins/android-device-lock/**'
       - 'scripts/android-status/**'
       - 'scripts/build-codex-plugin-package.sh'
       - 'tests/android-status/**'
@@ -16,7 +16,7 @@ on:
     branches: [main]
     paths:
       - 'plugins/android-emulator-profile/**'
-      - 'plugins/android-appium-device-lock/**'
+      - 'plugins/android-device-lock/**'
       - 'scripts/android-status/**'
       - 'scripts/build-codex-plugin-package.sh'
       - 'tests/android-status/**'
@@ -39,7 +39,7 @@ jobs:
       - run: npm ci --prefix scripts/android-status
       - run: npm run build --prefix scripts/android-status
       - name: Check generated assets
-        run: git diff --exit-code -- plugins/android-emulator-profile/templates plugins/android-emulator-profile/scripts/android_probe.py plugins/android-appium-device-lock/templates plugins/android-appium-device-lock/scripts/android_probe.py
+        run: git diff --exit-code -- plugins/android-emulator-profile/templates plugins/android-emulator-profile/scripts/android_probe.py plugins/android-device-lock/templates plugins/android-device-lock/scripts/android_probe.py
       - run: npm test --prefix scripts/android-status
       - run: uv run --script tests/android-status/test-status.py
       - run: uv run --with playwright==1.62.0 playwright install --with-deps chromium

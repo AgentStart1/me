@@ -14,7 +14,7 @@ Install plugins from the marketplace:
 
 ```text
 /plugin install android-emulator-profile@me
-/plugin install android-appium-device-lock@me
+/plugin install android-device-lock@me
 /plugin install recyclerview-best-practice@me
 /plugin install general-coding-practices@me
 /plugin install kotlin-coding-practices@me

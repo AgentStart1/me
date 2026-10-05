@@ -1,6 +1,8 @@
 # QEMU Alpine Docker
 
-This plugin creates one persistent Alpine Linux VM for Docker and Testcontainers workflows on Linux, inside ordinary Linux containers, and on Windows. Automatic acceleration probes KVM on Linux or WHPX on Windows, then falls back to portable TCG emulation. Networking remains unprivileged QEMU user-mode networking with loopback-only port forwarding.
+This plugin creates one persistent Alpine Linux VM for Docker and Testcontainers workflows inside ordinary Linux Docker containers and on Windows. Automatic acceleration probes KVM on Linux or WHPX on Windows, then falls back to portable TCG emulation. Networking remains unprivileged QEMU user-mode networking with loopback-only port forwarding.
+
+For now, these are the intended environments. On Linux hosts running outside containers, use Docker directly; this plugin is unnecessary.
 
 ## Architecture
 

@@ -12,7 +12,7 @@ from openai_mcp_extensions import OpenAIExtensions, OpenAIThreadEntrypoint, Open
 from lock_status import collect_status
 
 ROOT = Path(__file__).resolve().parents[1]
-URI = "ui://android-appium-device-lock/status"
+URI = "ui://android-device-lock/status"
 apps = Apps()
 apps.add_resource(TextResource(uri=URI, name="Device Leases", mime_type=APP_MIME_TYPE,
     text=(ROOT / "templates/status-panel.html").read_text(encoding="utf-8"),
@@ -27,6 +27,6 @@ def status() -> CallToolResult:
     return CallToolResult(structured_content=snapshot,
         content=[TextContent(type="text", text=json.dumps(snapshot), annotations=Annotations(audience=["assistant"]))])
 
-server = MCPServer("android-appium-device-lock-status", extensions=[apps, OpenAIExtensions()])
+server = MCPServer("android-device-lock-status", extensions=[apps, OpenAIExtensions()])
 if __name__ == "__main__":
     server.run(transport="stdio")

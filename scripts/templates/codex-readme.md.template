@@ -14,7 +14,7 @@ Install plugins from the marketplace:
 
 ```bash
 codex plugin add android-emulator-profile@me
-codex plugin add android-appium-device-lock@me
+codex plugin add android-device-lock@me
 codex plugin add recyclerview-best-practice@me
 codex plugin add general-coding-practices@me
 codex plugin add kotlin-coding-practices@me
