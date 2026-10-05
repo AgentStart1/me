@@ -2,6 +2,12 @@
 
 Serialize any Android device tests on physical devices or emulators, regardless of test framework, using the bundled `scripts/adb-device-lock.sh` helper. The device-side directory and token-checked lease remain the source of truth; see `skills/android-device-lock/SKILL.md` for acquisition, renewal, and release workflows.
 
+## Project-independent use
+
+The agent invokes the installed plugin's lock helper by absolute path, runs the project's existing test command unchanged from its project directory, and releases the lease. No plugin scripts, lock dependencies, test wrappers, CI edits, or configuration need to be added to the project. Project integration is a separate explicitly requested task.
+
+All projects sharing a device use the same device-side lock path. The project directory and test name recorded in metadata only identify the owner. Token files and temporary orchestration remain outside the project. See the skill for resolving the installed helper and running multi-step operations.
+
 ## Device Leases status panel
 
 Open **Device Leases** from a supporting MCP Apps host's thread tabs, or call `android_device_lock_status`. The read-only panel displays each ADB device's connectivity, lease state, task, project basename, owner host/PID, and remaining lease duration. Filter by device, serial, task, or owner; refresh manually or enable ten-second auto-refresh while visible.

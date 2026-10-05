@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-device-lock",
   "version": "0.4.0-20261001211958",
-  "description": "Serialize any Android device test runs with a device-side adb file lock.",
+  "description": "Project-independent adb device locking for Android tests across projects and frameworks.",
   "author": {
     "name": "Local Android Practices"
   },
@@ -20,7 +20,7 @@
       "interface": {
         "displayName": "Android Device Lock",
         "shortDescription": "Serialize any Android tests on a shared device.",
-        "longDescription": "Acquire a device-side adb file lock before any Android device test run, regardless of test framework, so only one test controls a physical device or emulator at a time.",
+        "longDescription": "Manages shared Android device access independently of the target project. Calls the installed adb lock helper, runs existing test commands unchanged, and releases the lease without copying scripts or adding project or CI integration.",
         "developerName": "Local Android Practices",
         "category": "Developer Tools",
         "capabilities": [
@@ -29,7 +29,7 @@
           "Android"
         ],
         "defaultPrompt": [
-          "Add a device lock around this Android device test command.",
+          "Run this existing Android device test command under the plugin-managed device lock without changing the project.",
           "Serialize these Android device tests so one device only runs one suite at a time.",
           "Use adb to wait for an existing device lock before starting tests.",
           "Show device lock ownership and lease expiry."
