@@ -6,7 +6,10 @@ on:
       - 'plugins/qemu-alpine-docker/**'
       - 'scripts/build-codex-plugin-package.sh'
       - 'scripts/validate-generated-codex-skills.py'
-      - 'tests/test-build-all-codex-plugins.sh'
+      - 'scripts/build-plugin-packages.py'
+      - 'scripts/validate-plugin-packages.py'
+      - 'tests/test-plugin-packages.py'
+      - 'tests/test-build-plugin-cli.sh'
       - '.github/workflows/validate-qemu-status.yml'
   push:
     branches: [main]
@@ -14,7 +17,10 @@ on:
       - 'plugins/qemu-alpine-docker/**'
       - 'scripts/build-codex-plugin-package.sh'
       - 'scripts/validate-generated-codex-skills.py'
-      - 'tests/test-build-all-codex-plugins.sh'
+      - 'scripts/build-plugin-packages.py'
+      - 'scripts/validate-plugin-packages.py'
+      - 'tests/test-plugin-packages.py'
+      - 'tests/test-build-plugin-cli.sh'
       - '.github/workflows/validate-qemu-status.yml'
 
 permissions:
@@ -40,7 +46,8 @@ jobs:
       - run: bash plugins/qemu-alpine-docker/tests/test-linux-testcontainers.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-apk-mirror-selection.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-sync-workspace.sh
-      - run: bash tests/test-build-all-codex-plugins.sh
+      - run: uv run --with PyYAML==6.0.3 --with jsonschema==4.25.1 python tests/test-plugin-packages.py
+      - run: bash tests/test-build-plugin-cli.sh
       - name: Validate generated Codex skills
         run: |
           bash scripts/build-codex-plugin-package.sh --all --output-dir "${RUNNER_TEMP}/me.codex"

@@ -1,9 +1,9 @@
 # me.codex
 
-Codex-compatible packages generated from the Claude-oriented source repository
+Codex-compatible packages generated from the portable Agent Plugins source repository
 [`storytellerF/me`](https://github.com/storytellerF/me). Do not edit generated
 plugin files here; make changes in the source repository and regenerate this
-repository.
+repository. Synchronization pull requests are created only by the source repository workflow.
 
 ## Installation
 

@@ -1,4 +1,4 @@
-name: Sync me.codex
+name: Sync client distributions
 
 on:
   push:
@@ -6,14 +6,22 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: sync-client-distributions-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
 jobs:
   sync:
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [codex, claude]
     runs-on: ubuntu-latest
     env:
-      UPSTREAM_REPOSITORY: storytellerF/me.codex
+      UPSTREAM_REPOSITORY: storytellerF/me.${{ matrix.client }}
       SYNC_BRANCH: sync/me-${{ github.sha }}
       UPSTREAM_GITHUB_TOKEN: ${{ secrets.UPSTREAM_GITHUB_TOKEN }}
     steps:
@@ -40,40 +48,61 @@ jobs:
             exit 1
           fi
 
-      - name: Check out upstream Codex repository
+      - name: Check out upstream client repository
         shell: bash
         run: |
-          git clone "https://x-access-token:${UPSTREAM_GITHUB_TOKEN}@github.com/${UPSTREAM_REPOSITORY}.git" "$RUNNER_TEMP/me.codex"
+          git clone "https://x-access-token:${UPSTREAM_GITHUB_TOKEN}@github.com/${UPSTREAM_REPOSITORY}.git" "$RUNNER_TEMP/me.${{ matrix.client }}"
 
-      - name: Generate Codex packages
+      - name: Generate client packages
         shell: bash
-        run: bash scripts/build-codex-plugin-package.sh --all --output-dir "$RUNNER_TEMP/me.codex"
+        run: bash scripts/build-${{ matrix.client }}-plugin-package.sh --all --output-dir "$RUNNER_TEMP/me.${{ matrix.client }}"
 
-      - name: Validate generated skills
+      - name: Validate sources and generated distribution
         shell: bash
         run: |
-          python -m pip install --disable-pip-version-check "PyYAML==6.0.3"
-          python scripts/validate-generated-codex-skills.py "$RUNNER_TEMP/me.codex/plugins"
+          python -m pip install --disable-pip-version-check -r scripts/requirements-validation.txt
+          python scripts/validate-plugin-packages.py --client ${{ matrix.client }} "$RUNNER_TEMP/me.${{ matrix.client }}"
+          python tests/test-plugin-packages.py
 
       - name: Validate generated Codex marketplace
+        if: matrix.client == 'codex'
         shell: bash
         env:
           CODEX_HOME: ${{ runner.temp }}/codex-home
         run: |
           npm install --global @openai/codex@latest
           mkdir -p "$CODEX_HOME"
-          codex plugin marketplace add "$RUNNER_TEMP/me.codex"
+          codex plugin marketplace add "$RUNNER_TEMP/me.${{ matrix.client }}"
           codex plugin list --marketplace me --available --json
           while IFS= read -r plugin_name; do
             codex plugin add "${plugin_name}@me" --json
-          done < <(python -c 'import json, sys; print(*[plugin["name"] for plugin in json.load(open(sys.argv[1], encoding="utf-8"))["plugins"]], sep="\n")' "$RUNNER_TEMP/me.codex/.agents/plugins/marketplace.json")
+          done < <(python -c 'import json, sys; print(*[plugin["name"] for plugin in json.load(open(sys.argv[1], encoding="utf-8"))["plugins"]], sep="\n")' "$RUNNER_TEMP/me.${{ matrix.client }}/.agents/plugins/marketplace.json")
+
+      - name: Validate generated Claude plugins
+        if: matrix.client == 'claude'
+        shell: bash
+        env:
+          CLAUDE_CONFIG_DIR: ${{ runner.temp }}/claude-config
+        run: |
+          npm install --global @anthropic-ai/claude-code@latest
+          claude plugin validate "$RUNNER_TEMP/me.claude"
+          claude plugin marketplace add "$RUNNER_TEMP/me.claude"
+          for plugin in "$RUNNER_TEMP/me.claude"/plugins/*; do
+            claude plugin validate "$plugin"
+            claude plugin install "$(basename "$plugin")@me" --scope user
+          done
 
       - name: Commit generated packages
         id: commit
         shell: bash
-        working-directory: ${{ runner.temp }}/me.codex
+        working-directory: ${{ runner.temp }}/me.${{ matrix.client }}
         run: |
-          git add README.md .agents/plugins plugins
+          git add README.md plugins
+          if [[ "${{ matrix.client }}" == codex ]]; then
+            git add .agents/plugins
+          else
+            git add .claude-plugin
+          fi
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -84,7 +113,7 @@ jobs:
           git config user.name "$source_author_name"
           git config user.email "$source_author_email"
           git checkout -B "$SYNC_BRANCH"
-          git commit -m "chore: sync generated Codex plugins from ${GITHUB_SHA}"
+          git commit -m "chore: sync generated ${{ matrix.client }} plugins from ${GITHUB_SHA}"
           git push --force origin "HEAD:refs/heads/${SYNC_BRANCH}"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
@@ -104,5 +133,5 @@ jobs:
             --repo "$UPSTREAM_REPOSITORY" \
             --base main \
             --head "$SYNC_BRANCH" \
-            --title "chore: sync generated Codex plugins" \
+            --title "chore: sync generated ${{ matrix.client }} plugins" \
             --body "Generated from storytellerF/me commit ${GITHUB_SHA}."

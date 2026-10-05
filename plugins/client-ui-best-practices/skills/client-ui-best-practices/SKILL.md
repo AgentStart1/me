@@ -1,8 +1,6 @@
 ---
 name: client-ui-best-practices
 description: Use for client UI implementation, review, or refactoring involving state ownership, event-loop or UI-thread work, lifecycle, asynchronous effects, or rendering in Android Views or Compose, iOS, React, desktop, and similar UI frameworks. Require a UI-framework-independent Host architecture on every supported platform.
-context: fork
-agent: client-ui-architecture-reviewer
 ---
 
 # Client UI Best Practices

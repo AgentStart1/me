@@ -26,3 +26,7 @@ python3 scripts/emulator_status.py
 ADB resolution honors `ANDROID_ADB_COMMAND`, PATH, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then `~/android-sdk`. ADB's usual server environment variables remain available; invoking ADB may start its local server. AVD inventory honors `ANDROID_AVD_HOME` or `ANDROID_USER_HOME`, falling back to `~/.android/avd`. It reads existing `.ini` files and never evaluates profiles or rewrites configuration. TCP-connected emulators are identified by the Android QEMU property; an offline TCP device cannot be conclusively classified as an emulator. Unmapped/offline emulator instances prevent unknown local AVDs from being reported as disconnected.
 
 Native rendering requires MCP Apps and OpenAI thread-entrypoint support. This is a local MCP service, not a deployed remote ChatGPT application. See the repository's `scripts/android-status/README.md` for shared UI build and validation instructions.
+
+## Plugin packaging
+
+`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.

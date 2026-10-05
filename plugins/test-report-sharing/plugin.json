@@ -1,0 +1,46 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "test-report-sharing",
+  "version": "0.4.1-20261004053826",
+  "description": "Collect test reports into a static site for local preview or ngrok sharing.",
+  "author": {
+    "name": "Test Report Sharing"
+  },
+  "license": "MIT",
+  "keywords": [
+    "test-results",
+    "ngrok",
+    "report-sharing"
+  ],
+  "extensions": {
+    "com.openai.codex": {
+      "skills": "./skills/",
+      "interface": {
+        "displayName": "Test Report Sharing",
+        "shortDescription": "Share test reports through ngrok.",
+        "longDescription": "Collects test results from standard project locations and exposes the static report site through ngrok.",
+        "developerName": "Test Report Sharing",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Test Reporting",
+          "Ngrok Tunnel"
+        ],
+        "defaultPrompt": [
+          "Collect test results and share them via ngrok."
+        ],
+        "brandColor": "#2563EB"
+      }
+    },
+    "com.anthropic.claude": {
+      "skills": [
+        "./skills/"
+      ],
+      "skillFrontmatter": {
+        "test-report-sharing": {
+          "context": "fork",
+          "agent": "test-report-operator"
+        }
+      }
+    }
+  }
+}

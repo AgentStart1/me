@@ -32,3 +32,7 @@ ADB resolution honors `ANDROID_ADB_COMMAND`, PATH, `ANDROID_HOME`, `ANDROID_SDK_
 The inspected path defaults to `/data/local/tmp/appium-device-test.lock.d`. For workflows using a custom `--lock-path`, set `ANDROID_DEVICE_LOCK_PATH` to that same absolute Android path. Shell quoting preserves spaces and special characters without evaluating the path as code.
 
 The panel requires a host supporting MCP Apps and the OpenAI thread entrypoint. This change does not deploy a remote ChatGPT service. Shared UI build and test instructions live in the repository's `scripts/android-status/README.md`.
+
+## Plugin packaging
+
+`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.

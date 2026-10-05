@@ -1,9 +1,0 @@
-{
-  "name": "android-appium-device-lock",
-  "description": "Serialize Android UI and end-to-end test runs with a device-side adb file lock.",
-  "author": {
-    "name": "Local Android Practices"
-  },
-  "version": "0.4.0-20261001211958",
-  "mcpServers": "./.mcp.json"
-}

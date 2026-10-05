@@ -1,8 +1,6 @@
 ---
 name: test-report-sharing
 description: Use when collecting, previewing, or sharing test reports such as JUnit XML, Gradle or Maven reports, and HTML test output. Assemble a static report site and return either a local preview URL or an ngrok public URL.
-context: fork
-agent: test-report-operator
 ---
 
 # Test Report Sharing
