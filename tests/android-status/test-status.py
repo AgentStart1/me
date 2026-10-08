@@ -39,6 +39,10 @@ class Fixture:
         source = (ROOT / 'tests/android-status/fake-adb.py').read_text()
         self.adb.write_text('#!' + sys.executable + '\n' + source.split('\n',1)[1])
         self.adb.chmod(0o755)
+        if os.name == 'nt':
+            script = self.adb
+            self.adb = self.root / 'adb.cmd'
+            self.adb.write_text(f'@"{sys.executable}" "{script}" %*\n')
         self.env = {'ANDROID_ADB_COMMAND':str(self.adb), 'ANDROID_AVD_HOME':str(self.avds),
                     'FAKE_ADB_CONFIG':str(self.config), 'FAKE_ADB_LOG':str(self.log),
                     'PYTHONDONTWRITEBYTECODE':'1', 'ANDROID_DEVICE_LOCK_PATH':lock_status.DEFAULT_LOCK_PATH}

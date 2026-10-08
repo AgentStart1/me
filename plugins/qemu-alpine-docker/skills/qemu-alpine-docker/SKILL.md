@@ -126,6 +126,8 @@ resource metrics, bind-mount behavior, or incomplete provisioning recovery.
 
 ## Validation
 
+On Windows, the status collector translates Git Bash/MSYS PIDs before verifying the native QEMU process and accelerator. A missing process is stopped; failed inspection remains unknown. Rebuild the panel with Node on Windows or Linux after UI changes.
+
 ```bash
 ./tests/test-apk-mirror-selection.sh
 ./tests/test-vm-utils.sh

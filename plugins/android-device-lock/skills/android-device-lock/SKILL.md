@@ -46,6 +46,8 @@ For manual acquisition, release, and lease renewal, read
 
 ## Execution Guidance
 
+The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain unchanged, while local metadata upload paths are converted with `cygpath` when available.
+
 - Put lock acquisition before test-session creation, app install, app launch, or any step that changes device state.
 - Scope the lock per adb device. Use `--serial` when multiple devices are connected.
 - Keep `--max-timeout-seconds` slightly above the longest expected test duration so abandoned locks self-heal.

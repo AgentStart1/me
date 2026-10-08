@@ -186,6 +186,8 @@ The panel uses the official MCP Apps JavaScript SDK and `openai/ui` thread entry
 
 The checked-in `templates/status-panel.html` is generated from `ui/`. Python and uv are runtime requirements for the MCP server; Node is only needed when rebuilding the UI.
 
+UI builds support native Windows paths. Windows status probes translate Git Bash/MSYS PIDs to native Windows PIDs before verifying QEMU identity and reading the accelerator. Missing processes report stopped; unavailable inspection tools report unknown.
+
 ```bash
 npm ci --prefix ui
 npm run build --prefix ui

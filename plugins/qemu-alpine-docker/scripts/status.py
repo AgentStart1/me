@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import socket
 import subprocess
 import urllib.error
@@ -44,15 +45,35 @@ def read_pid(path):
         return None
 
 
+def windows_pid(pid):
+    """Translate a Git Bash/MSYS PID before verifying its native executable."""
+    try:
+        ps = shutil.which("ps")
+        if not ps:
+            bash = shutil.which("bash")
+            candidate = Path(bash).resolve().parent.parent / "usr/bin/ps.exe" if bash else None
+            ps = str(candidate) if candidate and candidate.is_file() else "ps"
+        result = subprocess.run([ps, "-W"], capture_output=True, text=True,
+                                timeout=TIMEOUT, check=True)
+        for line in result.stdout.splitlines():
+            fields = line.split()
+            if len(fields) >= 4 and fields[0] == str(pid) and fields[3].isdecimal():
+                return int(fields[3])
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return pid
+
+
 def process_state(pid):
     """Verify executable identity; a reused PID is not a running QEMU VM."""
     if pid is None:
         return "stopped"
     try:
         if os.name == "nt":
+            pid = windows_pid(pid)
             result = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-                 f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; if ($p) {{$p.ProcessName}}"],
+                 f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; if ($p) {{$p.ProcessName}}; exit 0"],
                 capture_output=True, text=True, timeout=TIMEOUT, check=True,
             )
             name = result.stdout.strip()
@@ -78,6 +99,7 @@ def process_accelerator(pid):
     """Expose only the selected accelerator, never the process command line."""
     try:
         if os.name == "nt":
+            pid = windows_pid(pid)
             result = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
                  f"(Get-CimInstance Win32_Process -Filter 'ProcessId = {pid}').CommandLine"],

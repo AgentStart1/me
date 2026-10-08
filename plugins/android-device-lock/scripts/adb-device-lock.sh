@@ -33,14 +33,22 @@ USAGE
 
 adb_cmd() {
   if [[ -n "$SERIAL" ]]; then
-    adb -s "$SERIAL" "$@"
+    MSYS_NO_PATHCONV=1 adb -s "$SERIAL" "$@"
   else
-    adb "$@"
+    MSYS_NO_PATHCONV=1 adb "$@"
   fi
 }
 
 shell_quote() {
   printf "'%s'" "$(printf "%s" "$1" | sed "s/'/'\\\\''/g")"
+}
+
+push_metadata() {
+  local source="$1"
+  if command -v cygpath >/dev/null 2>&1; then
+    source="$(cygpath -w "$source")"
+  fi
+  adb_cmd push "$source" "$(lock_json_path)" >/dev/null
 }
 
 json_escape() {
@@ -105,7 +113,7 @@ write_metadata() {
   "owner_token": "$(json_escape "$token")"
 }
 JSON
-  adb_cmd push "$tmp_file" "$(lock_json_path)" >/dev/null
+  push_metadata "$tmp_file"
   rm -f "$tmp_file"
 }
 
@@ -234,7 +242,7 @@ renew_lock() {
   "owner_token": "$(json_escape "$actual_token")"
 }
 JSON
-  adb_cmd push "$tmp_file" "$(lock_json_path)" >/dev/null
+  push_metadata "$tmp_file"
   rm -f "$tmp_file"
   printf "Renewed Android device lock at %s, expires at epoch %d\n" "$LOCK_PATH" "$new_expires_at" >&2
 }

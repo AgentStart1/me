@@ -102,6 +102,16 @@ class StatusTests(unittest.TestCase):
         with docker_api({"/version": b"x" * (status.MAX_RESPONSE + 1)}) as (port, _):
             with self.assertRaises(ValueError): status.docker_get(port, "/version")
 
+    def test_msys_pid_is_translated_and_native_identity_is_verified(self):
+        with patch.object(status.os, "name", "nt"), patch.object(status.subprocess, "run") as run:
+            run.side_effect = [subprocess.CompletedProcess([], 0, "PID PPID PGID WINPID\n1234 1 1234 5678 qemu\n", ""),
+                               subprocess.CompletedProcess([], 0, "qemu-system-x86_64\n", "")]
+            self.assertEqual(status.process_state(1234), "running")
+            self.assertIn("Get-Process -Id 5678", run.call_args.args[0][-1])
+            run.side_effect = [subprocess.CompletedProcess([], 0, "1234 1 1234 5678 qemu\n", ""),
+                               subprocess.CompletedProcess([], 0, "notepad\n", "")]
+            self.assertEqual(status.process_state(1234), "stopped")
+
     def test_windows_process_identity_and_missing_probe_are_distinct(self):
         with patch.object(status.os, "name", "nt"), patch.object(status.subprocess, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, "qemu-system-x86_64\n", "")
