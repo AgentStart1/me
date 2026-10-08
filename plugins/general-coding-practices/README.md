@@ -12,3 +12,7 @@ This plugin provides project collaboration rules plus focused README and project
 
 When a skill delegates to a bundled Claude agent, the parent waits for its required final report
 before dependent work or its final response.
+
+## Plugin packaging
+
+`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.

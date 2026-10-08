@@ -1,8 +1,0 @@
-{
-  "name": "qemu-alpine-docker",
-  "description": "Persistent QEMU Alpine Docker VM for Windows-hosted Docker API and Testcontainers workflows.",
-  "author": {
-    "name": "QEMU Alpine Docker Maintainers"
-  },
-  "version": "0.4.0-20261001091000"
-}
