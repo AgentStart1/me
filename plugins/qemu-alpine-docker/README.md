@@ -151,3 +151,10 @@ The smoke tests use deterministic command mocks; they do not boot QEMU or use th
 ## Plugin packaging
 
 `plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.
+
+Docker build options may precede or follow the context directory. Explicit `-f`/`--file`
+paths resolve from the host working directory and must stay inside the context.
+`--iidfile` writes the image ID back to the requested host path after a successful build.
+Relative output paths resolve from the host working directory; their parent directory must exist.
+The guest uses a private temporary file and cleans it after transfer or build failure.
+`--metadata-file` and `--output`/`-o` remain unsupported and are rejected.

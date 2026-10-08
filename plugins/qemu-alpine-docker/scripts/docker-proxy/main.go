@@ -134,35 +134,10 @@ func run(args []string) error {
 	remoteArgs := append([]string{"docker"}, args...)
 	var contextFile *os.File
 	if args[0] == "build" {
-		if len(args) < 2 {
-			return fmt.Errorf("build context required")
+		root, dockerfile, buildArgs, err := parseBuild(args[1:])
+		if err != nil {
+			return err
 		}
-		root := args[len(args)-1]
-		if root == "-" || strings.Contains(root, "://") {
-			return fmt.Errorf("proxy build requires a local context directory")
-		}
-
-		var rootErr error
-		root, rootErr = filepath.Abs(root)
-		if rootErr != nil {
-			return rootErr
-		}
-		dockerfile := "Dockerfile"
-		for i := 1; i < len(args)-1; i++ {
-			if args[i] == "-f" || args[i] == "--file" {
-				i++
-				if i >= len(args)-1 {
-					return fmt.Errorf("missing Dockerfile argument")
-				}
-				dockerfile = args[i]
-			} else if strings.HasPrefix(args[i], "--file=") {
-				dockerfile = strings.TrimPrefix(args[i], "--file=")
-			}
-			if strings.HasPrefix(args[i], "--build-context") || strings.HasPrefix(args[i], "--secret") || strings.HasPrefix(args[i], "--ssh") {
-				return fmt.Errorf("host-path build options require explicit transport support: %s", args[i])
-			}
-		}
-		var err error
 		contextFile, err = os.CreateTemp("", "qemu-docker-context-*.tar")
 		if err != nil {
 			return err
@@ -178,29 +153,6 @@ func run(args []string) error {
 		if _, err = contextFile.Seek(0, 0); err != nil {
 			return err
 		}
-		buildArgs := append([]string{}, args[1:len(args)-1]...)
-		for i, value := range buildArgs {
-			if (value == "-f" || value == "--file") && i+1 < len(buildArgs) {
-				file := buildArgs[i+1]
-				if filepath.IsAbs(file) {
-					file, err = filepath.Rel(root, file)
-					if err != nil {
-						return err
-					}
-				}
-				buildArgs[i+1] = filepath.ToSlash(file)
-			}
-			if strings.HasPrefix(value, "--file=") {
-				file := strings.TrimPrefix(value, "--file=")
-				if filepath.IsAbs(file) {
-					file, err = filepath.Rel(root, file)
-					if err != nil {
-						return err
-					}
-				}
-				buildArgs[i] = "--file=" + filepath.ToSlash(file)
-			}
-		}
 		remoteArgs = append([]string{"docker", "buildx", "build", "--load"}, buildArgs...)
 		remoteArgs = append(remoteArgs, "-")
 	}
@@ -212,21 +164,19 @@ func run(args []string) error {
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	command := make([]string, len(remoteArgs))
-	for i, value := range remoteArgs {
-		command[i] = quote(value)
+	runner := func(command string, input io.Reader, output io.Writer) error {
+		ssh := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-p", port, "-i", key, "root@"+host, command)
+		if os.Getenv("QEMU_DOCKER_PROXY_DEBUG") == "true" {
+			_, keyErr := os.Stat(key)
+			fmt.Fprintf(os.Stderr, "SSH executable=%s host=%s port=%s keyReadable=%t\n", ssh.Path, host, port, keyErr == nil)
+		}
+		ssh.Stdout, ssh.Stderr, ssh.Stdin = output, os.Stderr, input
+		return ssh.Run()
 	}
-	ssh := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-p", port, "-i", key, "root@"+host, strings.Join(command, " "))
-	if os.Getenv("QEMU_DOCKER_PROXY_DEBUG") == "true" {
-		_, keyErr := os.Stat(key)
-		fmt.Fprintf(os.Stderr, "SSH executable=%s host=%s port=%s keyReadable=%t\n", ssh.Path, host, port, keyErr == nil)
-	}
-	ssh.Stdout, ssh.Stderr = os.Stdout, os.Stderr
-	ssh.Stdin = os.Stdin
 	if contextFile != nil {
-		ssh.Stdin = contextFile
+		return runWithIIDFile(remoteArgs, contextFile, runner)
 	}
-	return ssh.Run()
+	return runner(remoteCommand(remoteArgs), os.Stdin, os.Stdout)
 }
 
 func main() {

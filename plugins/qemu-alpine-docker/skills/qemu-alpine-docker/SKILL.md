@@ -111,3 +111,10 @@ resource metrics, bind-mount behavior, or incomplete provisioning recovery.
 ./tests/test-sync-workspace.sh
 ./scripts/build-docker-proxy.sh
 ```
+
+Docker build options may precede or follow the context directory. Explicit `-f`/`--file`
+paths resolve from the host working directory and must stay inside the context.
+`--iidfile` writes the image ID back to the requested host path after a successful build.
+Relative output paths resolve from the host working directory; their parent directory must exist.
+The guest uses a private temporary file and cleans it after transfer or build failure.
+`--metadata-file` and `--output`/`-o` remain unsupported and are rejected.
