@@ -30,7 +30,7 @@ description: Use on Windows when creating, configuring, starting, stopping, or t
 - `scripts/start-vm.sh`: background start with automatic or explicitly selected acceleration
 - `scripts/stop-vm.sh`: graceful or forced shutdown
 - `scripts/run-testcontainers.sh`: host test command using guest Docker
-- `scripts/build-docker-proxy.sh`: compile the native Docker CLI proxy with Go 1.23 or later
+- `scripts/build-docker-proxy.sh`: cross-compile and download the native Docker CLI proxy using Go inside Alpine
 - `scripts/collect-resource-metrics.ps1`: Windows host and Alpine guest resource sampler used by the Testcontainers wrapper
 - `scripts/run-docker.sh`: guest Docker CLI over SSH
 - `scripts/sync-workspace.sh`: copy a host workspace into the guest over SSH without running project commands
@@ -58,14 +58,17 @@ Initial setup:
 Daily testing:
 
 ```bash
-./scripts/build-docker-proxy.sh # once, and after proxy source updates
 ./scripts/start-vm.sh ./profiles/dev.profile
+./scripts/build-docker-proxy.sh # once, and after proxy source updates
 ./scripts/run-testcontainers.sh -- <test command>
 ./scripts/stop-vm.sh ./profiles/dev.profile
 ```
 
-Before using the test wrapper, run `scripts/build-docker-proxy.sh` with Go 1.23+
-on PATH (or set `QEMU_DOCKER_GO` to its executable). `run-testcontainers.sh` places the resulting
+After starting the VM, run `scripts/build-docker-proxy.sh` (optionally with `--profile <path>`).
+It uses existing SSH to transfer source, installs Go in Alpine if missing, runs native guest
+tests, cross-compiles Windows amd64 with CGO disabled, and downloads the executable over SSH.
+The host needs no Go installation. Go and its caches remain on the persistent guest disk;
+temporary source and binaries are cleaned up after success or failure. `run-testcontainers.sh` places the resulting
 native proxy on PATH and supplies SSH settings. Set `QEMU_DOCKER_PROXY_DIR` consistently in both
 scripts to override the helper directory. Restart existing Gradle daemons if their executable
 lookup does not reflect the updated PATH.
@@ -109,6 +112,7 @@ resource metrics, bind-mount behavior, or incomplete provisioning recovery.
 ./tests/test-apk-mirror-selection.sh
 ./tests/test-vm-utils.sh
 ./tests/test-sync-workspace.sh
+./tests/test-build-docker-proxy.sh
 ./scripts/build-docker-proxy.sh
 ```
 

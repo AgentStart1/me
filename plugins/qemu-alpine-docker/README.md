@@ -28,7 +28,11 @@ For host Gradle tasks that call Docker, compile the native proxy once:
 ./scripts/run-testcontainers.sh -- ./gradlew test
 ```
 
-Compilation needs Go 1.23+; `QEMU_DOCKER_GO` can select a Go executable outside PATH.
+Start the VM before compiling. The script sends the proxy source over existing SSH,
+installs Go in Alpine if needed, tests it there, and cross-compiles Windows amd64 with
+`CGO_ENABLED=0`. It downloads the executable over SSH; no host Go installation is needed.
+Go and its caches stay in the persistent guest; temporary build files are cleaned up.
+Use `--profile <path>` for a non-default VM profile.
 The wrapper puts the proxy on PATH, so `docker build` filters the local context using Docker's
 upstream ignore matcher and sends a tar archive over SSH to guest `docker buildx build --load`.
 Dockerfile-specific ignore files override the context's `.dockerignore`. Project Gradle tasks
@@ -57,7 +61,7 @@ Run the scripts from Git Bash or MSYS2 with:
 - `xorriso`
 - OpenSSH client and key generator
 - `curl`, `tar`, and `sha256sum`
-- Go 1.23+ to compile the Docker proxy before the first `run-testcontainers.sh` invocation
+- A running Alpine VM with repository access for the first Go installation and dependency download
 
 ## First-time provisioning
 
