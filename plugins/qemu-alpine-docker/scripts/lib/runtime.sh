@@ -62,3 +62,7 @@ wait_for_process_exit() {
     done
     ! process_is_running "$pid"
 }
+
+# User-wide proxy storage and one build lock shared by all plugin checkouts.
+docker_proxy_dir() { echo "${QEMU_DOCKER_PROXY_DIR:-${HOME_DIR}/.local/share/me/docker-proxy}"; }
+docker_proxy_build_lock() { echo "${HOME_DIR}/.cache/me/locks/build-docker-proxy.lock"; }

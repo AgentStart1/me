@@ -31,7 +31,7 @@ if [ "$TARGET_OS" != windows ]; then
         *) echo "Error: Unsupported host architecture." >&2; exit 1 ;;
     esac
 fi
-PROXY_DIR=${QEMU_DOCKER_PROXY_DIR:-"$PLUGIN_DIR/../../build/qemu-docker-proxy"}
+PROXY_DIR="$(docker_proxy_dir)"
 mkdir -p "$PROXY_DIR"
 PROXY_DIR="$(cd "$PROXY_DIR" && pwd)"
 GUEST_DIR=""
@@ -39,10 +39,8 @@ LOCAL_TEMP=""
 BUILD_PID="${BASHPID:-$$}"
 LOCK_TIMEOUT="${QEMU_DOCKER_BUILD_LOCK_TIMEOUT:-900}"
 [[ "$LOCK_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "Error: QEMU_DOCKER_BUILD_LOCK_TIMEOUT must be a positive integer." >&2; exit 1; }
-mkdir -p "$RUN_DIR"
-# The VM-wide lock also serializes apk installation across different output directories.
-VM_BUILD_LOCK="$RUN_DIR/docker-proxy-build.lock"
-OUTPUT_BUILD_LOCK="$PROXY_DIR/.docker-proxy-build.lock"
+BUILD_LOCK="$(docker_proxy_build_lock)"
+mkdir -p "$(dirname "$BUILD_LOCK")"
 acquire_build_lock() {
     local lock_dir="$1" started=$SECONDS owner_pid waiting=false
     while ! mkdir "$lock_dir" 2>/dev/null; do
@@ -78,15 +76,13 @@ cleanup() {
     if [ -n "$GUEST_DIR" ]; then
         ssh_exec "rm -rf -- '$GUEST_DIR'" </dev/null || echo "Warning: guest proxy cleanup failed." >&2
     fi
-    release_build_lock "$OUTPUT_BUILD_LOCK"
-    release_build_lock "$VM_BUILD_LOCK"
+    release_build_lock "$BUILD_LOCK"
     exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-acquire_build_lock "$VM_BUILD_LOCK"
-acquire_build_lock "$OUTPUT_BUILD_LOCK"
+acquire_build_lock "$BUILD_LOCK"
 GUEST_CANDIDATE="$(ssh_exec 'mktemp -d /tmp/qemu-docker-proxy.XXXXXXXXXX' </dev/null)"
 [[ "$GUEST_CANDIDATE" =~ ^/tmp/qemu-docker-proxy\.[A-Za-z0-9]+$ ]] || { echo "Error: Invalid guest staging directory." >&2; exit 1; }
 GUEST_DIR="$GUEST_CANDIDATE"
@@ -101,4 +97,4 @@ ssh_exec "cat '$GUEST_DIR/proxy-bin'" </dev/null > "$LOCAL_TEMP"
 chmod +x "$LOCAL_TEMP"
 mv -f -- "$LOCAL_TEMP" "$PROXY_DIR/$PROXY_NAME"
 LOCAL_TEMP=""
-echo "Docker proxy compiled and downloaded." >&2
+echo "Docker proxy compiled and downloaded: $PROXY_DIR/$PROXY_NAME" >&2

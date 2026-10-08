@@ -41,7 +41,8 @@ Other commands run in the guest without copying host files; host bind mounts and
 are not translated. Named contexts, build secrets and SSH mounts are rejected until explicit
 transport support exists. No unfiltered workspace transfer is performed.
 
-The compiled helper is stored in the repository-level `build/qemu-docker-proxy` directory.
+The compiled helper is shared by all projects at `~/.local/share/me/docker-proxy/docker.exe`
+on Windows (`docker` on other hosts). On Windows, `~` resolves to the Windows user profile.
 Use the same `QEMU_DOCKER_PROXY_DIR` override for compilation and test execution if necessary.
 
 To copy a host workspace into the guest before running project-specific commands:
@@ -163,9 +164,11 @@ Relative output paths resolve from the host working directory; their parent dire
 The guest uses a private temporary file and cleans it after transfer or build failure.
 `--metadata-file` and `--output`/`-o` remain unsupported and are rejected.
 
-Concurrent proxy builds wait for VM-wide and output-directory locks before upload,
+All `build-docker-proxy.sh` invocations share one user-wide lock at
+`~/.cache/me/locks/build-docker-proxy.lock`, independent of VM, project, plugin checkout,
+and output directory. They wait before upload,
 compiler installation, compilation, download, or executable replacement.
 `QEMU_DOCKER_BUILD_LOCK_TIMEOUT` sets the wait timeout in seconds (default 900).
-Normal exits and handled signals release owned locks. After a forced kill, a stale lock
+Normal exits and handled signals release the owned lock. After a forced kill, a stale lock
 produces an error: confirm no compiler or transfer remains before removing the reported
 lock directory. Do not remove another running build's lock.

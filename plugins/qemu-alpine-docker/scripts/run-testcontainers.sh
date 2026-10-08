@@ -92,7 +92,7 @@ if ! vm_is_running; then
     exit 1
 fi
 wait_for_docker_api 30
-DOCKER_PROXY_DIR="${QEMU_DOCKER_PROXY_DIR:-${PLUGIN_DIR}/../../build/qemu-docker-proxy}"
+DOCKER_PROXY_DIR="$(docker_proxy_dir)"
 DOCKER_PROXY_NAME=docker
 is_windows && DOCKER_PROXY_NAME=docker.exe
 if [ ! -x "$DOCKER_PROXY_DIR/$DOCKER_PROXY_NAME" ]; then
