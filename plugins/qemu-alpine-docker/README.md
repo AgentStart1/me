@@ -162,3 +162,10 @@ paths resolve from the host working directory and must stay inside the context.
 Relative output paths resolve from the host working directory; their parent directory must exist.
 The guest uses a private temporary file and cleans it after transfer or build failure.
 `--metadata-file` and `--output`/`-o` remain unsupported and are rejected.
+
+Concurrent proxy builds wait for VM-wide and output-directory locks before upload,
+compiler installation, compilation, download, or executable replacement.
+`QEMU_DOCKER_BUILD_LOCK_TIMEOUT` sets the wait timeout in seconds (default 900).
+Normal exits and handled signals release owned locks. After a forced kill, a stale lock
+produces an error: confirm no compiler or transfer remains before removing the reported
+lock directory. Do not remove another running build's lock.
