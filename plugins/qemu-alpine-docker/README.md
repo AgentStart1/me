@@ -19,6 +19,32 @@ This plugin creates one persistent Alpine Linux VM for host-side Docker and Test
 
 Host bind mounts are not directly available to the remote guest daemon. Use Docker build contexts or named volumes when tests need host files.
 
+### Host Docker commands over SSH
+
+For host Gradle tasks that call Docker, compile the native proxy once:
+
+```bash
+./scripts/build-docker-proxy.sh
+./scripts/run-testcontainers.sh -- ./gradlew test
+```
+
+Start the VM before compiling. The script sends the proxy source over existing SSH,
+installs Go in Alpine if needed, tests it there, and cross-compiles Windows amd64 with
+`CGO_ENABLED=0`. It downloads the executable over SSH; no host Go installation is needed.
+Go and its caches stay in the persistent guest; temporary build files are cleaned up.
+Use `--profile <path>` for a non-default VM profile.
+The wrapper puts the proxy on PATH, so `docker build` filters the local context using Docker's
+upstream ignore matcher and sends a tar archive over SSH to guest `docker buildx build --load`.
+Dockerfile-specific ignore files override the context's `.dockerignore`. Project Gradle tasks
+remain responsible for preparing distributions, selecting targets and naming images.
+Other commands run in the guest without copying host files; host bind mounts and `docker cp`
+are not translated. Named contexts, build secrets and SSH mounts are rejected until explicit
+transport support exists. No unfiltered workspace transfer is performed.
+
+The compiled helper is shared by all projects at `~/.local/share/me/docker-proxy/docker.exe`
+on Windows (`docker` on other hosts). On Windows, `~` resolves to the Windows user profile.
+Use the same `QEMU_DOCKER_PROXY_DIR` override for compilation and test execution if necessary.
+
 To copy a host workspace into the guest before running project-specific commands:
 
 ```bash
@@ -36,6 +62,7 @@ Run the scripts from Git Bash or MSYS2 with:
 - `xorriso`
 - OpenSSH client and key generator
 - `curl`, `tar`, and `sha256sum`
+- A running Alpine VM with repository access for the first Go installation and dependency download
 
 ## First-time provisioning
 
@@ -65,6 +92,7 @@ Start the VM in the background:
 Run host tests through the guest Docker API:
 
 ```bash
+./scripts/build-docker-proxy.sh # once, and after proxy source updates
 ./scripts/run-testcontainers.sh -- npm test
 ```
 
@@ -100,6 +128,12 @@ Fixed host ports must not overlap the Testcontainers range. All forwards bind to
 
 ## Measured resource reference
 
+The test wrapper preserves the `env` executable from its owning Bash installation before
+adding tool directories to `PATH`. Mixing an MSYS2 `env.exe` with Git Bash can make
+native Windows OpenSSH exit 255 without diagnostics, even for `ssh -V`.
+The proxy also follows Docker's Windows archive permissions: it adds execute bits and removes
+group/world write permissions so scripts can run in Linux images without Dockerfile workarounds.
+
 A Windows host with 28 logical processors and 31.8 GiB RAM ran a cached Elasticsearch 8.17 Testcontainers integration test through the bundled 4-vCPU, 4-GiB profile with automatic resource collection enabled. `VM_ACCELERATOR=auto` selected WHPX. The wrapper recorded a successful 20-second command, Gradle reported 16 seconds, the test case took 14.89 seconds, and Elasticsearch became ready in 10.41 seconds. The collector produced 13 valid samples with no sampling errors. The VM reached SSH and Docker readiness in 26 seconds from a cold VM start. On the same persistent disk, an earlier TCG run needed about 3 minutes 12 seconds for Elasticsearch startup.
 
 | Scope | CPU average | CPU peak | Memory average | Memory peak |
@@ -122,3 +156,19 @@ The smoke tests use deterministic command mocks; they do not boot QEMU or use th
 ## Plugin packaging
 
 `plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.
+
+Docker build options may precede or follow the context directory. Explicit `-f`/`--file`
+paths resolve from the host working directory and must stay inside the context.
+`--iidfile` writes the image ID back to the requested host path after a successful build.
+Relative output paths resolve from the host working directory; their parent directory must exist.
+The guest uses a private temporary file and cleans it after transfer or build failure.
+`--metadata-file` and `--output`/`-o` remain unsupported and are rejected.
+
+All `build-docker-proxy.sh` invocations share one user-wide lock at
+`~/.cache/me/locks/build-docker-proxy.lock`, independent of VM, project, plugin checkout,
+and output directory. They wait before upload,
+compiler installation, compilation, download, or executable replacement.
+`QEMU_DOCKER_BUILD_LOCK_TIMEOUT` sets the wait timeout in seconds (default 900).
+Normal exits and handled signals release the owned lock. After a forced kill, a stale lock
+produces an error: confirm no compiler or transfer remains before removing the reported
+lock directory. Do not remove another running build's lock.

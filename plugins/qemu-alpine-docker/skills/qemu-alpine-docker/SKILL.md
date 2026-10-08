@@ -30,6 +30,7 @@ description: Use on Windows when creating, configuring, starting, stopping, or t
 - `scripts/start-vm.sh`: background start with automatic or explicitly selected acceleration
 - `scripts/stop-vm.sh`: graceful or forced shutdown
 - `scripts/run-testcontainers.sh`: host test command using guest Docker
+- `scripts/build-docker-proxy.sh`: cross-compile and download the native Docker CLI proxy using Go inside Alpine
 - `scripts/collect-resource-metrics.ps1`: Windows host and Alpine guest resource sampler used by the Testcontainers wrapper
 - `scripts/run-docker.sh`: guest Docker CLI over SSH
 - `scripts/sync-workspace.sh`: copy a host workspace into the guest over SSH without running project commands
@@ -58,9 +59,26 @@ Daily testing:
 
 ```bash
 ./scripts/start-vm.sh ./profiles/dev.profile
+./scripts/build-docker-proxy.sh # once, and after proxy source updates
 ./scripts/run-testcontainers.sh -- <test command>
 ./scripts/stop-vm.sh ./profiles/dev.profile
 ```
+
+After starting the VM, run `scripts/build-docker-proxy.sh` (optionally with `--profile <path>`).
+It uses existing SSH to transfer source, installs Go in Alpine if missing, runs native guest
+tests, cross-compiles Windows amd64 with CGO disabled, and downloads the executable over SSH.
+The host needs no Go installation. Go and its caches remain on the persistent guest disk;
+temporary source and binaries are cleaned up after success or failure. `run-testcontainers.sh` places the resulting
+native proxy on PATH and supplies SSH settings. Set `QEMU_DOCKER_PROXY_DIR` consistently in both
+scripts to override the helper directory. Restart existing Gradle daemons if their executable
+lookup does not reflect the updated PATH.
+
+The proxy filters local `docker build` contexts with Docker's upstream `moby/patternmatcher`,
+including ordered exceptions and Dockerfile-specific ignore files. It streams the resulting tar
+over SSH to guest `docker buildx build --load`. Non-build commands execute through SSH without
+context copying; host-path bind mounts and `docker cp` are not translated. Build secrets, SSH
+mounts and named host contexts require explicit transport support and are rejected. Keep secrets
+excluded by Docker ignore rules. The skill never selects project service names or Docker targets.
 
 When project files must exist inside the guest, sync them separately and then run the project's own build or test command:
 
@@ -78,6 +96,10 @@ The start script returns after SSH and the Docker API are ready. The test wrappe
 
 It unsets TLS variables and `TESTCONTAINERS_RYUK_DISABLED`, runs the test command, then reports resource averages and peaks without changing the command's exit code.
 
+Keep the environment launcher from the Bash installation that started the wrapper.
+Do not replace it with another MSYS2 installation's `env.exe` after changing `PATH`:
+native Windows SSH can exit 255 before initialization when runtimes are mixed.
+
 ## Configuration and recovery
 
 Read [`references/configuration-and-recovery.md`](references/configuration-and-recovery.md)
@@ -90,4 +112,25 @@ resource metrics, bind-mount behavior, or incomplete provisioning recovery.
 ./tests/test-apk-mirror-selection.sh
 ./tests/test-vm-utils.sh
 ./tests/test-sync-workspace.sh
+./tests/test-build-docker-proxy.sh
+./scripts/build-docker-proxy.sh
 ```
+
+Docker build options may precede or follow the context directory. Explicit `-f`/`--file`
+paths resolve from the host working directory and must stay inside the context.
+`--iidfile` writes the image ID back to the requested host path after a successful build.
+Relative output paths resolve from the host working directory; their parent directory must exist.
+The guest uses a private temporary file and cleans it after transfer or build failure.
+`--metadata-file` and `--output`/`-o` remain unsupported and are rejected.
+
+All `build-docker-proxy.sh` invocations share one user-wide lock at
+`~/.cache/me/locks/build-docker-proxy.lock`, independent of VM, project, plugin checkout,
+and output directory. They wait before upload,
+compiler installation, compilation, download, or executable replacement.
+`QEMU_DOCKER_BUILD_LOCK_TIMEOUT` sets the wait timeout in seconds (default 900).
+Normal exits and handled signals release the owned lock. After a forced kill, a stale lock
+produces an error: confirm no compiler or transfer remains before removing the reported
+lock directory. Do not remove another running build's lock.
+
+The default proxy directory is user-wide: `~/.local/share/me/docker-proxy`.
+Every project uses the same executable; the wrapper supplies that run's VM SSH settings.
