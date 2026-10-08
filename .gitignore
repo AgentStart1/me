@@ -4,6 +4,9 @@ test-reports/
 # Node modules
 node_modules/
 
+# Local compiled helpers and development toolchains
+/build/
+
 # OS files
 .DS_Store
 Thumbs.db

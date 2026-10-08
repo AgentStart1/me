@@ -25,6 +25,11 @@
 #
 set -euo pipefail
 
+# Keep the environment launcher from this Bash installation. vm-utils may add
+# another MSYS2 installation to PATH; using its env.exe under Git Bash can
+# make Windows OpenSSH exit 255 before initialization (even for ssh -V).
+HOST_ENV_BIN="$(command -v env)"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=vm-utils.sh
 source "${SCRIPT_DIR}/vm-utils.sh"
@@ -91,6 +96,13 @@ if ! vm_is_running; then
     exit 1
 fi
 wait_for_docker_api 30
+DOCKER_PROXY_DIR="$(docker_proxy_dir)"
+DOCKER_PROXY_NAME=docker
+is_windows && DOCKER_PROXY_NAME=docker.exe
+if [ ! -x "$DOCKER_PROXY_DIR/$DOCKER_PROXY_NAME" ]; then
+    echo "Error: Docker proxy missing; run scripts/build-docker-proxy.sh first." >&2
+    exit 1
+fi
 
 # --- Environment setup ---
 # Configure the Docker client to talk to the guest's Docker daemon via port forwarding.
@@ -106,6 +118,10 @@ unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_SOCKET
 unset TESTCONTAINERS_RYUK_DISABLED
 
 COMMAND_ENV=(
+    "PATH=${DOCKER_PROXY_DIR}:${PATH}"
+    "QEMU_DOCKER_SSH_PORT=$(ssh_port)"
+    "QEMU_DOCKER_SSH_KEY=$(qemu_native_path "$SSH_KEY")"
+    "QEMU_DOCKER_SSH_HOST=${SSH_HOST:-127.0.0.1}"
     "DOCKER_HOST=${DOCKER_HOST_VALUE}"
     "TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1"
     "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock"
@@ -152,7 +168,7 @@ echo "Running Testcontainers command: $*" >&2
 # If resource metrics are disabled, simply exec the command with the configured environment.
 # The env command ensures the variables are passed through the MSYS-to-native process boundary.
 if [ "$TESTCONTAINERS_RESOURCE_METRICS_VALUE" = "false" ]; then
-    exec env "${COMMAND_ENV[@]}" "$@"
+    exec "$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"
 fi
 
 # --- Resource metrics (Windows only) ---
@@ -215,4 +231,4 @@ trap finish_resource_metrics EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-env "${COMMAND_ENV[@]}" "$@"
+"$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"
