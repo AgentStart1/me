@@ -65,6 +65,6 @@ tests/test-start-avd-docker.sh
 
 ## Read-only status and screen preview
 
-Call `android_emulator_status` to open the **Android Emulators** conversation panel. It reads configured AVDs, ADB connectivity, and boot readiness without starting or resetting a device. If MCP Apps are unavailable, run `scripts/emulator_status.py` with Python 3 and summarize the JSON snapshot.
+Call `android_emulator_status` to open the **Android Emulators** panel from the global sidebar or beside the conversation. It reads configured AVDs, ADB connectivity, and boot readiness without starting or resetting a device. If MCP Apps are unavailable, run `scripts/emulator_status.py` with Python 3 and summarize the JSON snapshot.
 
 Screen capture is an explicit panel action through the app-only `android_emulator_screenshot` tool. Do not add automatic screenshot polling. A missing ADB connection is unavailable/unknown, not proof that every AVD stopped. Use `ANDROID_AVD_HOME` for an alternate inventory and `ANDROID_ADB_COMMAND` for an explicit ADB executable; see the owning README for all lookup rules.

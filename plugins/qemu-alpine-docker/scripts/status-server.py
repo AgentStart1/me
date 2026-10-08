@@ -8,7 +8,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.resources import TextResource
 import json
 from mcp_types import ToolAnnotations, CallToolResult, TextContent, Annotations
-from openai_mcp_extensions import OpenAIExtensions, OpenAIThreadEntrypoint, OpenAIUiToolMetadata
+from openai_mcp_extensions import OpenAIExtensions, OpenAIGlobalEntrypoint, OpenAIThreadEntrypoint, OpenAIUiToolMetadata
 from status import ROOT, collect_status
 
 URI = "ui://qemu-alpine-docker/status"
@@ -23,7 +23,7 @@ apps.add_resource(TextResource(
 @apps.tool(
     name="qemu_docker_status", title="VM & Containers", resource_uri=URI,
     annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False),
-    meta={"openai/ui": OpenAIUiToolMetadata(entrypoints=[OpenAIThreadEntrypoint()]).model_dump(by_alias=True, exclude_none=True)},
+    meta={"openai/ui": OpenAIUiToolMetadata(entrypoints=[OpenAIGlobalEntrypoint(), OpenAIThreadEntrypoint()]).model_dump(by_alias=True, exclude_none=True)},
 )
 def qemu_docker_status() -> CallToolResult:
     """Show read-only QEMU VM state, local SSH/Docker health, and all Docker containers."""

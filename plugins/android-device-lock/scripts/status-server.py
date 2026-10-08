@@ -8,7 +8,7 @@ from mcp.server.apps import APP_MIME_TYPE, Apps
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.resources import TextResource
 from mcp_types import ToolAnnotations, CallToolResult, TextContent, Annotations, ImageContent
-from openai_mcp_extensions import OpenAIExtensions, OpenAIThreadEntrypoint, OpenAIUiToolMetadata
+from openai_mcp_extensions import OpenAIExtensions, OpenAIGlobalEntrypoint, OpenAIThreadEntrypoint, OpenAIUiToolMetadata
 from lock_status import collect_status
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +20,7 @@ apps.add_resource(TextResource(uri=URI, name="Device Leases", mime_type=APP_MIME
 
 @apps.tool(name="android_device_lock_status", title="Device Leases", resource_uri=URI,
     annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False),
-    meta={"openai/ui": OpenAIUiToolMetadata(entrypoints=[OpenAIThreadEntrypoint()]).model_dump(by_alias=True, exclude_none=True)})
+    meta={"openai/ui": OpenAIUiToolMetadata(entrypoints=[OpenAIGlobalEntrypoint(), OpenAIThreadEntrypoint()]).model_dump(by_alias=True, exclude_none=True)})
 def status() -> CallToolResult:
     """Read local Android status for the conversation panel without changing device state."""
     snapshot = collect_status()

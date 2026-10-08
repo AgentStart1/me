@@ -18,4 +18,4 @@ python3 scripts/validate-generated-codex-skills.py ../me.codex
 
 Browser tests use a simulated MCP Apps host and fake device snapshots; collector/protocol tests use a fake ADB command and never start an emulator or modify a real lock. An existing Chromium can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE`. `ANDROID_PANEL_SCREENSHOTS` optionally writes preview images from the fake snapshots into an existing directory.
 
-Tests cover initial-result rendering, refresh, stale snapshots, unknown versus free/stopped state, safe text rendering, lease countdowns, explicit serial-scoped screenshots, metadata redaction, and responsive/dark layouts. Runtime hosts must support MCP Apps and the `openai/ui` thread entrypoint. No settings extension is provided.
+Tests cover initial-result rendering, refresh, stale snapshots, unknown versus free/stopped state, safe text rendering, lease countdowns, explicit serial-scoped screenshots, metadata redaction, and responsive/dark layouts. Runtime hosts must support MCP Apps and the `openai/ui` global sidebar and thread entrypoints. No settings extension is provided.

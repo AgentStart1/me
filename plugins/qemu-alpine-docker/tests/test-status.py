@@ -151,7 +151,7 @@ class StatusTests(unittest.TestCase):
 
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):
-    async def test_thread_entrypoint_resource_and_read_only_tool(self):
+    async def test_global_and_thread_entrypoints_resource_and_read_only_tool(self):
         with tempfile.TemporaryDirectory() as directory, docker_api() as (port, _):
             path = profile(directory, port)
             parameters = StdioServerParameters(command=sys.executable, args=[str(ROOT / "scripts/status-server.py")], env={**os.environ, "QEMU_STATUS_PROFILE": str(path), "QEMU_ALPINE_BASE_DIR": str(Path(directory) / "state"), "PYTHONDONTWRITEBYTECODE": "1"})
@@ -163,7 +163,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                     tool = tools[0]
                     self.assertTrue(tool.annotations.read_only_hint)
                     self.assertFalse(tool.annotations.destructive_hint)
-                    self.assertEqual(tool.meta["openai/ui"]["entrypoints"], [{"type": "thread"}])
+                    self.assertEqual(tool.meta["openai/ui"]["entrypoints"], [{"type": "global"}, {"type": "thread"}])
                     uri = tool.meta["ui"]["resourceUri"]
                     resource = await client.read_resource(uri)
                     self.assertEqual(resource.contents[0].mime_type, "text/html;profile=mcp-app")

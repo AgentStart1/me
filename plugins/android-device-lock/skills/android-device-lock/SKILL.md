@@ -68,6 +68,6 @@ The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain
 
 ## Read-only lease status
 
-For requests to view device occupancy, current owner, task, or expiry, call `android_device_lock_status` to open **Device Leases**. Observation requires no acquisition or release. If MCP Apps are unavailable, run `scripts/lock_status.py` with Python 3 and summarize its JSON snapshot.
+For requests to view device occupancy, current owner, task, or expiry, call `android_device_lock_status` to open **Device Leases** from the global sidebar or beside the conversation. Observation requires no acquisition or release. If MCP Apps are unavailable, run `scripts/lock_status.py` with Python 3 and summarize its JSON snapshot.
 
 Never disclose the owner token in tool results or UI. Expired metadata means a stale lease is still present, not that the panel has released the device. Offline devices and unreadable metadata must remain unknown/unavailable. The helper has no durable waiting queue, so do not invent waiting-task data. For custom lock locations, set `ANDROID_DEVICE_LOCK_PATH` to the same path used by `--lock-path`.

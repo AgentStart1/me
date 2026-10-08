@@ -11,7 +11,7 @@ This plugin provides profile-driven Android Virtual Device creation and emulator
 
 ## Android Emulators status panel
 
-Open **Android Emulators** from a supporting MCP Apps host's thread tabs, or call `android_emulator_status`. The read-only panel lists configured AVDs and connected emulators, including boot readiness, serial, Android/API version, ABI, configured memory, and resolution. It supports filtering, manual refresh, and optional ten-second auto-refresh while visible. Failed probes remain unknown or unavailable. A configured AVD without an observed ADB connection is marked disconnected; that does not assert that its process stopped.
+Open **Android Emulators** from a supporting MCP Apps host's global sidebar or thread tabs, or call `android_emulator_status`. The read-only panel lists configured AVDs and connected emulators, including boot readiness, serial, Android/API version, ABI, configured memory, and resolution. It supports filtering, manual refresh, and optional ten-second auto-refresh while visible. Failed probes remain unknown or unavailable. A configured AVD without an observed ADB connection is marked disconnected; that does not assert that its process stopped.
 
 **Capture screen** is available for booted emulators. Each click calls the app-only `android_emulator_screenshot` tool with an explicit serial. It captures one PNG through `adb exec-out screencap -p`; refresh does not capture screens, no screenshot is saved on the device, and physical phones are rejected. Closing the preview discards the displayed image. The panel does not start, stop, reset, or unlock an emulator.
 

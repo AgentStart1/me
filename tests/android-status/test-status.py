@@ -163,7 +163,7 @@ class CollectorTests(unittest.TestCase):
 
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):
-    async def test_both_thread_entrypoints_and_app_only_screenshot(self):
+    async def test_global_and_thread_entrypoints_and_app_only_screenshot(self):
         fixture=Fixture()
         try:
             for plugin,name,title in [(EMULATOR,'android_emulator_status','Android Emulators'),(LOCKS,'android_device_lock_status','Device Leases')]:
@@ -174,7 +174,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         tools={tool.name:tool for tool in (await client.list_tools()).tools}
                         tool=tools[name]
                         self.assertTrue(tool.annotations.read_only_hint)
-                        self.assertEqual(tool.meta['openai/ui']['entrypoints'],[{'type':'thread'}])
+                        self.assertEqual(tool.meta['openai/ui']['entrypoints'],[{'type':'global'},{'type':'thread'}])
                         resource=await client.read_resource(tool.meta['ui']['resourceUri'])
                         self.assertIn(title,resource.contents[0].text)
                         self.assertNotIn('/* PANEL_SCRIPT */',resource.contents[0].text)

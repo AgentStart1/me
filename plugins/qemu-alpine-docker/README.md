@@ -180,7 +180,7 @@ uv run --script scripts/status-server.py
 python scripts/status.py
 ```
 
-The panel uses the official MCP Apps JavaScript SDK and `openai/ui` thread entrypoint. Its HTML contains the entire bundled script with no external UI dependencies or direct browser calls to Docker. Native rendering depends on host support. This package is a local stdio integration; it does not deploy or register a remote ChatGPT service. Hardware acceleration depends on the host; mocked capability tests do not establish hardware availability.
+The panel uses the official MCP Apps JavaScript SDK and `openai/ui` global sidebar and thread entrypoints. Its HTML contains the entire bundled script with no external UI dependencies or direct browser calls to Docker. Native rendering depends on host support. This package is a local stdio integration; it does not deploy or register a remote ChatGPT service. Hardware acceleration depends on the host; mocked capability tests do not establish hardware availability.
 
 ### Build and validate
 

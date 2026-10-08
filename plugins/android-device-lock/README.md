@@ -10,7 +10,7 @@ All projects sharing a device use the same device-side lock path. The project di
 
 ## Device Leases status panel
 
-Open **Device Leases** from a supporting MCP Apps host's thread tabs, or call `android_device_lock_status`. The read-only panel displays each ADB device's connectivity, lease state, task, project basename, owner host/PID, and remaining lease duration. Filter by device, serial, task, or owner; refresh manually or enable ten-second auto-refresh while visible.
+Open **Device Leases** from a supporting MCP Apps host's global sidebar or thread tabs, or call `android_device_lock_status`. The read-only panel displays each ADB device's connectivity, lease state, task, project basename, owner host/PID, and remaining lease duration. Filter by device, serial, task, or owner; refresh manually or enable ten-second auto-refresh while visible.
 
 States are deliberately distinct:
 
@@ -39,7 +39,7 @@ The lease helper preserves Android paths when invoking Windows ADB from Git Bash
 
 The plugin and skill now use the `android-device-lock` identifier. Replace the previous plugin installation with this package after publication. Finish existing test runs before switching to the new default lock path so all runners and the status collector use the same path. The inspected path defaults to `/data/local/tmp/android-device-test.lock.d`. For workflows using a custom `--lock-path`, set `ANDROID_DEVICE_LOCK_PATH` to that same absolute Android path. Shell quoting preserves spaces and special characters without evaluating the path as code.
 
-The panel requires a host supporting MCP Apps and the OpenAI thread entrypoint. This change does not deploy a remote ChatGPT service. Shared UI build and test instructions live in the repository's `scripts/android-status/README.md`.
+The panel requires a host supporting MCP Apps and the OpenAI global sidebar and thread entrypoints. This change does not deploy a remote ChatGPT service. Shared UI build and test instructions live in the repository's `scripts/android-status/README.md`.
 
 ## Plugin packaging
 
