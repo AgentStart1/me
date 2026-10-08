@@ -46,6 +46,7 @@ jobs:
       - run: bash plugins/qemu-alpine-docker/tests/test-linux-testcontainers.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-apk-mirror-selection.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-sync-workspace.sh
+      - run: bash plugins/qemu-alpine-docker/tests/test-build-docker-proxy.sh
       - run: uv run --with PyYAML==6.0.3 --with jsonschema==4.25.1 python tests/test-plugin-packages.py
       - run: bash tests/test-build-plugin-cli.sh
       - name: Validate generated Codex skills

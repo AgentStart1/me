@@ -203,6 +203,8 @@ The browser test needs Playwright Chromium installed (`uv run --with playwright=
 
 See [container/README.md](container/README.md) for the non-root runtime image, persistent storage, and complete commands. An ordinary container can run QEMU with TCG. On compatible Linux hosts, add `--device=/dev/kvm` and the device's group to enable KVM; neither mode requires `--privileged`, a host Docker socket, or a host-network bridge.
 
+The runtime image normalizes shell, profile, and template line endings so Windows CRLF checkouts can be built and run in Linux containers.
+
 Run the test process and status MCP service in the same outer container as QEMU. Loopback forwards stay inside that network namespace. The guest Docker daemon creates containers using its own Linux kernel; its privileges do not require a privileged outer container. Guest architecture remains x86-64, and KVM requires host/guest architecture compatibility.
 
 ## Plugin packaging

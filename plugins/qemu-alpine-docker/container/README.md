@@ -2,6 +2,8 @@
 
 Build from the plugin root:
 
+The image normalizes shell scripts, profiles, and templates to LF so Windows Git checkouts with CRLF also work inside Linux containers.
+
 ```bash
 docker build -f container/Dockerfile -t qemu-alpine-dev .
 ```

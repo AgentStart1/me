@@ -14,6 +14,8 @@ RUN useradd --create-home --uid 1000 developer && \
 COPY --chown=developer:developer scripts /opt/qemu-alpine-docker/scripts
 COPY --chown=developer:developer profiles /opt/qemu-alpine-docker/profiles
 COPY --chown=developer:developer templates /opt/qemu-alpine-docker/templates
+RUN find /opt/qemu-alpine-docker -type f \( -name '*.sh' -o -name '*.profile' -o -name '*.tpl' \) \
+    -exec sed -i 's/\r$//' {} +
 ENV QEMU_ALPINE_BASE_DIR=/var/lib/qemu-alpine
 USER developer
 WORKDIR /workspace
