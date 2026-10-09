@@ -28,7 +28,7 @@ This repository is the source of truth for the `me` plugin collection and its po
 
 - When a skill or agent changes, update its owning `SKILL.md`, `README.md`, and any applicable `CLAUDE.md` references. Custom agent prompts remain at the plugin root.
 - Use `MAJOR.MINOR.PATCH-YYYYMMDDHHMMSS` for every plugin version. Keep generated `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions identical to the portable manifest, and do not add environment or tool labels.
-- Upgrade a plugin version at most once in the same PR. After that first upgrade, do not change its version or refresh its timestamp for later commits in that PR; the timestamp records when the version was initially updated. Make a further version change only in a new PR.
+- Upgrade a plugin's semantic version (`MAJOR.MINOR.PATCH`) at most once in the same PR. After that first upgrade, keep the semantic version unchanged for later commits in that PR; make a further semantic version upgrade only in a new PR. The `YYYYMMDDHHMMSS` timestamp suffix is excluded from this restriction and may be refreshed for later plugin changes in the same PR. Keep generated client manifest versions identical to the portable manifest.
 
 ## Privacy
 
