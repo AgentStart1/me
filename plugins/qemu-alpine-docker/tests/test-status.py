@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["openai-mcp-extensions==0.1.0", "mcp==2.2.0"]
+# dependencies = ["openai-mcp-extensions==0.1.0", "mcp==2.2.0", "psutil==7.1.0"]
 # ///
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,20 +14,26 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import status
+import status_resources
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 CONTAINER = {"Id": "abc123def456789", "Names": ["/<script>alert(1)</script>"], "Image": "alpine:latest", "State": "running", "Status": "Up 1 minute (healthy)", "Ports": [{"IP": "127.0.0.1", "PublicPort": 20000, "PrivatePort": 80, "Type": "tcp"}], "Env": ["SECRET=never-render"], "Labels": {"secret": "private"}}
+STATS = {"cpu_stats": {"cpu_usage": {"total_usage": 300}, "system_cpu_usage": 1000, "online_cpus": 4},
+         "precpu_stats": {"cpu_usage": {"total_usage": 100}, "system_cpu_usage": 600},
+         "memory_stats": {"usage": 1024, "limit": 4096, "stats": {"inactive_file": 256}}}
 
 
 @contextmanager
 def docker_api(routes=None):
-    routes = routes or {"/_ping": b"OK", "/version": {"Version": "28.0.0"}, "/containers/json?all=1": [CONTAINER]}
+    routes = routes or {"/_ping": b"OK", "/version": {"Version": "28.0.0"}, "/containers/json?all=1": [CONTAINER],
+                        "/containers/abc123def456789/stats?stream=false": STATS}
     requests = []
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -63,6 +69,86 @@ def profile(directory, port):
 
 
 class StatusTests(unittest.TestCase):
+    def test_local_resources_normalize_qemu_cpu_and_handle_process_exit(self):
+        import psutil
+        with patch.object(psutil, "Process") as process, patch.object(psutil, "cpu_percent", return_value=25), \
+             patch.object(psutil, "cpu_count", return_value=4), \
+             patch.object(psutil, "virtual_memory", return_value=SimpleNamespace(total=4096, available=1024)):
+            process.return_value.name.return_value = "qemu-system-x86_64"
+            process.return_value.cpu_percent.return_value = 200
+            process.return_value.memory_info.return_value = SimpleNamespace(rss=1024)
+            value = status_resources.host_resources(123)
+            self.assertEqual(value["host"]["memoryPercent"], 75)
+            self.assertEqual(value["qemu"]["cpuPercent"], 50)
+            self.assertEqual(value["qemu"]["memoryPercent"], 25)
+            process.return_value.memory_info.side_effect = psutil.NoSuchProcess(123)
+            value = status_resources.host_resources(123)
+            self.assertEqual(value["qemu"]["state"], "unavailable")
+            self.assertEqual(value["host"]["state"], "available")
+
+    def test_container_sampling_is_bounded_and_uses_validated_identifiers(self):
+        items = [{**CONTAINER, "Id": f"{index:064x}"} for index in range(40)]
+        items.append({**CONTAINER, "Id": "../private"})
+        def get(_, endpoint):
+            return {"/_ping": True, "/version": {"Version": "28"}, "/containers/json?all=1": items}[endpoint]
+        with patch.object(status, "docker_get", side_effect=get), \
+             patch.object(status, "container_resources", return_value={"state": "available"}) as sample:
+            _, containers = status.docker_health(2375)
+            self.assertEqual(len(containers["items"]), 41)
+            self.assertEqual(sample.call_count, 32)
+            self.assertEqual(sum(item["resources"]["state"] == "unavailable" for item in containers["items"]), 9)
+
+    def test_container_resource_math_cache_and_missing_baselines(self):
+        sample = {"cpu_stats": {"cpu_usage": {"total_usage": 300}, "system_cpu_usage": 1000, "online_cpus": 4},
+                  "precpu_stats": {"cpu_usage": {"total_usage": 100}, "system_cpu_usage": 600},
+                  "memory_stats": {"usage": 1024, "limit": 4096, "stats": {"inactive_file": 256}},
+                  "name": "private", "labels": {"secret": "private"}}
+        get = lambda *_: sample
+        value = status_resources.container_resources(2375, "abc123", get)
+        self.assertEqual(value["cpuPercent"], 200)
+        self.assertEqual(value["memoryBytes"], 768)
+        self.assertEqual(value["memoryPercent"], 18.8)
+        self.assertNotIn("private", json.dumps(value))
+        sample["memory_stats"]["stats"] = {"total_inactive_file": 512}
+        sample["precpu_stats"] = {}
+        value = status_resources.container_resources(2375, "abc123", get)
+        self.assertIsNone(value["cpuPercent"])
+        self.assertEqual(value["memoryBytes"], 512)
+        sample["memory_stats"]["limit"] = 0
+        self.assertEqual(status_resources.container_resources(2375, "abc123", get)["state"], "unavailable")
+        for sample in [None, [], {"cpu_stats": []}, {"cpu_stats": {"cpu_usage": None}, "precpu_stats": {"cpu_usage": {"total_usage": 1}, "system_cpu_usage": 1}}]:
+            self.assertEqual(status_resources.container_resources(2375, "abc123", get)["state"], "unavailable")
+
+    def test_guest_metrics_use_existing_key_and_fixed_read_only_script(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            with patch.object(status_resources.subprocess, "run") as run:
+                self.assertEqual(status_resources.guest_resources(base, 2222, True)["state"], "unavailable")
+                run.assert_not_called()
+                (base / "id_ed25519").write_text("test key placeholder")
+                run.return_value = subprocess.CompletedProcess([], 0,
+                    b"cpu 10 0 0 90 0 0 0 0\n\n---\ncpu 20 0 0 100 0 0 0 0\n\n---\nMemTotal: 1024 kB\nMemAvailable: 256 kB\n", b"")
+                value = status_resources.guest_resources(base, 2222, True)
+                self.assertEqual(value["cpuPercent"], 50)
+                self.assertEqual(value["memoryPercent"], 75)
+                self.assertIn("-F", run.call_args.args[0])
+                self.assertIn("root@127.0.0.1", run.call_args.args[0])
+                self.assertIsInstance(run.call_args.kwargs["input"], bytes)
+                self.assertNotIn(b"\r", run.call_args.kwargs["input"])
+                self.assertNotIn("test key placeholder", json.dumps(value))
+                run.side_effect = subprocess.TimeoutExpired("ssh", 4)
+                self.assertEqual(status_resources.guest_resources(base, 2222, True)["state"], "unavailable")
+
+    def test_stats_failures_do_not_hide_inventory_and_stopped_containers_are_not_probed(self):
+        stopped = {**CONTAINER, "Id": "def123456789", "State": "exited"}
+        routes = {"/_ping": b"OK", "/version": {"Version": "28"}, "/containers/json?all=1": [CONTAINER, stopped]}
+        with docker_api(routes) as (port, requests):
+            _, containers = status.docker_health(port)
+            self.assertEqual(containers["state"], "available")
+            self.assertEqual(containers["items"][0]["resources"]["state"], "unavailable")
+            self.assertEqual(containers["items"][1]["resources"]["state"], "not-running")
+            self.assertFalse(any("def123456789/stats" in path for path in requests))
+
     def test_profile_rejects_expansion_path_traversal_and_invalid_port(self):
         with tempfile.TemporaryDirectory() as directory:
             path = profile(directory, 2375)
@@ -79,7 +165,7 @@ class StatusTests(unittest.TestCase):
             self.assertEqual(containers["items"][0]["ports"], ["127.0.0.1:20000 → 80/tcp"])
             self.assertNotIn("never-render", json.dumps(containers))
             self.assertNotIn("Labels", json.dumps(containers))
-            self.assertEqual(requests, ["/_ping", "/version", "/containers/json?all=1"])
+            self.assertEqual(requests, ["/_ping", "/version", "/containers/json?all=1", "/containers/abc123def456789/stats?stream=false"])
 
     def test_empty_unavailable_and_partial_health_are_distinct(self):
         with docker_api({"/_ping": b"OK", "/version": {"Version": "28"}, "/containers/json?all=1": []}) as (port, _):
@@ -174,6 +260,8 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                     snapshot = result.structured_content
                     self.assertEqual(snapshot["services"]["docker"]["state"], "healthy")
                     self.assertEqual(len(snapshot["containers"]["items"]), 1)
+                    self.assertEqual(snapshot["containers"]["items"][0]["resources"]["cpuPercent"], 200)
+                    self.assertEqual(snapshot["containers"]["items"][0]["resources"]["memoryBytes"], 768)
                     self.assertFalse((Path(directory) / "state").exists())
 
 

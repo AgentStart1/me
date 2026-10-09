@@ -21,3 +21,11 @@ export function containerSummary(containers) {
   const running = containers.items.filter(item => item.state === "running").length;
   return `${running} running · ${containers.items.length - running} stopped or inactive`;
 }
+
+export function resourceText(value) {
+  if (value?.state !== "available") return {cpu: "—", memory: "—", detail: value?.detail || "Resources unavailable"};
+  const percent = n => Number.isFinite(n) && n >= 0 ? `${n.toFixed(1)}%` : "—";
+  const bytes = n => Number.isFinite(n) && n >= 0 ? `${(n / 1048576).toFixed(1)} MiB` : "—";
+  return {cpu: percent(value.cpuPercent), memory: `${bytes(value.memoryBytes)} / ${bytes(value.memoryLimitBytes)}`,
+    detail: `Memory ${percent(value.memoryPercent)}${value.cpuPercent == null ? " · CPU awaiting a valid sample" : ""}`};
+}

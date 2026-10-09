@@ -11,6 +11,7 @@ import socket
 import subprocess
 import urllib.error
 import urllib.request
+from status_resources import container_resources, guest_resources, host_resources, unavailable
 
 ROOT = Path(__file__).resolve().parents[1]
 TIMEOUT = 2
@@ -125,7 +126,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def docker_get(port, endpoint):
     # Never inherit network proxy variables for this privileged loopback API.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-    with opener.open(f"http://127.0.0.1:{port}{endpoint}", timeout=TIMEOUT) as response:
+    # Non-streaming stats wait for two Docker samples and can take nearly two seconds.
+    timeout = 4 if endpoint.endswith("/stats?stream=false") else TIMEOUT
+    with opener.open(f"http://127.0.0.1:{port}{endpoint}", timeout=timeout) as response:
         data = response.read(MAX_RESPONSE + 1)
         if len(data) > MAX_RESPONSE:
             raise ValueError("Docker API response exceeds 2 MiB")
@@ -177,12 +180,13 @@ def docker_health(port):
         if not isinstance(containers, list):
             raise ValueError("Expected container list")
         items = []
+        stats_targets = []
         for container in containers:
             if not isinstance(container, dict):
                 raise ValueError("Expected container object")
             names = container.get("Names") or []
             ports = container.get("Ports") or []
-            items.append({
+            item = {
                 "id": str(container.get("Id", ""))[:12],
                 "name": str(names[0]).lstrip("/")[:200] if names else "Unnamed",
                 "image": str(container.get("Image", ""))[:300],
@@ -190,7 +194,21 @@ def docker_health(port):
                 "status": str(container.get("Status", ""))[:300],
                 "ports": [f"{p.get('IP') or '*'}:{p['PublicPort']} → {p['PrivatePort']}/{p.get('Type', 'tcp')}"
                           for p in ports if isinstance(p, dict) and "PublicPort" in p and "PrivatePort" in p][:32],
-            })
+                "resources": unavailable("Container is not running", "not-running"),
+            }
+            items.append(item)
+            if item["state"] == "running":
+                identifier = container.get("Id", "")
+                item["resources"] = unavailable("Resource sampling limit reached (32 running containers)")
+                if not isinstance(identifier, str) or not re.fullmatch(r"[a-fA-F0-9]{12,64}", identifier):
+                    item["resources"] = unavailable("Container identifier is invalid")
+                elif len(stats_targets) < 32:
+                    stats_targets.append((item, identifier))
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            samples = [(item, pool.submit(container_resources, port, identifier, docker_get))
+                       for item, identifier in stats_targets]
+            for item, sample in samples:
+                item["resources"] = sample.result()
         items.sort(key=lambda item: (item["state"] != "running", item["name"]))
         return health, {"state": "available", "items": items}
     except (OSError, ValueError, TypeError, KeyError, IndexError) as error:
@@ -226,11 +244,14 @@ def collect_status():
             warnings.append("Another VM owns the global lock; select its profile with QEMU_STATUS_PROFILE")
     except FileNotFoundError:
         pass
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         ssh = pool.submit(ssh_health, profile["SSH_PORT"])
         docker = pool.submit(docker_health, profile["DOCKER_DAEMON_PORT"])
+        resources = pool.submit(host_resources, windows_pid(pid) if os.name == "nt" and state == "running" else pid if state == "running" else None)
+        guest = pool.submit(guest_resources, base, profile["SSH_PORT"], state == "running")
         docker_status, containers = docker.result()
         ssh_status = ssh.result()
+        resource_status = {**resources.result(), "guest": guest.result()}
     if state != "running" and (ssh_status["state"] == "healthy" or docker_status["state"] == "healthy"):
         warnings.append("Local services respond, but this profile's QEMU process is not verified")
     return {
@@ -242,6 +263,7 @@ def collect_status():
         "services": {"ssh": {**ssh_status, "port": profile["SSH_PORT"]},
                      "docker": {**docker_status, "port": profile["DOCKER_DAEMON_PORT"]}},
         "containers": containers,
+        "resources": resource_status,
         "warnings": warnings,
     }
 

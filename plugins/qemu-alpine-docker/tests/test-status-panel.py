@@ -19,7 +19,13 @@ SNAPSHOT = {
         {"name": "api", "id": "abc123", "image": "alpine:latest", "state": "running", "status": "Up 2 minutes (healthy)", "ports": ["127.0.0.1:20000 → 80/tcp"]},
         {"name": "<img src=x onerror=window.injected=true>", "id": "def456", "image": "redis:7", "state": "exited", "status": "Exited (0)", "ports": []}]},
     "warnings": [],
+    "resources": {scope: {"state": "available", "cpuPercent": 12.5, "memoryBytes": 536870912,
+                            "memoryLimitBytes": 1073741824, "memoryPercent": 50}
+                  for scope in ("host", "qemu", "guest")},
 }
+SNAPSHOT["containers"]["items"][0]["resources"] = {"state": "available", "cpuPercent": 150,
+    "memoryBytes": 67108864, "memoryLimitBytes": 268435456, "memoryPercent": 25}
+SNAPSHOT["containers"]["items"][1]["resources"] = {"state": "not-running", "detail": "Container is not running"}
 HOST = '''<!doctype html><iframe id="panel" src="/panel" style="width:100%;height:800px;border:0"></iframe><script>
 window.snapshot = SNAPSHOT;
 window.toolCalls = 0;
@@ -56,8 +62,16 @@ try:
         panel = page.frame_locator("#panel")
         panel.locator("#vm-name").get_by_text("alpine-dev", exact=True).wait_for()
         assert "kvm acceleration" in panel.locator("#vm-detail").inner_text()
+        assert panel.locator("#host-cpu").inner_text() == "12.5%"
+        assert panel.locator("#guest-memory").inner_text() == "512.0 MiB / 1024.0 MiB"
+        assert "150.0%" in panel.locator("#containers tr").first.inner_text()
+        assert "Container is not running" in panel.locator("#containers tr").nth(1).inner_text()
         assert page.evaluate("window.toolCalls") == 0, "Initial result must not trigger a duplicate probe"
         assert panel.locator("#containers tr").count() == 2
+        assert panel.locator("#host-cpu").inner_text() == "12.5%", "Refresh failure retains resource samples"
+        page.evaluate("window.snapshot.resources.guest = {state:'unavailable',detail:'Guest resource sample unavailable'}; window.sendSnapshot()")
+        panel.locator("#guest-resource-detail").get_by_text("Guest resource sample unavailable", exact=True).wait_for()
+        assert panel.locator("#guest-cpu").inner_text() == "—"
         assert panel.locator("#containers img").count() == 0, "Container names must render as text"
         panel.locator("#filter").fill("ALPINE")
         assert panel.locator("#containers tr").count() == 1
@@ -82,7 +96,8 @@ try:
         panel.locator("#auto").uncheck()
         page.clock.fast_forward(11000)
         assert page.evaluate("window.toolCalls") == calls + 1
-        page.evaluate("window.snapshot.containers.items[1].name = 'cache'; window.sendSnapshot()")
+        page.evaluate("window.snapshot.containers.items[1].name = 'cache'; window.snapshot.resources = " + json.dumps(SNAPSHOT["resources"]) + "; window.sendSnapshot()")
+        panel.locator("#containers").get_by_text("cache").wait_for()
         screenshot = os.environ.get("QEMU_PANEL_SCREENSHOT")
         if screenshot: page.screenshot(path=screenshot)
         page.set_viewport_size({"width": 390, "height": 844})

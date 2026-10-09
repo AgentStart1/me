@@ -58,6 +58,8 @@ For requests to view VM state, service health, or containers, call `qemu_docker_
 
 Without MCP Apps support, run `scripts/status.py` with Python 3 and summarize its JSON snapshot. Read `QEMU_STATUS_PROFILE` for a custom profile and `QEMU_ALPINE_BASE_DIR` for existing state overrides; do not invent a running state from the ready marker. Unknown probes, unavailable lists, and stale PID files must be reported as such. SSH health means a banner was received, not successful authentication. Resource counts and accelerator policy are profile configuration, not measured utilization. The separate accelerator field is read from the running process when available.
 
+The separate `resources` snapshot reports live host-system, QEMU-process, and Alpine-guest CPU/memory; each container's `resources` reports CPU/memory when running. These are refresh samples, not the test wrapper's metrics report. Host/QEMU CPU is normalized over host logical CPUs; guest CPU is normalized over guest CPUs; container CPU uses 100% per core. Linux host-system values reflect the kernel system view, not an outer container's cgroup allocation. Preserve unavailable and not-running states and null CPU baselines. Guest sampling uses only the existing key and fixed read-only `/proc` commands over loopback SSH. Never create keys or install guest tools to populate the panel. The MCP runtime includes psutil; plain Python needs it for host/process samples. Container probes are bounded to 32 running containers with eight workers.
+
 - `scripts/status.py`: read-only local status collection.
 - `scripts/status-server.py`: stdio MCP App server with a thread entrypoint.
 - `templates/status-panel.html`: bundled dashboard, rebuilt from `ui/`.

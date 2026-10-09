@@ -165,12 +165,15 @@ The plugin includes a read-only MCP App for the conversation panel described in 
 
 The panel shows:
 
-- VM name, verified QEMU process state and PID, disk presence, provisioning marker, actual process accelerator when readable, and profile resource values. CPU/memory and accelerator policy are configured values, not live utilization.
+- VM name, verified QEMU process state and PID, disk presence, provisioning marker, actual process accelerator when readable, and configured profile CPU/memory limits.
+- Live CPU and memory usage for the QEMU host system, verified QEMU process, and Alpine guest. Host/QEMU CPU percentages use all host logical CPUs; guest CPU uses all guest CPUs. QEMU memory is resident memory relative to host RAM. In an outer Linux container, host system figures come from the kernel's system view, not the outer container's cgroup quota.
 - Local SSH banner reachability and Docker API ping/version. SSH authentication and guest DNS are not tested.
-- All running and stopped Docker containers, image, status (including Docker health text), and published ports, with name/image filtering.
+- All running and stopped Docker containers, image, status (including Docker health text), and published ports, with name/image filtering. Running containers include CPU and memory usage; container CPU uses 100% per core and can exceed 100%. Memory subtracts inactive file cache where available and shows usage against the Docker-reported limit.
 - Observation time, probe failures, and warnings when local services respond without a verified QEMU process.
 
 Use **Refresh** for a new snapshot. Optional auto-refresh runs every ten seconds while the panel is visible. An unsuccessful refresh preserves the last snapshot and labels it as stale. An unavailable container list is distinguished from a successfully queried empty list.
+
+Resource samples are collected on refresh and are independent of the test wrapper's Windows metrics reports. Guest sampling reads `/proc/stat` and `/proc/meminfo` over loopback SSH using the existing VM key; it does not install tools, create keys, or write state. Local host/process sampling uses the pinned psutil dependency in the MCP runtime. Plain Python use of `scripts/status.py` needs psutil for those two scopes. Missing permissions, SSH failures, stopped processes, or missing CPU baselines show unavailable values rather than zero. A failed container sample does not hide the container list. To bound refresh work, each snapshot samples at most 32 running containers, with eight concurrent probes; remaining containers are marked unavailable.
 
 ### Local MCP runtime
 
@@ -187,6 +190,8 @@ python scripts/status.py
 The panel uses the official MCP Apps JavaScript SDK and `openai/ui` global sidebar and thread entrypoints. Its HTML contains the entire bundled script with no external UI dependencies or direct browser calls to Docker. Native rendering depends on host support. This package is a local stdio integration; it does not deploy or register a remote ChatGPT service. Hardware acceleration depends on the host; mocked capability tests do not establish hardware availability.
 
 ### Build and validate
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for resource collector behavior and focused panel verification.
 
 The checked-in `templates/status-panel.html` is generated from `ui/`. Python and uv are runtime requirements for the MCP server; Node is only needed when rebuilding the UI.
 

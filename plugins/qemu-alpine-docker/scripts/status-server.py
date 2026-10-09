@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["openai-mcp-extensions==0.1.0", "mcp==2.2.0"]
+# dependencies = ["openai-mcp-extensions==0.1.0", "mcp==2.2.0", "psutil==7.1.0"]
 # ///
 """Local MCP App: VM state, service health, and container list."""
 from mcp.server.apps import APP_MIME_TYPE, Apps
@@ -26,7 +26,7 @@ apps.add_resource(TextResource(
     meta={"openai/ui": OpenAIUiToolMetadata(entrypoints=[OpenAIGlobalEntrypoint(), OpenAIThreadEntrypoint()]).model_dump(by_alias=True, exclude_none=True)},
 )
 def qemu_docker_status() -> CallToolResult:
-    """Show read-only QEMU VM state, local SSH/Docker health, and all Docker containers."""
+    """Show QEMU state, service health, system CPU/memory, and container CPU/memory."""
     snapshot = collect_status()
     return CallToolResult(structured_content=snapshot, content=[TextContent(type="text", text=json.dumps(snapshot), annotations=Annotations(audience=["assistant"]))])
 
