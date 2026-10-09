@@ -21,9 +21,9 @@ For now, these are the intended environments. On Linux hosts running outside con
 
 Host bind mounts are not directly available to the remote guest daemon. Use Docker build contexts or named volumes when tests need host files.
 
-### Host Docker commands over SSH
+### Docker commands from Windows or the outer Linux container over SSH
 
-For host Gradle tasks that call Docker, compile the native proxy once:
+For Gradle or other test commands that invoke the Docker CLI, compile the native proxy in the environment where the test process runs: Windows or the outer Linux container.
 
 ```bash
 ./scripts/build-docker-proxy.sh
@@ -31,8 +31,9 @@ For host Gradle tasks that call Docker, compile the native proxy once:
 ```
 
 Start the VM before compiling. The script sends the proxy source over existing SSH,
-installs Go in Alpine if needed, tests it there, and cross-compiles Windows amd64 with
-`CGO_ENABLED=0`. It downloads the executable over SSH; no host Go installation is needed.
+installs Go in Alpine if needed, tests it there, and builds with `CGO_ENABLED=0` for
+Windows amd64 or Linux amd64/arm64, according to the environment running the script.
+It downloads the executable over SSH; no Go installation is needed on Windows or in the outer container.
 Go and its caches stay in the persistent guest; temporary build files are cleaned up.
 Use `--profile <path>` for a non-default VM profile.
 The wrapper puts the proxy on PATH, so `docker build` filters the local context using Docker's
@@ -44,7 +45,9 @@ are not translated. Named contexts, build secrets and SSH mounts are rejected un
 transport support exists. No unfiltered workspace transfer is performed.
 
 The compiled helper is shared by all projects at `~/.local/share/me/docker-proxy/docker.exe`
-on Windows (`docker` on other hosts). On Windows, `~` resolves to the Windows user profile.
+on Windows, or `~/.local/share/me/docker-proxy/docker` inside the outer Linux container.
+On Windows, `~` resolves to the Windows user profile; in a Linux container, it is the
+container user's home directory. Persist that directory or rebuild the helper when replacing the outer container.
 Use the same `QEMU_DOCKER_PROXY_DIR` override for compilation and test execution if necessary.
 
 To copy a host workspace into the guest before running project-specific commands:
@@ -98,9 +101,9 @@ Run host tests through the guest Docker API:
 ./scripts/run-testcontainers.sh -- npm test
 ```
 
-The wrapper passes `DOCKER_HOST`, `TESTCONTAINERS_HOST_OVERRIDE`, and `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` explicitly across the MSYS-to-Windows process boundary. On Windows it also restores a writable native temporary directory before launching JVM tests. It keeps Ryuk enabled. Random published ports work when the framework asks Docker to assign a port because guest allocation and host forwards share the configured range.
+The wrapper supplies `DOCKER_HOST`, `TESTCONTAINERS_HOST_OVERRIDE`, and `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` to the test process on both platforms. On Windows it passes them across the MSYS-to-Windows process boundary and restores a writable native temporary directory before launching JVM tests. In a Linux container, the test process runs in the same outer container as QEMU. It keeps Ryuk enabled. Random published ports work when the framework asks Docker to assign a port because guest allocation and host forwards share the configured range.
 
-The default `auto` metrics mode collects host-wide, QEMU-process, and Alpine-guest CPU and memory metrics on Windows, and runs Linux commands without the PowerShell collector. Only the final average/peak summary is printed, the original command exit code is preserved, and a structured report atomically replaces `~/.qemu-alpine-docker/metrics/latest.json`. The report intentionally omits the command text and working-directory path. Very short commands can finish before the first sample and therefore produce `null` aggregates.
+The default `auto` metrics mode collects host-wide, QEMU-process, and Alpine-guest CPU and memory metrics on Windows, and runs Linux commands without the PowerShell collector. When Windows collection is enabled, only the final average/peak summary is printed and a structured report atomically replaces `~/.qemu-alpine-docker/metrics/latest.json`. Linux runs do not produce a metrics summary or update that report. Both platforms preserve the original command exit code. The report intentionally omits the command text and working-directory path. Very short commands can finish before the first sample and therefore produce `null` aggregates.
 
 Other operations:
 
@@ -133,8 +136,9 @@ Fixed host ports must not overlap the Testcontainers range. All forwards bind to
 The test wrapper preserves the `env` executable from its owning Bash installation before
 adding tool directories to `PATH`. Mixing an MSYS2 `env.exe` with Git Bash can make
 native Windows OpenSSH exit 255 without diagnostics, even for `ssh -V`.
-The proxy also follows Docker's Windows archive permissions: it adds execute bits and removes
+On Windows, the proxy follows Docker's Windows archive permissions: it adds execute bits and removes
 group/world write permissions so scripts can run in Linux images without Dockerfile workarounds.
+In a Linux container, it preserves the source file permission bits; scripts must already have their required execute bits.
 
 A Windows host with 28 logical processors and 31.8 GiB RAM ran a cached Elasticsearch 8.17 Testcontainers integration test through the bundled 4-vCPU, 4-GiB profile with automatic resource collection enabled. `VM_ACCELERATOR=auto` selected WHPX. The wrapper recorded a successful 20-second command, Gradle reported 16 seconds, the test case took 14.89 seconds, and Elasticsearch became ready in 10.41 seconds. The collector produced 13 valid samples with no sampling errors. The VM reached SSH and Docker readiness in 26 seconds from a cold VM start. On the same persistent disk, an earlier TCG run needed about 3 minutes 12 seconds for Elasticsearch startup.
 

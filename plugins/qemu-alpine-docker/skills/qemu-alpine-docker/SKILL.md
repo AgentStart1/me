@@ -84,8 +84,10 @@ Daily testing:
 
 After starting the VM, run `scripts/build-docker-proxy.sh` (optionally with `--profile <path>`).
 It uses existing SSH to transfer source, installs Go in Alpine if missing, runs native guest
-tests, cross-compiles Windows amd64 with CGO disabled, and downloads the executable over SSH.
-The host needs no Go installation. Go and its caches remain on the persistent guest disk;
+tests, builds for Windows amd64 or Linux amd64/arm64 according to the environment running
+the script with CGO disabled, and downloads the executable over SSH. Run both compilation
+and tests on Windows or inside the same outer Linux container as QEMU; no Go installation
+is needed in that environment. Go and its caches remain on the persistent guest disk;
 temporary source and binaries are cleaned up after success or failure. `run-testcontainers.sh` places the resulting
 native proxy on PATH and supplies SSH settings. Set `QEMU_DOCKER_PROXY_DIR` consistently in both
 scripts to override the helper directory. Restart existing Gradle daemons if their executable
@@ -96,7 +98,9 @@ including ordered exceptions and Dockerfile-specific ignore files. It streams th
 over SSH to guest `docker buildx build --load`. Non-build commands execute through SSH without
 context copying; host-path bind mounts and `docker cp` are not translated. Build secrets, SSH
 mounts and named host contexts require explicit transport support and are rejected. Keep secrets
-excluded by Docker ignore rules. The skill never selects project service names or Docker targets.
+excluded by Docker ignore rules. On Windows, archive permissions add execute bits and remove
+group/world write bits; in Linux containers, source permission bits are preserved, so ensure
+scripts already have their required execute bits. The skill never selects project service names or Docker targets.
 
 When project files must exist inside the guest, sync them separately and then run the project's own build or test command:
 
@@ -112,9 +116,9 @@ The start script returns after SSH and the Docker API are ready. The test wrappe
 - `TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1`
 - `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`
 
-It unsets TLS variables and `TESTCONTAINERS_RYUK_DISABLED`, runs the test command, then reports resource averages and peaks without changing the command's exit code.
+It unsets TLS variables and `TESTCONTAINERS_RYUK_DISABLED` and preserves the test command's exit code. With `auto` metrics, Windows collects and reports resource averages and peaks; Linux runs without the PowerShell collector and does not update the metrics report.
 
-Keep the environment launcher from the Bash installation that started the wrapper.
+On Windows, keep the environment launcher from the Bash installation that started the wrapper.
 Do not replace it with another MSYS2 installation's `env.exe` after changing `PATH`:
 native Windows SSH can exit 255 before initialization when runtimes are mixed.
 
@@ -153,4 +157,7 @@ produces an error: confirm no compiler or transfer remains before removing the r
 lock directory. Do not remove another running build's lock.
 
 The default proxy directory is user-wide: `~/.local/share/me/docker-proxy`.
-Every project uses the same executable; the wrapper supplies that run's VM SSH settings.
+Windows uses `docker.exe`; Linux containers use `docker`. Every project under the same
+user in that environment uses the same executable; the wrapper supplies that run's VM SSH settings.
+In Linux containers, the directory belongs to the container user. Persist it or rebuild
+the helper after replacing the outer container; the persistent VM disk alone does not retain it.

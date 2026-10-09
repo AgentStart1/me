@@ -41,7 +41,18 @@ docker exec qemu-dev python3 /opt/qemu-alpine-docker/scripts/status.py
 
 Run the development tools, test process, and MCP server in this same outer container/network namespace. Docker's loopback API is at `127.0.0.1:2375` there, and dynamically published guest ports are forwarded to `127.0.0.1:20000–20255` there. A host-side `docker -p` mapping does not make a service bound to the container's loopback reachable. The default design keeps the unauthenticated API local; it does not widen it to `0.0.0.0`.
 
-Use this image as a base for your own JDK, build tools, or Codex environment, and install uv there for the MCP status panel. `run-testcontainers.sh -- <command>` uses guest Docker and keeps Ryuk enabled. The default metrics mode is `auto`: Windows collects PowerShell metrics, Linux runs the command without that collector. VM disk caching, Testcontainers networking, and the status panel work independently of that collector.
+Use this image as a base for your own JDK, build tools, or Codex environment, and install uv there for the MCP status panel. Before the first test run, compile the Linux Docker CLI proxy inside the outer container, after the VM has started:
+
+```bash
+docker exec qemu-dev bash /opt/qemu-alpine-docker/scripts/build-docker-proxy.sh
+docker exec qemu-dev bash /opt/qemu-alpine-docker/scripts/run-testcontainers.sh -- <test command>
+```
+
+Replace `<test command>` with a command available inside the outer container, with the project accessible there. The build script uses Go in the Alpine guest and downloads a Linux amd64/arm64 `docker` executable for the outer container's architecture; the outer container needs no Go installation. Rebuild after proxy source updates. The default helper path is `~/.local/share/me/docker-proxy/docker` under the container user's home; persist that directory or rebuild after replacing the outer container. It is separate from the VM state volume. Use the same `QEMU_DOCKER_PROXY_DIR` override for compilation and test execution.
+
+`run-testcontainers.sh` puts this proxy on PATH and supplies the guest SSH settings. Docker builds filter the local context using Docker ignore rules and stream it over SSH to the guest. Linux source permission bits are preserved, so scripts must already have their required execute bits. Host-path bind mounts and `docker cp` are not translated; use build contexts or named volumes for guest containers.
+
+The wrapper uses guest Docker and keeps Ryuk enabled. The default metrics mode is `auto`: Linux runs without the Windows PowerShell collector and does not produce its summary or update its report. VM disk caching, Testcontainers networking, and the status panel work independently of that collector.
 
 Stop the VM before stopping the outer container:
 
