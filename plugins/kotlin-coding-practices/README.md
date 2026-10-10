@@ -7,7 +7,7 @@ that require Java threading or blocking behavior.
 ## Contents
 
 - `plugin.json` declares the portable plugin; client manifests are generated.
-- `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine, threading, synchronization, cancellation, lifecycle, and immutability guidance.
+- `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine, threading, synchronization, cancellation, lifecycle, immutability, and KDoc contract guidance.
 
 ## Local Marketplace Entry
 

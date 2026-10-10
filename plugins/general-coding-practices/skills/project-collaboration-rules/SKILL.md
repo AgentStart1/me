@@ -21,6 +21,17 @@ description: Use for every coding project task to follow the existing plan auton
 - Rename stale, misleading, overly narrow, or ambiguous classes, functions, files, modules, APIs, tests, and documentation when responsibilities or public behavior change. Preserve compatibility only where explicitly required.
 - Implement the correct solution even when it requires an appropriate dependency.
 
+## Comments and API documentation
+
+- Prefer clear names and small, well-structured code before adding comments. Do not narrate obvious statements or repeat what the code already expresses.
+- Explain non-obvious reasons, business constraints, design tradeoffs, compatibility limits, and required execution order. Place the explanation near the code it governs.
+- Document contracts that callers cannot infer: units, valid ranges, ownership, lifecycle, concurrency requirements, and failure behavior.
+- For necessary workarounds, explain the triggering condition, link the relevant issue or authoritative reference when available, and state when the workaround can be removed.
+- Add API documentation where public APIs or complex contracts need it; do not require boilerplate comments for every internal function.
+- Update or remove comments when behavior changes. Remove commented-out obsolete code; use version control for history.
+- Make TODOs actionable by stating the remaining work and completion condition, with an issue link when available.
+- Follow the project's established comment language and documentation style, and keep comments privacy-safe.
+
 ## Root-cause-first debugging
 
 - Reproduce or localize bugs, regressions, flaky behavior, unexpected output, build errors, test failures, crashes, and performance anomalies when practical.

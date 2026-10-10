@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kotlin-coding-practices",
-  "version": "0.1.1-20261004053826",
+  "version": "0.1.2-20261010204345",
   "description": "Coroutine-first and immutable-by-default Kotlin coding practices.",
   "author": {
     "name": "Local Kotlin Practices"
