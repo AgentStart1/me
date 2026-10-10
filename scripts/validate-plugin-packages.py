@@ -51,7 +51,7 @@ def validate(client, output):
         assert not (generated / 'plugin.json').exists()
         assert not (generated / f'.{"claude" if client == "codex" else "codex"}-plugin').exists()
         for file in source.rglob('*'):
-            if not file.is_file() or file == path or 'build' in file.relative_to(source).parts:
+            if not file.is_file() or file == path or any(part in {'build', 'node_modules', '__pycache__'} for part in file.relative_to(source).parts):
                 continue
             relative = file.relative_to(source)
             if client == 'codex' and relative.parts[0] == 'agents':

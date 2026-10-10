@@ -14,7 +14,7 @@ TESTCONTAINERS_PORT_END=20255
 # Pure TCG may spend longer than Testcontainers defaults extracting large image layers.
 TESTCONTAINERS_PULL_PAUSE_TIMEOUT=300
 TESTCONTAINERS_PULL_TIMEOUT=1800
-TESTCONTAINERS_RESOURCE_METRICS=true
+TESTCONTAINERS_RESOURCE_METRICS=auto
 TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=1
 ALPINE_BRANCH=v3.24
 # Use auto to select the fastest HTTPS-capable mirror during first provisioning.

@@ -23,7 +23,7 @@
 # Key design decisions:
 #   - Uses a profile file (key=value) for configuration, not command-line args
 #   - Template rendering with {{PLACEHOLDER}} markers for all guest config files
-#   - Acceleration auto-detection (WHPX on Windows, TCG fallback)
+#   - Acceleration auto-detection (KVM on Linux, WHPX on Windows, TCG fallback)
 #   - Verification step ensures the VM is actually usable before marking it ready
 #   - Atomic write for the ready marker to avoid partial updates
 #

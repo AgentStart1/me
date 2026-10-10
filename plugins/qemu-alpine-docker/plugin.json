@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qemu-alpine-docker",
-  "version": "0.4.0-20261001091000",
-  "description": "Persistent QEMU Alpine Docker VM for Windows-hosted Docker API and Testcontainers workflows.",
+  "version": "0.4.0-20261009155051",
+  "description": "Persistent QEMU Alpine Docker VM and status panel for Linux Docker containers and Windows.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers",
     "url": "https://github.com/storytellerF/me"
@@ -15,15 +15,18 @@
     "alpine",
     "docker",
     "vm",
-    "windows"
+    "windows",
+    "linux",
+    "kvm",
+    "tcg"
   ],
   "extensions": {
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
         "displayName": "QEMU Alpine Docker",
-        "shortDescription": "Persistent Alpine Docker VM for Windows Testcontainers.",
-        "longDescription": "Creates and manages one unattended, persistent Alpine Docker VM using WHPX when available and TCG otherwise. Exposes a loopback Docker API and a bounded random port range for host-side Testcontainers while preserving pulled image layers between runs.",
+        "shortDescription": "QEMU Docker in Linux Docker containers and on Windows.",
+        "longDescription": "Manages a persistent Alpine Docker VM inside Linux Docker containers or on Windows, with KVM or WHPX acceleration and portable TCG fallback. Runs inside ordinary Linux Docker containers without privileged mode and exposes a read-only VM, service, and container status panel. On Linux hosts outside containers, use Docker directly without this plugin.",
         "developerName": "QEMU Alpine Docker Maintainers",
         "category": "Developer Tools",
         "capabilities": [
@@ -39,8 +42,11 @@
           "Run host Testcontainers tests against Docker in the Alpine VM."
         ],
         "brandColor": "#3B82F6"
-      }
+      },
+      "mcpServers": "./.mcp.json"
     },
-    "com.anthropic.claude": {}
+    "com.anthropic.claude": {
+      "mcpServers": "./.mcp.json"
+    }
   }
 }

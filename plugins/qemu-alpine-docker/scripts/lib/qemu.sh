@@ -64,6 +64,26 @@ probe_whpx() {
     wait_for_process_exit "$probe_pid" 5 || kill -9 "$probe_pid" 2>/dev/null || true
 }
 
+# Opening /dev/kvm is not sufficient: verify that QEMU can create a VM with
+# this container's device policy, permissions, CPU, and seccomp configuration.
+probe_kvm() {
+    local qemu_bin="$1" probe_pid
+    [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ] || return 1
+    "$qemu_bin" \
+        -name qemu-alpine-docker-kvm-probe \
+        -accel kvm -cpu host -machine q35 -m 64 -smp 1 \
+        -nodefaults -display none -S >/dev/null 2>&1 &
+    probe_pid=$!
+    sleep 1
+    if ! process_is_running "$probe_pid"; then
+        wait "$probe_pid" 2>/dev/null || true
+        return 1
+    fi
+    kill "$probe_pid" 2>/dev/null || true
+    wait_for_process_exit "$probe_pid" 5 || kill -9 "$probe_pid" 2>/dev/null || true
+    wait "$probe_pid" 2>/dev/null || true
+}
+
 configure_qemu_acceleration() {
     local qemu_bin="$1" requested="${VM_ACCELERATOR:-auto}"
     case "$requested" in
@@ -71,6 +91,9 @@ configure_qemu_acceleration() {
             if is_windows && qemu_supports_accelerator "$qemu_bin" whpx && probe_whpx "$qemu_bin"; then
                 QEMU_ACCELERATOR="whpx"
                 QEMU_ACCEL_ARGS=(-accel whpx -cpu qemu64)
+            elif [ "$(platform_tag)" = "linux" ] && qemu_supports_accelerator "$qemu_bin" kvm && probe_kvm "$qemu_bin"; then
+                QEMU_ACCELERATOR="kvm"
+                QEMU_ACCEL_ARGS=(-accel kvm -cpu host)
             else
                 QEMU_ACCELERATOR="tcg"
                 QEMU_ACCEL_ARGS=(-accel tcg,thread=multi -cpu max)
@@ -88,12 +111,24 @@ configure_qemu_acceleration() {
             QEMU_ACCELERATOR="whpx"
             QEMU_ACCEL_ARGS=(-accel whpx -cpu qemu64)
             ;;
+        kvm)
+            [ "$(platform_tag)" = "linux" ] || {
+                echo "Error: KVM acceleration requires a Linux host." >&2
+                return 1
+            }
+            qemu_supports_accelerator "$qemu_bin" kvm && probe_kvm "$qemu_bin" || {
+                echo "Error: KVM is unavailable. Expose /dev/kvm and grant this user device access, or set VM_ACCELERATOR=auto/tcg." >&2
+                return 1
+            }
+            QEMU_ACCELERATOR="kvm"
+            QEMU_ACCEL_ARGS=(-accel kvm -cpu host)
+            ;;
         tcg)
             QEMU_ACCELERATOR="tcg"
             QEMU_ACCEL_ARGS=(-accel tcg,thread=multi -cpu max)
             ;;
         *)
-            echo "Error: VM_ACCELERATOR must be auto, whpx, or tcg (got '${requested}')." >&2
+            echo "Error: VM_ACCELERATOR must be auto, kvm, whpx, or tcg (got '${requested}')." >&2
             return 1
             ;;
     esac

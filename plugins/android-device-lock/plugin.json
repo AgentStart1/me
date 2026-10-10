@@ -1,0 +1,51 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "android-device-lock",
+  "version": "0.4.0-20261001211958",
+  "description": "Project-independent adb device locking for Android tests across projects and frameworks.",
+  "author": {
+    "name": "Local Android Practices"
+  },
+  "license": "MIT",
+  "keywords": [
+    "android",
+    "adb",
+    "testing",
+    "e2e",
+    "lock"
+  ],
+  "extensions": {
+    "com.openai.codex": {
+      "skills": "./skills/",
+      "interface": {
+        "displayName": "Android Device Lock",
+        "shortDescription": "Serialize any Android tests on a shared device.",
+        "longDescription": "Manages shared Android device access independently of the target project. Calls the installed adb lock helper, runs existing test commands unchanged, and releases the lease without copying scripts or adding project or CI integration.",
+        "developerName": "Local Android Practices",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Code Generation",
+          "Testing",
+          "Android"
+        ],
+        "defaultPrompt": [
+          "Run this existing Android device test command under the plugin-managed device lock without changing the project.",
+          "Serialize these Android device tests so one device only runs one suite at a time.",
+          "Use adb to wait for an existing device lock before starting tests.",
+          "Show device lock ownership and lease expiry."
+        ],
+        "brandColor": "#0F766E"
+      },
+      "mcpServers": "./.mcp.json"
+    },
+    "com.anthropic.claude": {
+      "skillFrontmatter": {
+        "android-device-lock": {
+          "context": "fork",
+          "agent": "android-e2e-operator"
+        }
+      },
+      "mcpServers": "./.mcp.json"
+    }
+  }
+}

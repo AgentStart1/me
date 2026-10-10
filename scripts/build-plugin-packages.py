@@ -58,7 +58,7 @@ def build(client, output):
     entries = []
     for source, portable in manifests:
         destination = output / 'plugins' / source.name
-        shutil.copytree(source, destination, ignore=shutil.ignore_patterns('.git', '.codex-plugin', '.claude-plugin', 'build'))
+        shutil.copytree(source, destination, ignore=shutil.ignore_patterns('.git', '.codex-plugin', '.claude-plugin', 'build', 'node_modules', '__pycache__'))
         (destination / 'plugin.json').unlink()
         if client == 'codex':
             shutil.rmtree(destination / 'agents', ignore_errors=True)

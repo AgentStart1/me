@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-emulator-profile",
-  "version": "0.3.1-20261004053826",
+  "version": "0.4.0-20261001211958",
   "description": "Profile-driven Android AVD creation and Docker-friendly emulator startup.",
   "author": {
     "name": "Android Emulator Profile Maintainers",
@@ -37,11 +37,15 @@
         "defaultPrompt": [
           "Create an Android AVD from the default profile.",
           "Start the configured Android emulator.",
-          "Run the Docker smoke test for start-avd.sh."
+          "Run the Docker smoke test for start-avd.sh.",
+          "Show the Android emulator status panel."
         ],
         "brandColor": "#3B82F6"
-      }
+      },
+      "mcpServers": "./.mcp.json"
     },
-    "com.anthropic.claude": {}
+    "com.anthropic.claude": {
+      "mcpServers": "./.mcp.json"
+    }
   }
 }

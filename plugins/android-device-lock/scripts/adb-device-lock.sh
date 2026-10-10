@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOCK_PATH="/data/local/tmp/appium-device-test.lock.d"
+LOCK_PATH="/data/local/tmp/android-device-test.lock.d"
 PROJECT_DIR=""
 TEST_NAME=""
 MAX_TIMEOUT_SECONDS="1800"
@@ -21,7 +21,7 @@ Usage:
 
 Options:
   --serial SERIAL                  adb device serial; optional when only one device is connected
-  --lock-path PATH                 device-side lock directory (default: /data/local/tmp/appium-device-test.lock.d)
+  --lock-path PATH                 device-side lock directory (default: /data/local/tmp/android-device-test.lock.d)
   --project-dir DIR                project directory recorded in lock metadata
   --test-name NAME                 test name recorded in lock metadata
   --max-timeout-seconds SECONDS    lease duration before a lock is stale (default: 1800)
@@ -33,14 +33,22 @@ USAGE
 
 adb_cmd() {
   if [[ -n "$SERIAL" ]]; then
-    adb -s "$SERIAL" "$@"
+    MSYS_NO_PATHCONV=1 adb -s "$SERIAL" "$@"
   else
-    adb "$@"
+    MSYS_NO_PATHCONV=1 adb "$@"
   fi
 }
 
 shell_quote() {
   printf "'%s'" "$(printf "%s" "$1" | sed "s/'/'\\\\''/g")"
+}
+
+push_metadata() {
+  local source="$1"
+  if command -v cygpath >/dev/null 2>&1; then
+    source="$(cygpath -w "$source")"
+  fi
+  adb_cmd push "$source" "$(lock_json_path)" >/dev/null
 }
 
 json_escape() {
@@ -105,7 +113,7 @@ write_metadata() {
   "owner_token": "$(json_escape "$token")"
 }
 JSON
-  adb_cmd push "$tmp_file" "$(lock_json_path)" >/dev/null
+  push_metadata "$tmp_file"
   rm -f "$tmp_file"
 }
 
@@ -234,7 +242,7 @@ renew_lock() {
   "owner_token": "$(json_escape "$actual_token")"
 }
 JSON
-  adb_cmd push "$tmp_file" "$(lock_json_path)" >/dev/null
+  push_metadata "$tmp_file"
   rm -f "$tmp_file"
   printf "Renewed Android device lock at %s, expires at epoch %d\n" "$LOCK_PATH" "$new_expires_at" >&2
 }
@@ -288,7 +296,7 @@ parse_args() {
     PROJECT_DIR="$(pwd)"
   fi
   if [[ -z "$TEST_NAME" ]]; then
-    TEST_NAME="android-appium-test"
+    TEST_NAME="android-device-test"
   fi
   if [[ -z "$TOKEN_FILE" ]]; then
     TOKEN_FILE="$(mktemp)"

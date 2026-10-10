@@ -1,22 +1,26 @@
 ---
 name: qemu-alpine-docker
-description: Use on Windows when creating, configuring, starting, stopping, or troubleshooting this persistent QEMU Alpine VM for a local Docker API or host-side Testcontainers development and testing. Do not trigger for ordinary Docker, Linux Docker, or Testcontainers workflows that do not use this QEMU VM.
+description: Use when creating, starting, stopping, troubleshooting, or viewing status for a persistent QEMU Alpine Docker VM inside Linux Docker containers or on Windows. Includes KVM, WHPX, and TCG workflows for Docker and Testcontainers; On Linux hosts outside containers, use Docker directly without this plugin; do not trigger for ordinary Docker workflows.
 ---
 
 # QEMU Alpine Docker
 
+## Current scope
+
+For now, use this plugin for Linux Docker container environments and Windows environments. On Linux hosts running outside containers, use Docker directly without provisioning a QEMU VM through this plugin.
+
 ## Design invariants
 
-- Use the bundled persistent Alpine VM instead of configuring a Windows bridge or a disposable VM.
+- Use the bundled persistent Alpine VM with unprivileged user networking inside Linux Docker containers and on Windows.
 - Run at most one plugin VM at a time. The scripts serialize lock-state updates with an atomic guard and enforce a global VM lock.
-- Prefer WHPX hardware acceleration with QEMU's compatible `qemu64` CPU model on Windows, and fall back to multi-threaded TCG with the `max` CPU model when WHPX is unavailable.
+- In auto mode, probe KVM with `-cpu host` on Linux or WHPX with `-cpu qemu64` on Windows. Fall back to multi-threaded TCG with `-cpu max` if hardware acceleration is unavailable. Explicit `kvm`/`whpx` must fail clearly instead of silently falling back.
 - Use QEMU user-mode networking with either accelerator.
 - Bind every host forward to `127.0.0.1`.
 - Reuse the persistent qcow2 disk so Docker images survive between test runs.
 - Resolve guest and container DNS through local Unbound. Let the guest use loopback, configure Docker containers to use bridge gateway `172.17.0.1`, and forward upstream only over TCP to QEMU's virtual DNS server at `10.0.2.3`.
 - Keep Testcontainers Ryuk enabled.
 - Pass the profile's extended Testcontainers pull pause and total timeouts to host test processes because large image extraction can be quiet under TCG fallback.
-- Collect host, QEMU-process, and guest CPU and memory metrics around every Testcontainers command by default. Preserve the command exit code, print only the final summary, and atomically replace the privacy-safe `metrics/latest.json` report.
+- Use platform-aware `auto` resource metrics: collect Windows/guest metrics through PowerShell on Windows; run Linux commands without that collector. Preserve test exit codes. Explicit `true` requires the Windows collector.
 - Keep Docker's automatic published-port range equal to the QEMU same-port forwarding range.
 - Never silently delete an incomplete disk or use `docker image prune -a`.
 - Treat TCP port 2375 as a root-equivalent, unauthenticated API; do not expose it beyond loopback.
@@ -44,6 +48,22 @@ description: Use on Windows when creating, configuring, starting, stopping, or t
 - `tests/test-vm-utils.sh`
 - `tests/test-apk-mirror-selection.sh`
 
+## Linux containers
+
+Read `container/README.md` at the plugin root for the ordinary, non-root container workflow. KVM can be enabled with `/dev/kvm` device access and the matching supplementary group; do not require `--privileged`. Use TCG if KVM is unavailable. Keep the test process, QEMU, and MCP status server in the same outer container's process/network namespace. Preserve loopback-only Docker and Testcontainers forwards. The guest is x86-64; KVM requires a compatible Linux host CPU.
+
+## Read-only status panel
+
+For requests to view VM state, service health, or containers, call `qemu_docker_status` to open **VM & Containers** in hosts supporting MCP Apps. It has an `openai/ui` global sidebar and thread entrypoints and takes no arguments. The global entrypoint adds a left-sidebar launch item; the thread entrypoint opens it beside a conversation. Refresh remains within the panel. Never start a VM or provision resources merely to populate this view.
+
+Without MCP Apps support, run `scripts/status.py` with Python 3 and summarize its JSON snapshot. Read `QEMU_STATUS_PROFILE` for a custom profile and `QEMU_ALPINE_BASE_DIR` for existing state overrides; do not invent a running state from the ready marker. Unknown probes, unavailable lists, and stale PID files must be reported as such. SSH health means a banner was received, not successful authentication. Resource counts and accelerator policy are profile configuration, not measured utilization. The separate accelerator field is read from the running process when available.
+
+The separate `resources` snapshot reports live host-system, QEMU-process, and Alpine-guest CPU/memory; each container's `resources` reports CPU/memory when running. These are refresh samples, not the test wrapper's metrics report. Host/QEMU CPU is normalized over host logical CPUs; guest CPU is normalized over guest CPUs; container CPU uses 100% per core. Linux host-system values reflect the kernel system view, not an outer container's cgroup allocation. Preserve unavailable and not-running states and null CPU baselines. Guest sampling uses only the existing key and fixed read-only `/proc` commands over loopback SSH. Never create keys or install guest tools to populate the panel. The MCP runtime includes psutil; plain Python needs it for host/process samples. Container probes are bounded to 32 running containers with eight workers.
+
+- `scripts/status.py`: read-only local status collection.
+- `scripts/status-server.py`: stdio MCP App server with a thread entrypoint.
+- `templates/status-panel.html`: bundled dashboard, rebuilt from `ui/`.
+
 ## Workflow
 
 Before a workflow downloads an ISO, provisions a disk, or starts a VM, obtain user approval.
@@ -66,8 +86,10 @@ Daily testing:
 
 After starting the VM, run `scripts/build-docker-proxy.sh` (optionally with `--profile <path>`).
 It uses existing SSH to transfer source, installs Go in Alpine if missing, runs native guest
-tests, cross-compiles Windows amd64 with CGO disabled, and downloads the executable over SSH.
-The host needs no Go installation. Go and its caches remain on the persistent guest disk;
+tests, builds for Windows amd64 or Linux amd64/arm64 according to the environment running
+the script with CGO disabled, and downloads the executable over SSH. Run both compilation
+and tests on Windows or inside the same outer Linux container as QEMU; no Go installation
+is needed in that environment. Go and its caches remain on the persistent guest disk;
 temporary source and binaries are cleaned up after success or failure. `run-testcontainers.sh` places the resulting
 native proxy on PATH and supplies SSH settings. Set `QEMU_DOCKER_PROXY_DIR` consistently in both
 scripts to override the helper directory. Restart existing Gradle daemons if their executable
@@ -78,7 +100,9 @@ including ordered exceptions and Dockerfile-specific ignore files. It streams th
 over SSH to guest `docker buildx build --load`. Non-build commands execute through SSH without
 context copying; host-path bind mounts and `docker cp` are not translated. Build secrets, SSH
 mounts and named host contexts require explicit transport support and are rejected. Keep secrets
-excluded by Docker ignore rules. The skill never selects project service names or Docker targets.
+excluded by Docker ignore rules. On Windows, archive permissions add execute bits and remove
+group/world write bits; in Linux containers, source permission bits are preserved, so ensure
+scripts already have their required execute bits. The skill never selects project service names or Docker targets.
 
 When project files must exist inside the guest, sync them separately and then run the project's own build or test command:
 
@@ -94,9 +118,9 @@ The start script returns after SSH and the Docker API are ready. The test wrappe
 - `TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1`
 - `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`
 
-It unsets TLS variables and `TESTCONTAINERS_RYUK_DISABLED`, runs the test command, then reports resource averages and peaks without changing the command's exit code.
+It unsets TLS variables and `TESTCONTAINERS_RYUK_DISABLED` and preserves the test command's exit code. With `auto` metrics, Windows collects and reports resource averages and peaks; Linux runs without the PowerShell collector and does not update the metrics report.
 
-Keep the environment launcher from the Bash installation that started the wrapper.
+On Windows, keep the environment launcher from the Bash installation that started the wrapper.
 Do not replace it with another MSYS2 installation's `env.exe` after changing `PATH`:
 native Windows SSH can exit 255 before initialization when runtimes are mixed.
 
@@ -107,6 +131,8 @@ when changing profile values, port forwarding, acceleration, mirrors, image prel
 resource metrics, bind-mount behavior, or incomplete provisioning recovery.
 
 ## Validation
+
+On Windows, the status collector translates Git Bash/MSYS PIDs before verifying the native QEMU process and accelerator. A missing process is stopped; failed inspection remains unknown. Rebuild the panel with Node on Windows or Linux after UI changes.
 
 ```bash
 ./tests/test-apk-mirror-selection.sh
@@ -133,4 +159,7 @@ produces an error: confirm no compiler or transfer remains before removing the r
 lock directory. Do not remove another running build's lock.
 
 The default proxy directory is user-wide: `~/.local/share/me/docker-proxy`.
-Every project uses the same executable; the wrapper supplies that run's VM SSH settings.
+Windows uses `docker.exe`; Linux containers use `docker`. Every project under the same
+user in that environment uses the same executable; the wrapper supplies that run's VM SSH settings.
+In Linux containers, the directory belongs to the container user. Persist it or rebuild
+the helper after replacing the outer container; the persistent VM disk alone does not retain it.
