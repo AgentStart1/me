@@ -17,3 +17,9 @@ For Kotlin project work, make concurrency design decisions coroutine-first. Pref
 - Avoid `Thread.sleep` and blocking waits. Prefer `delay`, suspending APIs, timeouts, or coroutine test scheduler controls.
 - If a platform or third-party API requires Java threading or synchronization, isolate it behind a small boundary, keep the rest of the Kotlin code coroutine-based, define cancellation/shutdown behavior, and add tests for lifecycle behavior.
 - After changing coroutine or concurrency behavior, run the relevant unit, integration, or Android tests that cover cancellation, dispatcher selection, lifecycle cleanup, and error propagation.
+
+## KDoc
+
+- Use KDoc for public Kotlin APIs and non-obvious contracts. Describe behavior and caller obligations rather than repeating the declaration; omit boilerplate for straightforward internal declarations.
+- Document units, valid ranges, state ownership, lifecycle, and failure behavior when relevant. For coroutine APIs, explain cancellation behavior, scope ownership, dispatcher or thread requirements, and Flow collection semantics when callers need that information.
+- Use links to declarations and add `@param`, `@return`, or `@throws` only when they provide information beyond the signature. Keep KDoc synchronized with implementation changes and follow the project's documentation language and style.

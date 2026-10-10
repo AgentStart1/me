@@ -6,6 +6,7 @@ This plugin provides project collaboration rules plus focused README and project
 
 - Project collaboration that follows the existing plan autonomously and asks for user input only when a blocker prevents further progress, plus privacy, dependency, generated-file, and focused commit practices.
 - Root-cause-first debugging with structured, privacy-safe logging guidance.
+- Comments that explain intent and constraints, document useful API contracts, and keep workarounds and TODOs actionable.
 - Focused test, formatter, lint, static-analysis, and build verification.
 - Audience-specific documentation maintenance: user guidance in `README.md`, developer guidance in `DEVELOPMENT.md`, and AI guidance in `AGENTS.md`.
 - Portable Claude documentation-agent delegation.
