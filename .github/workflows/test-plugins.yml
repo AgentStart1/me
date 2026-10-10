@@ -1,0 +1,147 @@
+name: Test plugins
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-plugins-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Plugin test coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: scripts/requirements-validation.txt
+      - run: python -m pip install -r scripts/requirements-validation.txt
+      - run: python tests/test-validation-workflow.py
+
+  sharing:
+    name: ${{ matrix.plugin }} tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: [diff-sharing, test-report-sharing]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Run plugin shell tests
+        shell: bash
+        run: |
+          for test in plugins/${{ matrix.plugin }}/tests/test-*.sh; do
+            bash "$test"
+          done
+
+  android-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scripts/android-status/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-suffix: ${{ github.job }}
+          cache-dependency-glob: |
+            tests/android-status/test-*.py
+            plugins/qemu-alpine-docker/tests/test-*.py
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-1.62.0
+      - run: npm ci --prefix scripts/android-status
+      - run: npm run build --prefix scripts/android-status
+      - name: Check generated assets
+        run: git diff --exit-code -- plugins/android-emulator-profile/templates plugins/android-emulator-profile/scripts/android_probe.py plugins/android-device-lock/templates plugins/android-device-lock/scripts/android_probe.py
+      - run: npm test --prefix scripts/android-status
+      - run: uv run --script tests/android-status/test-status.py
+      - run: uv run --with playwright==1.62.0 playwright install --with-deps chromium
+      - run: uv run --script tests/android-status/test-panels.py
+      - run: bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
+
+  qemu-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: plugins/qemu-alpine-docker/ui/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-suffix: ${{ github.job }}
+          cache-dependency-glob: |
+            tests/android-status/test-*.py
+            plugins/qemu-alpine-docker/tests/test-*.py
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-1.62.0
+      - run: npm ci --prefix plugins/qemu-alpine-docker/ui
+      - run: npm run build --prefix plugins/qemu-alpine-docker/ui
+      - run: git diff --exit-code -- plugins/qemu-alpine-docker/templates/status-panel.html
+      - run: npm test --prefix plugins/qemu-alpine-docker/ui
+      - run: uv run --script plugins/qemu-alpine-docker/tests/test-status.py
+      - run: uv run --with playwright==1.62.0 playwright install --with-deps chromium
+      - run: uv run --script plugins/qemu-alpine-docker/tests/test-status-panel.py
+      - run: bash plugins/qemu-alpine-docker/tests/test-vm-utils.sh
+      - run: bash plugins/qemu-alpine-docker/tests/test-linux-testcontainers.sh
+      - run: bash plugins/qemu-alpine-docker/tests/test-apk-mirror-selection.sh
+      - run: bash plugins/qemu-alpine-docker/tests/test-sync-workspace.sh
+      - run: bash plugins/qemu-alpine-docker/tests/test-build-docker-proxy.sh
+
+  docker-proxy:
+    name: QEMU Docker proxy Go tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/qemu-alpine-docker/scripts/docker-proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: plugins/qemu-alpine-docker/scripts/docker-proxy/go.mod
+          cache: true
+          cache-dependency-path: plugins/qemu-alpine-docker/scripts/docker-proxy/go.sum
+      - run: go test -race ./...
+
+  linux-container:
+    name: QEMU unprivileged container runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build non-root QEMU runtime
+        uses: docker/build-push-action@v6
+        with:
+          context: plugins/qemu-alpine-docker
+          file: plugins/qemu-alpine-docker/container/Dockerfile
+          tags: qemu-runtime-test
+          load: true
+          cache-from: type=gha,scope=qemu-runtime
+          cache-to: type=gha,mode=max,scope=qemu-runtime
+      - name: Verify TCG without privileges, KVM, or a host Docker socket
+        run: |
+          docker run --rm --init -i --network none --cap-drop=ALL --security-opt=no-new-privileges \
+            qemu-runtime-test bash -s < plugins/qemu-alpine-docker/tests/test-container-runtime.sh
