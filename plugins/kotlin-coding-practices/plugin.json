@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kotlin-coding-practices",
-  "version": "0.1.2-20261010204345",
-  "description": "Coroutine-first and immutable-by-default Kotlin coding practices.",
+  "version": "0.1.3-20261011123108",
+  "description": "Coroutine-first, immutable Kotlin coding practices with explicit state models.",
   "author": {
     "name": "Local Kotlin Practices"
   },
@@ -20,7 +20,7 @@
       "interface": {
         "displayName": "Kotlin Coding Practices",
         "shortDescription": "Write coroutine-first, immutable Kotlin code.",
-        "longDescription": "Guides Kotlin and Android Kotlin development toward structured concurrency, suspending APIs, coroutine-friendly synchronization, immutable values, and explicit boundaries around platform APIs that require Java threading or blocking behavior.",
+        "longDescription": "Guides Kotlin and Android Kotlin development toward structured concurrency, suspending APIs, coroutine-friendly synchronization, immutable values, sealed state models and state machines that enforce state-dependent data invariants, and explicit boundaries around platform APIs that require Java threading or blocking behavior.",
         "developerName": "Local Kotlin Practices",
         "category": "Developer Tools",
         "capabilities": [
