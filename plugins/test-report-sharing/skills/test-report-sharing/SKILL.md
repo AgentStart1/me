@@ -11,6 +11,8 @@ description: Use when collecting, previewing, or sharing test reports such as JU
 - Assemble the collected artifacts into a static HTML report site.
 - Expose the report site via ngrok if available, otherwise provide a local server URL.
 - Return a summary with the public URL and report count.
+- Resolve scripts from the installed plugin root and run them by absolute path
+  from the target project; relative Quick Start paths are for the source checkout.
 
 ## Quick Start
 
@@ -30,9 +32,11 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 ## Configuration
 
 - `REPORT_OUTPUT_DIR`: Directory for generated reports (default: `~/.cache/test-reports/<project-hash>`)
-- `REPORT_DIRS`: Colon-separated list of directories to scan for reports
-- `NGROK_AUTHTOKEN`: ngrok authentication token (required for public tunnel)
+- `TEST_RESULT_DIRS`: Colon-separated directories to scan; `REPORT_DIRS` remains an alias
+- `NGROK_AUTHTOKEN`: token override; authenticated saved configuration is also supported
 - `NGROK_PORT`: Local port to expose (default: 8080)
+- `PYTHON_COMMAND`: explicit working Python 3 executable; otherwise try `python3`, then `python`
+- `start-ngrok.sh --local-only`: loopback preview without attempting a public tunnel
 
 ## Supported Input Formats
 
@@ -53,4 +57,10 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 
 - If no reports are found, generate a report indicating no results were collected.
 - If ngrok is not installed or configured, fall back to a local HTTP server.
-- Always clean up temporary files and stop background processes on exit.
+- Public tunnels need working credentials from environment or saved configuration;
+  do not claim anonymous free-tier access. Keep the loopback launcher alive while
+  its URL is in use, then stop only its own children. Preserve existing report services.
+- Collection supports nested JUnit XML within the bounded scan, deduplicates
+  overlapping report roots and gives same-named XML from different paths distinct
+  output names. Failed copies must not count as collected results. Keep output
+  outside a report being copied to avoid recursive self-collection.

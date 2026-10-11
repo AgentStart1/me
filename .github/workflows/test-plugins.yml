@@ -45,6 +45,7 @@ jobs:
           for test in plugins/${{ matrix.plugin }}/tests/test-*.sh; do
             bash "$test"
           done
+      - run: python3 tests/test-report-launchers.py "${{ matrix.plugin }}"
 
   android-status:
     runs-on: ubuntu-latest

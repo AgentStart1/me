@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
             echo "Assembles all artifacts into a static HTML report site."
             echo ""
             echo "Options:"
-            echo "  --output-dir DIR  Output directory for the report site (default: ./test-reports)"
+            echo "  --output-dir DIR  Output directory (default: ~/.cache/test-reports/<project-hash>)"
             echo "  --help, -h        Show this help message"
             exit 0
             ;;
@@ -56,9 +56,14 @@ if [[ -f "$PLUGIN_DIR/templates/style.css" ]]; then
 fi
 
 # Generate reports section
+html_escape() {
+    printf '%s' "$1" | sed 's/\&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g;s/"/\&quot;/g'
+}
+
 generate_reports_section() {
     local reports_dir="$OUTPUT_DIR/reports"
-    if [[ -d "$reports_dir" ]] && [[ -n "$(ls -A "$reports_dir" 2>/dev/null)" ]]; then
+    if { [[ -d "$reports_dir" ]] && [[ -n "$(ls -A "$reports_dir" 2>/dev/null)" ]]; } ||
+        { [[ -d "$OUTPUT_DIR/test-results" ]] && [[ -n "$(ls -A "$OUTPUT_DIR/test-results")" ]]; }; then
         # Find all report directories (those with index.html)
         local report_count=0
         cat <<EOF
@@ -78,17 +83,23 @@ EOF
                 display_name=$(echo "$display_name" | sed 's/\bApi\b/API/gi; s/\bCss\b/CSS/gi; s/\bHtml\b/HTML/gi; s/\bJs\b/JS/gi; s/\bXml\b/XML/gi')
                 # Capitalize first letter of each word
                 display_name=$(echo "$display_name" | sed 's/\b\(.\)/\u\1/g')
-                echo "                <a href=\"reports/$report_name/index.html\" class=\"btn\">$display_name</a>"
-                ((report_count++))
+                echo "                <a href=\"reports/$(html_escape "$report_name")/index.html\" class=\"btn\">$(html_escape "$display_name")</a>"
+                report_count=$((report_count + 1))
             fi
         done
 
         # Check for standalone index.html in reports root
         if [[ -f "$reports_dir/index.html" ]]; then
             echo "                <a href=\"reports/index.html\" class=\"btn\">Main Report</a>"
-            ((report_count++))
+            report_count=$((report_count + 1))
         fi
 
+        for xml in "$OUTPUT_DIR/test-results/"*.xml; do
+            [ -f "$xml" ] || continue
+            local filename="$(basename "$xml")"
+            echo "                <a href=\"test-results/$(html_escape "$filename")\" class=\"btn\">$(html_escape "${filename#*-}") (JUnit XML)</a>"
+            report_count=$((report_count + 1))
+        done
         if [[ $report_count -eq 0 ]]; then
             echo "                <p class=\"no-data\">No reports found</p>"
         fi
@@ -134,5 +145,5 @@ echo "Report site generated: $OUTPUT_DIR/index.html"
 echo ""
 echo "To view the report:"
 echo "  1. Open $OUTPUT_DIR/index.html in a browser"
-echo "  2. Or start a local server: cd $OUTPUT_DIR && python3 -m http.server 8080"
+echo "  2. Or use start-ngrok.sh --local-only for a loopback server"
 echo "  3. Or use the start-ngrok.sh script to expose via ngrok"
