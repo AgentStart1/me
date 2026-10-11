@@ -1,13 +1,13 @@
 # Kotlin Coding Practices Plugin
 
 This plugin provides focused Kotlin and Android Kotlin guidance for structured concurrency,
-coroutine-friendly synchronization, immutable values, and explicit boundaries around platform APIs
+coroutine-friendly synchronization, immutable values, sealed state models and state machines, and explicit boundaries around platform APIs
 that require Java threading or blocking behavior.
 
 ## Contents
 
 - `plugin.json` declares the portable plugin; client manifests are generated.
-- `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine, threading, synchronization, cancellation, lifecycle, immutability, and KDoc contract guidance.
+- `skills/kotlin-project-rules/SKILL.md` contains Kotlin coroutine, threading, synchronization, cancellation, lifecycle, immutability, state modeling, nullability, and KDoc contract guidance. State-specific variants carry their required data, avoiding nullable fields that exist only to accommodate other states.
 
 ## Local Marketplace Entry
 
