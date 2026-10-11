@@ -32,7 +32,7 @@ load_profile() {
 }
 
 default_testcontainers_port_end() {
-    echo 29999
+    echo 20127
 }
 
 # Prefer Alpine's ordinary outbound range; large custom pools may require

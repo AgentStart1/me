@@ -9,13 +9,15 @@ source "${PLUGIN_DIR}/scripts/vm-utils.sh"
 assert_equals() { [ "$1" = "$2" ] || { echo "FAIL: $3 ($2)" >&2; exit 1; }; }
 is_windows() { return 0; }
 load_profile "${PLUGIN_DIR}/profiles/dev.profile"
-assert_equals 29999 "$TESTCONTAINERS_PORT_END" 'Windows profile default'
+assert_equals 20127 "$TESTCONTAINERS_PORT_END" 'Windows profile default'
 mappings="$(build_forward_mappings)"
-assert_equals 10005 "$(wc -l <<< "$mappings" | tr -d ' ')" 'control/custom/default forwards'
+assert_equals 133 "$(wc -l <<< "$mappings" | tr -d ' ')" '128 data plus control/custom forwards'
 assert_equals 'socket,id=net0,connect=127.0.0.1:19200' "$(build_netdev_value)" 'one QEMU connection'
 is_windows() { return 1; }
 load_profile "${PLUGIN_DIR}/profiles/dev.profile"
-assert_equals 29999 "$TESTCONTAINERS_PORT_END" 'Linux profile default'
+assert_equals 20127 "$TESTCONTAINERS_PORT_END" 'Linux profile default'
+TESTCONTAINERS_PORT_END=29999
+assert_equals 10005 "$(build_forward_mappings | wc -l | tr -d ' ')" 'explicit 10,000-port pool remains supported'
 TESTCONTAINERS_PORT_END=20511
 assert_equals 517 "$(build_forward_mappings | wc -l | tr -d ' ')" '512 data plus control/custom forwards'
 TESTCONTAINERS_PORT_END=20512

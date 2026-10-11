@@ -9,7 +9,7 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 - `TESTCONTAINERS_PORT_START`
 - `TESTCONTAINERS_PORT_END`
 
-The bundled end value `auto` resolves to 29999 on both platforms,
+The bundled end value `auto` resolves to 20127 on both platforms,
 starting at 20000. Explicit numeric ranges have no count ceiling; the guest kernel
 requires a pool within 1024–65535 and the plugin requires remaining outbound space.
 The pool must also exclude guest Docker API port 2375, even when its host port differs.

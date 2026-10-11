@@ -39,11 +39,11 @@ docker exec qemu-dev bash /opt/qemu-alpine-docker/scripts/run-docker.sh -- ps -a
 docker exec qemu-dev python3 /opt/qemu-alpine-docker/scripts/status.py
 ```
 
-Run the development tools, test process, and MCP server in this same outer container/network namespace. `setup.sh` installs verified upstream gvproxy v0.9.0. QEMU and gvproxy share this namespace; Alpine and Docker use gvproxy DNS. Docker's loopback API is at `127.0.0.1:2375` there, and automatically published guest TCP ports are forwarded to `127.0.0.1:20000–29999` there. A host-side `docker -p` mapping does not make a service bound to the container's loopback reachable. The default design keeps the unauthenticated API local; it does not widen it to `0.0.0.0`.
+Run the development tools, test process, and MCP server in this same outer container/network namespace. `setup.sh` installs verified upstream gvproxy v0.9.0. QEMU and gvproxy share this namespace; Alpine and Docker use gvproxy DNS. Docker's loopback API is at `127.0.0.1:2375` there, and automatically published guest TCP ports are forwarded to `127.0.0.1:20000–20127` there. A host-side `docker -p` mapping does not make a service bound to the container's loopback reachable. The default design keeps the unauthenticated API local; it does not widen it to `0.0.0.0`.
 
-The default pool needs at least 10,261 file descriptors for gvproxy (10,005 profile
+The default pool needs at least 389 file descriptors for gvproxy (133 profile
 forwards plus 256 of connection headroom). If your runtime sets a lower hard limit,
-add `--ulimit nofile=65536:65536` to its start command or select a smaller explicit
+add `--ulimit nofile=1024:1024` to its start command or select a smaller explicit
 pool. Startup raises only the helper's inherited soft limit. Larger pools have no
 count ceiling but require available ports and enough memory/descriptors; load may
 require more headroom. UDP/SCTP publishing is not exposed by the plugin scripts.

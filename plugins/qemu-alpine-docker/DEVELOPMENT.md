@@ -2,7 +2,7 @@
 
 ## gvproxy port allocation audit
 
-The default pool is now 20000–29999 on Windows and Linux. The former 16/256-port
+The default pool is now 20000–20127 on Windows and Linux. The former 16/256-port
 defaults and 512-port ceiling came from the previous networking policy, not a
 gvproxy protocol limit. [Upstream v0.9.0's forwarder](https://github.com/containers/gvisor-tap-vsock/blob/v0.9.0/pkg/services/forwarder/ports.go)
 keeps a map of listeners and reports actual bind failures. It supports TCP and UDP;
@@ -29,7 +29,7 @@ aborted with all partial listeners cleaned. The real helper suite covers 640 rul
 600-rule batch startup, late collision cleanup, invalid input, PID reuse refusal
 and restart. Real bare-QEMU lifecycle fixtures cover contention, timeout/TERM,
 healthy repeated starts, test leases, exit status and an unchanged sentinel disk.
-Configuration/daemon mocks cover the 10,000-port default, counts beyond 512,
+Configuration/daemon mocks cover the 128-port default, counts beyond 512,
 protocol boundaries, outbound fallback, missing wrappers and daemon cleanup.
 Controller unit tests cover connection reuse, redirect refusal, batch deadline and
 Unix soft/hard descriptor behavior. Status backend, portable/client package and
@@ -52,7 +52,7 @@ python3 ./tests/test-gvproxy-control.py
 ./tests/test-linux-testcontainers.sh
 ```
 
-The port suite covers the shared 10,000-port default, explicit pools beyond 512 ports,
+The port suite covers the shared 128-port default, explicit pools beyond 512 ports,
 gvproxy mappings including controls/custom forwards, duplicate
 and reserved ports, outbound range separation, Docker cache initialization and
 daemon exit status. Its daemon lifecycle uses mocks; it does not prove a particular

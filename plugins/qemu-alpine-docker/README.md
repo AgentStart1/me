@@ -14,7 +14,7 @@ For now, these are the intended environments. On Linux hosts running outside con
 - Alpine DHCP and Docker containers use gvproxy DNS at `192.168.127.1`. Both UDP and TCP DNS are supported; no guest DNS proxy is installed.
 - Docker and SSH start automatically in the guest.
 - Docker exposes its unauthenticated API only through gvproxy's host loopback forward at `127.0.0.1:2375`.
-- Docker automatically allocates published ports from `20000–29999` on both platforms; gvproxy forwards every TCP port in the selected range to the same guest port before QEMU starts.
+- Docker automatically allocates published ports from `20000–20127` on both platforms; gvproxy forwards every TCP port in the selected range to the same guest port before QEMU starts.
 - A global lock permits only one VM from this plugin to run at a time, which also reserves the forwarded range. Lock-state changes are serialized with an atomic guard directory so concurrent launchers cannot overwrite each other.
 - A separate operation lease spans setup, provisioning, start/stop and client commands (tests, Docker, SSH/SFTP, workspace sync and proxy builds). Competing operations fail before changing VM state. Normal exits and handled signals release the lease; after a forced kill, inspect all plugin processes before manually removing an interrupted `run/vm-operation.lock` or `vm-state.guard`.
 - QEMU and gvproxy ownership records verify the native executable and creation time before termination. An already-running VM is accepted only after its forwarding rules and guest readiness match the profile. Windows path/PID translation uses the launching Bash runtime's tools.
@@ -122,7 +122,7 @@ Other operations:
 - `VM_NAME`, `VM_MEMORY`, `VM_CPUS`, `VM_DISK_SIZE`
 - `VM_ACCELERATOR=auto|kvm|whpx|tcg`; `auto` probes KVM on Linux or WHPX on Windows before falling back to TCG. Explicit hardware modes fail if unavailable
 - `SSH_PORT` and `DOCKER_DAEMON_PORT`
-- `TESTCONTAINERS_PORT_START=20000` and `TESTCONTAINERS_PORT_END=auto` (29999 on both platforms); explicit numeric ranges have no port-count ceiling
+- `TESTCONTAINERS_PORT_START=20000` and `TESTCONTAINERS_PORT_END=auto` (20127 on both platforms); explicit numeric ranges have no port-count ceiling
 - `TESTCONTAINERS_PULL_PAUSE_TIMEOUT` and `TESTCONTAINERS_PULL_TIMEOUT` in seconds; the bundled profile raises both for large image extraction under TCG fallback
 - `TESTCONTAINERS_RESOURCE_METRICS=auto|true|false` and `TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=1`; collection requires Windows PowerShell and accepts intervals from 1 to 60 seconds
 - `PORT_FORWARD=host:guest,...` for additional fixed loopback forwards
@@ -135,7 +135,7 @@ Fixed host ports must not overlap the Testcontainers range. All forwards bind to
 
 gvproxy owns forwarded listeners, while QEMU owns one TCP transport connection.
 The former Windows QEMU listener warning no longer applies to this backend.
-The 10,000-port default is a configurable allocation pool, not a gvproxy capacity
+The 128-port default is a configurable allocation pool, not a gvproxy capacity
 limit. Explicit pools must lie within `1024–65535`, leave guest outbound ports,
 and avoid host forwards/control ports and guest Docker API port 2375. Startup
 registers the entire pool in one controller using a persistent HTTP connection;
