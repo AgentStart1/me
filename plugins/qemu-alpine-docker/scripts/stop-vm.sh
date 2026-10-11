@@ -36,10 +36,25 @@ SSH_PORT="${SSH_PORT:-2222}"
 FORCE="${FORCE:-false}"
 TIMEOUT="${TIMEOUT:-30}"
 
+begin_vm_operation
+require_known_vm_process
+
+# A live launcher owns its networking until startup/provisioning returns.
+# Do not terminate that launcher's helper from a concurrent stop command.
+if [ -d "$ACTIVE_LOCK_DIR" ]; then
+    active_launcher="$(cat "${ACTIVE_LOCK_DIR}/launcher.pid" 2>/dev/null || true)"
+    active_name="$(cat "${ACTIVE_LOCK_DIR}/vm-name" 2>/dev/null || true)"
+    if [ "$active_name" = "$VM_NAME" ] && process_is_running "$active_launcher"; then
+        echo "Error: VM launch/provisioning is in progress; its owner must finish or cancel it before shutdown." >&2
+        exit 1
+    fi
+fi
+
 # --- Check if running ---
 # If the VM is not running, clean up any stale state and exit.
 if ! vm_is_running; then
     echo "VM '${VM_NAME}' is not running." >&2
+    stop_gvproxy
     clear_vm_process_state
     exit 0
 fi
@@ -50,8 +65,9 @@ echo "Stopping VM '${VM_NAME}' (PID: ${QEMU_PID})..." >&2
 # --- Force stop mode ---
 if [ "$FORCE" = "true" ]; then
     echo "Force stopping VM..." >&2
-    kill -9 "$QEMU_PID" 2>/dev/null || true
-    wait_for_process_exit "$QEMU_PID" 10 || true
+    stop_qemu_process
+    if vm_is_running; then echo 'Error: QEMU still owns its disk; retaining VM state.' >&2; exit 1; fi
+    stop_gvproxy
     clear_vm_process_state
     echo "VM '${VM_NAME}' force stopped." >&2
     exit 0
@@ -65,18 +81,20 @@ ssh_exec "poweroff" 2>/dev/null || true
 
 # Wait for the QEMU process to exit naturally.
 elapsed=0
-while kill -0 "$QEMU_PID" 2>/dev/null && [ "$elapsed" -lt "$TIMEOUT" ]; do
+while vm_is_running && [ "$elapsed" -lt "$TIMEOUT" ]; do
     sleep 1
     elapsed=$((elapsed + 1))
 done
 
 # If the process is still running after the timeout, force-kill it.
-if kill -0 "$QEMU_PID" 2>/dev/null; then
+if vm_is_running; then
     echo "Graceful shutdown timed out after ${TIMEOUT}s. Force stopping..." >&2
-    kill -9 "$QEMU_PID" 2>/dev/null || true
+    stop_qemu_process
 fi
 
 # Wait for the process to exit and clean up state.
+if vm_is_running; then echo 'Error: QEMU did not exit; retaining VM state.' >&2; exit 1; fi
 wait "$QEMU_PID" 2>/dev/null || true
+stop_gvproxy
 clear_vm_process_state
 echo "VM '${VM_NAME}' stopped." >&2

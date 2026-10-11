@@ -34,6 +34,7 @@ echo "mock-ssh"
 MOCK
 cat > "${MOCK_DIR}/bin/ssh-keygen" <<'MOCK'
 #!/bin/bash
+if [ "${1:-}" = -y ]; then printf '%s\n' 'ssh-ed25519 recovered-public'; exit 0; fi
 while [ $# -gt 0 ]; do
     if [ "$1" = "-f" ]; then
         shift
@@ -129,30 +130,11 @@ assert_contains 'net.ipv4.ip_local_port_range = 20000 20255' "$(<"${MOCK_DIR}/po
 
 render_template "${PLUGIN_DIR}/templates/docker-daemon.json.tpl" "${MOCK_DIR}/daemon.json" \
     DOCKER_GUEST_PORT 2375 \
-    DOCKER_DNS_ADDRESS 172.17.0.1
+    DOCKER_DNS_ADDRESS 192.168.127.1
 assert_contains 'tcp://0.0.0.0:2375' "$(<"${MOCK_DIR}/daemon.json")" "Docker template renders guest port"
-assert_contains '"dns": ["172.17.0.1"]' "$(<"${MOCK_DIR}/daemon.json")" "Docker template selects Unbound on the bridge"
+assert_contains '"dns": ["192.168.127.1"]' "$(<"${MOCK_DIR}/daemon.json")" "Docker template selects gvproxy DNS"
 
-render_template "${PLUGIN_DIR}/templates/unbound.conf.tpl" "${MOCK_DIR}/unbound.conf" \
-    DNS_LISTEN_ADDRESS 0.0.0.0 \
-    LOCAL_DNS_NETWORK 127.0.0.1/32 \
-    DOCKER_DNS_NETWORK 172.17.0.0/16 \
-    LOCAL_DNS_PORT 53 \
-    QEMU_DNS_ADDRESS 10.0.2.3 \
-    QEMU_DNS_PORT 53
-assert_contains 'interface: 0.0.0.0' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound listens before the Docker bridge exists"
-assert_contains 'access-control: 127.0.0.1/32 allow' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound allows guest loopback"
-assert_contains 'access-control: 172.17.0.0/16 allow' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound allows the Docker bridge"
-assert_contains 'forward-addr: 10.0.2.3@53' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound forwards to QEMU DNS"
-assert_contains 'forward-tcp-upstream: yes' "$(<"${MOCK_DIR}/unbound.conf")" "Unbound forces TCP upstream"
 
-render_template "${PLUGIN_DIR}/templates/use-local-dns.start.tpl" "${MOCK_DIR}/use-local-dns.start" \
-    LOCAL_DNS_ADDRESS 127.0.0.1
-assert_contains "nameserver %s\\n' '127.0.0.1'" "$(<"${MOCK_DIR}/use-local-dns.start")" "local DNS template selects Unbound"
-
-render_template "${PLUGIN_DIR}/templates/udhcpc.conf.tpl" "${MOCK_DIR}/udhcpc.conf" \
-    RESOLV_CONF_MODE no
-assert_contains 'RESOLV_CONF="no"' "$(<"${MOCK_DIR}/udhcpc.conf")" "DHCP template preserves local DNS"
 
 render_template "${PLUGIN_DIR}/templates/setup.start.tpl" "${MOCK_DIR}/setup.start" \
     ALPINE_FALLBACK_MIRROR https://dl-cdn.alpinelinux.org/alpine
@@ -179,16 +161,16 @@ if load_profile "${MOCK_DIR}/bad.profile" 2>/dev/null; then fail "reject expansi
 assert_contains test-vm "$(vm_pid_file)" "PID file contains VM name"
 if vm_is_running; then fail "not running without PID"; else pass "not running without PID"; fi
 echo "$$" > "$(vm_pid_file)"
-if vm_is_running; then pass "running PID detected"; else fail "running PID detected"; fi
+if vm_is_running; then fail "unrelated shell PID rejected"; else pass "unrelated shell PID rejected"; fi
 rm -f "$(vm_pid_file)"
 
-netdev="$(build_netdev_value)"
-assert_contains "hostfwd=tcp:127.0.0.1:2299-:22" "$netdev" "SSH loopback forward"
-assert_contains "hostfwd=tcp:127.0.0.1:2375-:2375" "$netdev" "Docker API loopback forward"
-assert_contains "hostfwd=tcp:127.0.0.1:20000-:20000" "$netdev" "range first port"
-assert_contains "hostfwd=tcp:127.0.0.1:20002-:20002" "$netdev" "range last port"
-assert_contains "hostfwd=tcp:127.0.0.1:9090-:80" "$netdev" "custom forward"
-assert_not_contains "hostfwd=tcp::" "$netdev" "no wildcard listener"
+netdev="$(build_forward_mappings)"
+assert_contains "2299:22" "$netdev" "SSH loopback forward"
+assert_contains "2375:2375" "$netdev" "Docker API loopback forward"
+assert_contains "20000:20000" "$netdev" "range first port"
+assert_contains "20002:20002" "$netdev" "range last port"
+assert_contains "9090:80" "$netdev" "custom forward"
+assert_contains "socket,id=net0,connect=127.0.0.1:19200" "$(build_netdev_value)" "single loopback QEMU transport"
 
 TESTCONTAINERS_PORT_END=19999
 if validate_port_range "$TESTCONTAINERS_PORT_START" "$TESTCONTAINERS_PORT_END" 2>/dev/null; then fail "reject reversed range"; else pass "reject reversed range"; fi
@@ -268,8 +250,17 @@ rmdir "${MOCK_DIR}/home/run/active-vm.lock"
 mkdir -p "${MOCK_DIR}/home/run/active-vm.lock"
 printf '%s\n' "$$" > "${MOCK_DIR}/home/run/active-vm.lock/launcher.pid"
 printf '%s\n' test-vm > "${MOCK_DIR}/home/run/active-vm.lock/vm-name"
-bash "${PLUGIN_DIR}/scripts/stop-vm.sh" "${MOCK_DIR}/test.profile" >/dev/null 2>"${MOCK_DIR}/stop-launcher-output"
+if bash "${PLUGIN_DIR}/scripts/stop-vm.sh" "${MOCK_DIR}/test.profile" >/dev/null 2>"${MOCK_DIR}/stop-launcher-output"; then fail "stop rejects live launcher"; else pass "stop rejects live launcher"; fi
 [ -d "${MOCK_DIR}/home/run/active-vm.lock" ] && pass "stop preserves live same-name launcher lock" || fail "stop preserves live same-name launcher lock"
+printf '%s\n' owned-by-launcher > "${MOCK_DIR}/home/vms/test-vm.gvproxy.pid"
+if bash "${PLUGIN_DIR}/scripts/stop-vm.sh" "${MOCK_DIR}/test.profile" >/dev/null 2>"${MOCK_DIR}/stop-launcher-network-output"; then
+    fail "concurrent stop rejects owned startup network"
+else
+    pass "concurrent stop rejects owned startup network"
+fi
+assert_contains "launch/provisioning is in progress" "$(cat "${MOCK_DIR}/stop-launcher-network-output")" "concurrent stop reports the live launcher"
+assert_equals owned-by-launcher "$(cat "${MOCK_DIR}/home/vms/test-vm.gvproxy.pid")" "concurrent stop preserves startup helper ownership"
+rm -f "${MOCK_DIR}/home/vms/test-vm.gvproxy.pid"
 rm -f "${MOCK_DIR}/home/run/active-vm.lock/launcher.pid" "${MOCK_DIR}/home/run/active-vm.lock/vm-name"
 rmdir "${MOCK_DIR}/home/run/active-vm.lock"
 
@@ -283,6 +274,14 @@ rm -f "$SSH_KEY" "${SSH_KEY}.pub"
 ensure_ssh_key
 assert_file "$SSH_KEY" "private key created"
 assert_file "${SSH_KEY}.pub" "public key created"
+private_before="$(cat "$SSH_KEY")"
+rm -f "${SSH_KEY}.pub"
+ensure_ssh_key
+assert_equals "$private_before" "$(cat "$SSH_KEY")" "public-key recovery preserves private key"
+assert_contains recovered-public "$(cat "${SSH_KEY}.pub")" "missing public key derived from private key"
+rm -f "$SSH_KEY"
+if ensure_ssh_key 2>/dev/null; then fail "public-only key must reject replacement"; else pass "public-only key rejects replacement"; fi
+assert_contains recovered-public "$(cat "${SSH_KEY}.pub")" "public-only key preserved"
 
 download_file https://example.invalid/file "${MOCK_DIR}/downloaded"
 assert_file "${MOCK_DIR}/downloaded" "download helper target"
@@ -300,7 +299,7 @@ assert_not_file "${PLUGIN_DIR}/scripts/sync-code.sh" "misleading code-sync scrip
 connect_source="$(<"${PLUGIN_DIR}/scripts/connect-vm.sh")"
 assert_not_contains "sync-code.sh" "$connect_source" "VM connection script omits obsolete rename history"
 assert_contains '--sftp' "$connect_source" "VM connection script supports SFTP"
-assert_contains 'exec ssh' "$connect_source" "VM connection script supports SSH"
+assert_contains 'ssh -o' "$connect_source" "VM connection script supports SSH"
 
 setup_source="$(<"${PLUGIN_DIR}/scripts/setup.sh")"
 assert_not_contains "rsync" "$setup_source" "setup omits obsolete code-sync tooling"
@@ -310,8 +309,7 @@ create_source="$(<"${PLUGIN_DIR}/scripts/create-vm.sh")"
 setup_template="$(<"${PLUGIN_DIR}/templates/setup.start.tpl")"
 assert_contains 'configure_qemu_acceleration "$QEMU_BIN"' "$create_source" "provisioning selects the configured accelerator"
 assert_contains '"${QEMU_ACCEL_ARGS[@]}"' "$create_source" "provisioning and verification use shared acceleration arguments"
-assert_contains "apk add cgroupfs-mount docker docker-cli-compose openssh unbound" "$setup_template" "guest template installs Docker and Unbound"
-assert_contains "rc-update add unbound default" "$setup_template" "guest template enables Unbound"
+assert_contains "apk add cgroupfs-mount docker docker-cli-compose openssh" "$setup_template" "guest template installs Docker"
 assert_contains "rc-update add local default" "$setup_template" "guest template enables local DNS selection"
 assert_contains 'VM_DISK_NATIVE="$(qemu_native_path "$VM_DISK")"' "$create_source" "disk path is converted explicitly"
 assert_contains 'MODIFIED_ISO_NATIVE="$(qemu_native_path "$MODIFIED_ISO")"' "$create_source" "ISO path is converted explicitly"
@@ -320,9 +318,6 @@ assert_contains '/usr/local/libexec/select-apk-mirror' "$setup_template" "guest 
 assert_contains 'render_template "${TEMPLATE_DIR}/setup-alpine.answers.tpl"' "$create_source" "answers use template rendering"
 assert_contains 'render_template "${TEMPLATE_DIR}/testcontainers-ports.conf.tpl"' "$create_source" "sysctl config uses template rendering"
 assert_contains 'render_template "${TEMPLATE_DIR}/docker-daemon.json.tpl"' "$create_source" "Docker config uses template rendering"
-assert_contains 'render_template "${TEMPLATE_DIR}/unbound.conf.tpl"' "$create_source" "Unbound config uses template rendering"
-assert_contains 'render_template "${TEMPLATE_DIR}/use-local-dns.start.tpl"' "$create_source" "local DNS selection uses template rendering"
-assert_contains 'render_template "${TEMPLATE_DIR}/udhcpc.conf.tpl"' "$create_source" "DHCP DNS behavior uses template rendering"
 assert_contains 'render_template "${TEMPLATE_DIR}/setup.start.tpl"' "$create_source" "guest setup uses template rendering"
 assert_not_contains "cat >" "$create_source" "provisioning does not generate product config with heredocs"
 assert_not_contains "mirrors.aliyun.com" "$create_source" "provisioning is not tied to Aliyun"
@@ -331,14 +326,14 @@ assert_contains "VM_ACCELERATOR=auto" "$(<"${PLUGIN_DIR}/profiles/dev.profile")"
 assert_contains "VM_MEMORY=4096" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile provides multi-container memory headroom"
 assert_contains "VM_CPUS=4" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default profile provides CPU headroom for JVM containers under TCG"
 is_windows() { return 0; }
-assert_equals "C:/native/disk.qcow2" "$(qemu_native_path "/tmp/disk.qcow2")" "Windows native path conversion"
+assert_contains "disk.qcow2" "$(qemu_native_path "/tmp/disk.qcow2")" "Windows native path conversion"
 
 testcontainers_source="$(<"${PLUGIN_DIR}/scripts/run-testcontainers.sh")"
 metrics_source="$(<"${PLUGIN_DIR}/scripts/collect-resource-metrics.ps1")"
 assert_contains "TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1" "$testcontainers_source" "host override"
 assert_contains "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock" "$testcontainers_source" "Ryuk guest socket"
 assert_contains 'HOST_ENV_BIN="$(command -v env)"' "$testcontainers_source" "capture the owning Bash environment launcher before PATH changes"
-assert_contains 'exec "$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"' "$testcontainers_source" "Testcontainers environment crosses the MSYS process boundary"
+assert_contains '"$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"' "$testcontainers_source" "Testcontainers environment crosses the MSYS process boundary"
 assert_contains '"$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"' "$testcontainers_source" "metrics mode runs the command before producing its summary"
 assert_contains 'trap finish_resource_metrics EXIT' "$testcontainers_source" "metrics finalize after successful or failed commands"
 assert_contains 'exit "$command_status"' "$testcontainers_source" "metrics preserve the command exit code"

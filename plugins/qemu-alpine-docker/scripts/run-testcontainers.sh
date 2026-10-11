@@ -57,6 +57,7 @@ for key in VM_NAME SSH_PORT DOCKER_DAEMON_PORT TESTCONTAINERS_PORT_START TESTCON
     require_profile_value "$key"
 done
 validate_port_range "$TESTCONTAINERS_PORT_START" "$TESTCONTAINERS_PORT_END"
+build_netdev_value >/dev/null
 # --- Timeout and metrics defaults ---
 # These values are configurable via the profile. The pull timeouts are generous
 # because TCG (software emulation) is slow and large image layers take time.
@@ -91,6 +92,8 @@ if [[ ! "$TESTCONTAINERS_RESOURCE_METRICS_INTERVAL_VALUE" =~ ^[1-9][0-9]*$ ]] ||
 fi
 
 # --- Pre-flight checks ---
+begin_vm_operation
+require_known_vm_process
 if ! vm_is_running; then
     echo "Error: VM '${VM_NAME}' is not running. Start it first." >&2
     exit 1
@@ -163,12 +166,12 @@ if [ "$VERBOSE" = "true" ]; then
     echo "Ryuk=enabled" >&2
 fi
 
-echo "Running Testcontainers command: $*" >&2
+echo "Running Testcontainers command." >&2
 # --- Execute the test command ---
-# If resource metrics are disabled, simply exec the command with the configured environment.
+# Retain the owner shell until the command returns so its lease is released.
 # The env command ensures the variables are passed through the MSYS-to-native process boundary.
 if [ "$TESTCONTAINERS_RESOURCE_METRICS_VALUE" = "false" ]; then
-    exec "$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"
+    if "$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"; then exit 0; else exit "$?"; fi
 fi
 
 # --- Resource metrics (Windows only) ---
@@ -221,10 +224,16 @@ finish_resource_metrics() {
     local command_status=$? duration_seconds=$((SECONDS - COMMAND_STARTED_SECONDS))
     trap - EXIT INT TERM
     printf '%s %s\n' "$command_status" "$duration_seconds" > "$METRICS_STOP_FILE"
+    if ! wait_for_process_exit "$METRICS_PID" 30; then
+        kill "$METRICS_PID" 2>/dev/null || true
+        wait_for_process_exit "$METRICS_PID" 5 || kill -9 "$METRICS_PID" 2>/dev/null || true
+        echo "Warning: Resource metrics shutdown timed out; preserving test result." >&2
+    fi
     if ! wait "$METRICS_PID"; then
         echo "Warning: Resource metrics collection failed; test exit code remains ${command_status}." >&2
     fi
     rm -f "$METRICS_STOP_FILE"
+    release_vm_operation || echo "Warning: VM operation release failed." >&2
     exit "$command_status"
 }
 trap finish_resource_metrics EXIT

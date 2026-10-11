@@ -11,13 +11,15 @@ QEMU_BIN="$(resolve_qemu)"
 configure_qemu_acceleration "$QEMU_BIN"
 # This smoke test deliberately runs without /dev/kvm.
 [[ "$QEMU_ACCELERATOR" == tcg ]]
-mkdir -p "$VM_DIR"
+mkdir -p "$VM_DIR/$VM_NAME"
+install_gvproxy
+start_gvproxy
 "$QEMU_BIN" -name "$VM_NAME" "${QEMU_ACCEL_ARGS[@]}" \
     -machine q35 -m 64 -smp 1 -nodefaults -display none -S \
-    -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:2375-:2375 \
-    -device virtio-net-pci,netdev=net0 &
+    -netdev "$(build_netdev_value)" \
+    -device virtio-net-pci,netdev=net0,mac=5a:94:ef:e4:0c:ee &
 qemu_test_pid=$!
-trap 'kill "$qemu_test_pid" 2>/dev/null || true; wait "$qemu_test_pid" 2>/dev/null || true' EXIT
+trap 'kill "$qemu_test_pid" 2>/dev/null || true; wait "$qemu_test_pid" 2>/dev/null || true; stop_gvproxy' EXIT
 printf '%s\n' "$qemu_test_pid" > "$(vm_pid_file)"
 sleep 1
 kill -0 "$qemu_test_pid"
@@ -28,7 +30,7 @@ assert snapshot["vm"]["state"] == "running", snapshot
 assert snapshot["vm"]["accelerator"] == "tcg", snapshot
 assert snapshot["services"]["docker"]["state"] != "healthy", snapshot
 assert snapshot["containers"]["state"] == "unavailable", snapshot
-print("PASS: unprivileged non-root TCG QEMU with user networking and live process status; no guest OS was provisioned")
+print("PASS: unprivileged non-root TCG QEMU with gvproxy networking and live process status; no guest OS was provisioned")
 '
 VM_ACCELERATOR=kvm
 if configure_qemu_acceleration "$QEMU_BIN"; then

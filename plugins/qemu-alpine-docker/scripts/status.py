@@ -9,6 +9,7 @@ import re
 import shutil
 import socket
 import subprocess
+from process_identity import windows_pid
 import urllib.error
 import urllib.request
 from status_resources import container_resources, guest_resources, host_resources, unavailable
@@ -44,25 +45,6 @@ def read_pid(path):
         return int(text) if re.fullmatch(r"[1-9][0-9]{0,9}", text) else None
     except FileNotFoundError:
         return None
-
-
-def windows_pid(pid):
-    """Translate a Git Bash/MSYS PID before verifying its native executable."""
-    try:
-        ps = shutil.which("ps")
-        if not ps:
-            bash = shutil.which("bash")
-            candidate = Path(bash).resolve().parent.parent / "usr/bin/ps.exe" if bash else None
-            ps = str(candidate) if candidate and candidate.is_file() else "ps"
-        result = subprocess.run([ps, "-W"], capture_output=True, text=True,
-                                timeout=TIMEOUT, check=True)
-        for line in result.stdout.splitlines():
-            fields = line.split()
-            if len(fields) >= 4 and fields[0] == str(pid) and fields[3].isdecimal():
-                return int(fields[3])
-    except (OSError, subprocess.SubprocessError):
-        pass
-    return pid
 
 
 def process_state(pid):

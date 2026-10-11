@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qemu-alpine-docker",
-  "version": "0.4.0-20261009155051",
+  "version": "0.4.1-20261011034305",
   "description": "Persistent QEMU Alpine Docker VM and status panel for Linux Docker containers and Windows.",
   "author": {
     "name": "QEMU Alpine Docker Maintainers",

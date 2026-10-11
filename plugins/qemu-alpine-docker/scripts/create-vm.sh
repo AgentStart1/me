@@ -3,7 +3,7 @@
 #
 # This is the most complex script in the plugin. It performs a full unattended
 # Alpine Linux installation using QEMU, then boots the result to verify that
-# Docker, Unbound DNS, and the Testcontainers port range are working correctly.
+# Docker, gvproxy DNS, and the Testcontainers port range are working correctly.
 #
 # Flow:
 #   1. Load profile and validate required keys
@@ -52,6 +52,9 @@ done
     echo "Error: VM_NAME contains unsupported characters." >&2
     exit 1
 }
+
+begin_vm_operation
+require_known_vm_process
 
 # --- Configuration defaults ---
 ALPINE_BRANCH="${ALPINE_BRANCH:-v3.24}"
@@ -121,15 +124,30 @@ acquire_single_vm_lock
 QEMU_PID=""
 COMPLETED=false
 cleanup_create() {
+    local status=$?
+    trap - EXIT
     if [ "$COMPLETED" != "true" ]; then
         if process_is_running "${QEMU_PID:-}"; then
-            kill "$QEMU_PID" 2>/dev/null || true
-            wait_for_process_exit "$QEMU_PID" 10 || kill -9 "$QEMU_PID" 2>/dev/null || true
+            stop_qemu_process || status=1
         fi
-        clear_vm_process_state
+        if process_is_running "${QEMU_PID:-}"; then
+            echo 'Error: QEMU is still running; retaining its network and ownership state.' >&2
+            status=1
+        else
+            if stop_gvproxy; then
+                clear_vm_process_state || status=1
+            else
+                echo 'Error: gvproxy cleanup failed; retaining the VM reservation.' >&2
+                status=1
+            fi
+        fi
     fi
+    release_vm_operation || status=1
+    exit "$status"
 }
-trap cleanup_create EXIT INT TERM
+trap cleanup_create EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # --- Build guest overlay (only if not in VERIFY_ONLY mode) ---
 # The overlay is a tar archive that Alpine's setup-alpine.sh injects into the
@@ -138,14 +156,16 @@ trap cleanup_create EXIT INT TERM
 #   - Mirror selector script (select-apk-mirror.sh)
 #   - answers file (unattended setup configuration)
 #   - Docker daemon config (daemon.json)
-#   - Unbound DNS config (for guest DNS resolution)
 #   - Sysctl config for Testcontainers port range
-#   - DHCP client config to preserve local DNS settings
-#   - OpenRC boot scripts for local DNS and guest setup
+#   - OpenRC boot script for guest setup
 #
 if [ "$VERIFY_ONLY" != "true" ]; then
+    # Remove obsolete generated DNS files from pre-migration failed overlays.
+    # The persistent disk and unrelated overlay content are preserved.
+    rm -f "${OVERLAY_DIR}/etc/local.d/use-local-dns.start" \
+        "${OVERLAY_DIR}/etc/unbound/unbound.conf" "${OVERLAY_DIR}/udhcpc.conf"
     mkdir -p "$VM_HOME" "${OVERLAY_DIR}/etc/local.d" "${OVERLAY_DIR}/etc/runlevels/default"
-    mkdir -p "${OVERLAY_DIR}/etc/sysctl.d" "${OVERLAY_DIR}/etc/unbound"
+    mkdir -p "${OVERLAY_DIR}/etc/sysctl.d" "${OVERLAY_DIR}/etc/conf.d"
     mkdir -p "${OVERLAY_DIR}/usr/local/libexec"
 
     # Copy the SSH public key into the overlay for guest access
@@ -164,6 +184,14 @@ if [ "$VERIFY_ONLY" != "true" ]; then
         FALLBACK_MAIN "${ALPINE_FALLBACK_MIRROR}/${ALPINE_BRANCH}/main" \
         FALLBACK_COMMUNITY "${ALPINE_FALLBACK_MIRROR}/${ALPINE_BRANCH}/community" \
         ROOT_SSH_KEY "$ROOT_SSH_KEY"
+    read -r OUTBOUND_PORT_START OUTBOUND_PORT_END <<< "$(guest_outbound_port_range)"
+    render_template "${TEMPLATE_DIR}/dockerd-with-port-range.sh.tpl" \
+        "${OVERLAY_DIR}/usr/local/libexec/dockerd-with-port-range" \
+        TESTCONTAINERS_PORT_START "$TESTCONTAINERS_PORT_START" \
+        TESTCONTAINERS_PORT_END "$TESTCONTAINERS_PORT_END" \
+        OUTBOUND_PORT_START "$OUTBOUND_PORT_START" OUTBOUND_PORT_END "$OUTBOUND_PORT_END"
+    render_template "${TEMPLATE_DIR}/docker-port-range.conf.tpl" "${OVERLAY_DIR}/docker-port-range.conf"
+    chmod +x "${OVERLAY_DIR}/usr/local/libexec/dockerd-with-port-range"
     render_template "${TEMPLATE_DIR}/testcontainers-ports.conf.tpl" \
         "${OVERLAY_DIR}/etc/sysctl.d/99-testcontainers-ports.conf" \
         TESTCONTAINERS_PORT_START "$TESTCONTAINERS_PORT_START" \
@@ -171,26 +199,11 @@ if [ "$VERIFY_ONLY" != "true" ]; then
     render_template "${TEMPLATE_DIR}/docker-daemon.json.tpl" \
         "${OVERLAY_DIR}/docker-daemon.json" \
         DOCKER_GUEST_PORT "2375" \
-        DOCKER_DNS_ADDRESS "172.17.0.1"
-    render_template "${TEMPLATE_DIR}/unbound.conf.tpl" \
-        "${OVERLAY_DIR}/etc/unbound/unbound.conf" \
-        DNS_LISTEN_ADDRESS "0.0.0.0" \
-        LOCAL_DNS_NETWORK "127.0.0.1/32" \
-        DOCKER_DNS_NETWORK "172.17.0.0/16" \
-        LOCAL_DNS_PORT "53" \
-        QEMU_DNS_ADDRESS "10.0.2.3" \
-        QEMU_DNS_PORT "53"
-    render_template "${TEMPLATE_DIR}/use-local-dns.start.tpl" \
-        "${OVERLAY_DIR}/etc/local.d/use-local-dns.start" \
-        LOCAL_DNS_ADDRESS "127.0.0.1"
-    render_template "${TEMPLATE_DIR}/udhcpc.conf.tpl" \
-        "${OVERLAY_DIR}/udhcpc.conf" \
-        RESOLV_CONF_MODE "no"
+        DOCKER_DNS_ADDRESS "192.168.127.1"
     render_template "${TEMPLATE_DIR}/setup.start.tpl" \
         "${OVERLAY_DIR}/etc/local.d/setup.start" \
         ALPINE_FALLBACK_MIRROR "$ALPINE_FALLBACK_MIRROR"
     chmod +x "${OVERLAY_DIR}/etc/local.d/setup.start"
-    chmod +x "${OVERLAY_DIR}/etc/local.d/use-local-dns.start"
 
     # OpenRC identifies services by the entries in the runlevel directory.
     # The "local" service is created here so it runs on boot.
@@ -242,14 +255,15 @@ if [ "$VERIFY_ONLY" != "true" ]; then
         -display none
         -serial "file:${INSTALL_LOG_NATIVE}"
         -monitor none
-        -netdev user,id=net0
-        -device virtio-net-pci,netdev=net0
+        -netdev "$(build_netdev_value)"
+        -device virtio-net-pci,netdev=net0,mac=5a:94:ef:e4:0c:ee
     )
 
     # --- Run the installation QEMU instance ---
     # The installer runs in the background. We wait for it to finish (the guest
     # powers off after setup-alpine.sh completes). If it doesn't finish within
     # INSTALL_TIMEOUT seconds, we assume failure.
+    start_gvproxy
     echo "Installing Alpine and Docker with ${QEMU_ACCELERATOR} acceleration (timeout: ${INSTALL_TIMEOUT}s)..." >&2
     "$QEMU_BIN" "${install_args[@]}" &
     QEMU_PID=$!
@@ -269,15 +283,15 @@ if [ "$VERIFY_ONLY" != "true" ]; then
         echo "Error: installer powered off without writing an Alpine system to disk; see ${INSTALL_LOG}." >&2
         exit 1
     fi
-    clear_vm_process_state
-    # Re-acquire the lock for the verification phase
-    acquire_single_vm_lock
+    stop_gvproxy
+    clear_vm_process_state keep-lock
 fi
 
 # --- Verification phase ---
 # After installation, boot the installed disk to verify everything works.
 # This QEMU instance has port forwarding enabled (SSH, Docker API, Testcontainers).
 # We wait for SSH to become available, then run a series of checks on the guest.
+start_gvproxy
 NETDEV_VALUE="$(build_netdev_value)"
 verify_args=(
     -name "${VM_NAME}-verify"
@@ -289,7 +303,7 @@ verify_args=(
     -serial "file:${BOOT_LOG_NATIVE}"
     -monitor none
     -netdev "$NETDEV_VALUE"
-    -device virtio-net-pci,netdev=net0
+    -device virtio-net-pci,netdev=net0,mac=5a:94:ef:e4:0c:ee
 )
 
 echo "Booting the installed disk for verification..." >&2
@@ -297,22 +311,15 @@ echo "Booting the installed disk for verification..." >&2
 QEMU_PID=$!
 register_vm_process "$QEMU_PID"
 wait_for_ssh "$BOOT_TIMEOUT" "$QEMU_PID"
-# Run a comprehensive verification of the guest state.
-# This checks (in a single SSH command for efficiency):
-#   - /etc/qemu-alpine-docker-image exists (marker from setup script)
-#   - /etc/qemu-alpine-docker-mirror exists and is non-empty
-#   - APK repositories contain the expected Alpine branch
-#   - udhcpc is configured to preserve local DNS (RESOLV_CONF=no)
-#   - Docker service is running
-#   - Unbound service is running
-#   - /etc/resolv.conf points to the local Unbound (127.0.0.1)
-#   - DNS resolution works via Unbound (nslookup)
-ssh_exec "test -f /etc/qemu-alpine-docker-image && test -s /etc/qemu-alpine-docker-mirror && grep -q '/${ALPINE_BRANCH}/main' /etc/apk/repositories && grep -qx 'RESOLV_CONF=\"no\"' /etc/udhcpc/udhcpc.conf && rc-service docker status >/dev/null && rc-service unbound status >/dev/null && grep -qx 'nameserver 127.0.0.1' /etc/resolv.conf && nslookup dl-cdn.alpinelinux.org 127.0.0.1 >/dev/null"
+# Verify DHCP-selected gvproxy DNS and Docker service health.
+ssh_exec "test -f /etc/qemu-alpine-docker-image && test -s /etc/qemu-alpine-docker-mirror && grep -q '/${ALPINE_BRANCH}/main' /etc/apk/repositories && rc-service docker status >/dev/null && grep -qx 'nameserver 192.168.127.1' /etc/resolv.conf && nslookup dl-cdn.alpinelinux.org 192.168.127.1 >/dev/null"
 wait_for_docker_api 120
 # Verify Docker daemon is functional
 ssh_exec "docker info >/dev/null"
-# Verify the Testcontainers port range is correctly configured in sysctl
-ssh_exec "set -- \$(sysctl -n net.ipv4.ip_local_port_range); test \"\$1\" = '${TESTCONTAINERS_PORT_START}' && test \"\$2\" = '${TESTCONTAINERS_PORT_END}'"
+# Verify the persisted publish pool matches this profile. Runtime sysctl is
+# restored by the daemon wrapper only after Docker has initialized its cache.
+ssh_exec "grep -qx 'net.ipv4.ip_local_port_range = ${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /etc/sysctl.d/99-testcontainers-ports.conf"
+wait_for_docker_publish_pool
 
 # --- Optional image preloading ---
 # If PRELOAD_IMAGES is set, pull Docker images into the VM during provisioning.
@@ -332,17 +339,21 @@ fi
 ssh_exec "poweroff" >/dev/null 2>&1 || true
 if ! wait_for_process_exit "$QEMU_PID" 90; then
     echo "Warning: guest did not power off; stopping QEMU after successful verification." >&2
-    kill "$QEMU_PID" 2>/dev/null || true
-    wait_for_process_exit "$QEMU_PID" 10 || kill -9 "$QEMU_PID" 2>/dev/null || true
+    stop_qemu_process
+    wait_for_process_exit "$QEMU_PID" 10 || { echo 'Error: QEMU did not exit; retaining VM state.' >&2; exit 1; }
 fi
 wait "$QEMU_PID" 2>/dev/null || true
+stop_gvproxy
 clear_vm_process_state
 
 # Write a ready marker with a timestamp so subsequent runs skip provisioning.
-printf 'verified=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$READY_FILE"
+printf 'verified=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${READY_FILE}.tmp"
+mv "${READY_FILE}.tmp" "$READY_FILE"
 COMPLETED=true
 # Clear the cleanup trap since we've completed successfully.
-trap - EXIT INT TERM
+trap release_vm_operation EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 echo "VM '${VM_NAME}' is ready." >&2
 echo "Persistent Docker cache: ${VM_DISK}" >&2

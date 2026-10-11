@@ -49,11 +49,12 @@ done
 load_profile "${PROFILE_ARG:-${PLUGIN_DIR}/profiles/dev.profile}"
 require_profile_value VM_NAME
 require_profile_value SSH_PORT
+begin_vm_operation
+require_known_vm_process
 vm_is_running || { echo "Error: VM is not running." >&2; exit 1; }
 
 # --- Open connection ---
-# Use exec to replace the current process with the SSH/SFTP client.
-# This avoids leaving a shell wrapper process running.
+# Retain the shell owner until the SSH/SFTP client exits so shutdown cannot race it.
 SSH_HOST="${SSH_HOST:-127.0.0.1}"
 case "$MODE" in
     ssh)  echo "Opening SSH session to VM '${VM_NAME}' on ${SSH_HOST}:$(ssh_port)" >&2 ;;
@@ -62,12 +63,12 @@ esac
 
 case "$MODE" in
     ssh)
-        exec ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -o ConnectTimeout=10 -p "$(ssh_port)" -i "$SSH_KEY" \
             "root@${SSH_HOST}"
         ;;
     sftp)
-        exec sftp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        sftp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -o ConnectTimeout=10 -P "$(ssh_port)" -i "$SSH_KEY" \
             "root@${SSH_HOST}"
         ;;

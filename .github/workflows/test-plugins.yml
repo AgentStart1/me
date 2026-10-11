@@ -105,6 +105,15 @@ jobs:
       - run: uv run --script plugins/qemu-alpine-docker/tests/test-status.py
       - run: uv run --with playwright==1.62.0 playwright install --with-deps chromium
       - run: uv run --script plugins/qemu-alpine-docker/tests/test-status-panel.py
+      - run: sudo apt-get update && sudo apt-get install -y qemu-system-x86
+      - name: Verify upstream gvproxy lifecycle
+        run: |
+          source plugins/qemu-alpine-docker/scripts/vm-utils.sh
+          install_gvproxy
+          export GVPROXY_BINARY="$(gvproxy_binary)"
+          python3 plugins/qemu-alpine-docker/tests/test-gvproxy-lifecycle.py
+          python3 plugins/qemu-alpine-docker/tests/test-vm-lifecycle.py
+      - run: bash plugins/qemu-alpine-docker/tests/test-port-ranges.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-vm-utils.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-linux-testcontainers.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-apk-mirror-selection.sh

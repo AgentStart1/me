@@ -32,6 +32,9 @@ for key in VM_NAME VM_MEMORY VM_CPUS SSH_PORT DOCKER_DAEMON_PORT TESTCONTAINERS_
     require_profile_value "$key"
 done
 
+begin_vm_operation
+require_known_vm_process
+
 # --- Per-VM file paths ---
 VM_HOME="${VM_DIR}/${VM_NAME}"
 VM_DISK="${VM_HOME}/disk.qcow2"
@@ -46,6 +49,12 @@ BOOT_TIMEOUT="${BOOT_TIMEOUT:-300}"
 
 # --- Idempotency check ---
 if vm_is_running; then
+    check_gvproxy
+    wait_for_ssh "$BOOT_TIMEOUT" "$(vm_pid)"
+    wait_for_docker_api 120
+    ssh_exec "grep -qx 'net.ipv4.ip_local_port_range = ${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /etc/sysctl.d/99-testcontainers-ports.conf"
+    wait_for_docker_publish_pool
+    qemu_control record --pid "$(vm_pid)" --name "$VM_NAME" --state "$(qemu_native_path "$(vm_identity_file)")"
     echo "VM '${VM_NAME}' is already running (PID $(vm_pid))." >&2
     exit 0
 fi
@@ -62,15 +71,32 @@ acquire_single_vm_lock
 QEMU_PID=""
 STARTED=false
 cleanup_start_failure() {
+    local status=$?
+    trap - EXIT
     if [ "$STARTED" != "true" ]; then
         if process_is_running "${QEMU_PID:-}"; then
-            kill "$QEMU_PID" 2>/dev/null || true
-            wait_for_process_exit "$QEMU_PID" 10 || kill -9 "$QEMU_PID" 2>/dev/null || true
+            stop_qemu_process || status=1
         fi
-        clear_vm_process_state
+        if process_is_running "${QEMU_PID:-}"; then
+            echo 'Error: QEMU is still running; retaining its network and ownership state.' >&2
+            status=1
+        else
+            if stop_gvproxy; then
+                clear_vm_process_state || status=1
+            else
+                echo 'Error: gvproxy cleanup failed; retaining the VM reservation.' >&2
+                status=1
+            fi
+        fi
     fi
+    release_vm_operation || status=1
+    exit "$status"
 }
-trap cleanup_start_failure EXIT INT TERM
+trap cleanup_start_failure EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+start_gvproxy
 
 # --- QEMU arguments ---
 # The VM runs with the same acceleration and resource settings as during provisioning.
@@ -85,22 +111,29 @@ qemu_args=(
     -serial "file:${CONSOLE_LOG_NATIVE}"
     -monitor none
     -netdev "$NETDEV_VALUE"
-    -device virtio-net-pci,netdev=net0
+    -device virtio-net-pci,netdev=net0,mac=5a:94:ef:e4:0c:ee
 )
 
 # --- Launch VM ---
-echo "Starting VM '${VM_NAME}' with ${QEMU_ACCELERATOR} acceleration and QEMU user networking..." >&2
-"$QEMU_BIN" "${qemu_args[@]}" &
+echo "Starting VM '${VM_NAME}' with ${QEMU_ACCELERATOR} acceleration and gvproxy networking..." >&2
+"$QEMU_BIN" "${qemu_args[@]}" </dev/null >>"${VM_HOME}/qemu.log" 2>&1 &
 QEMU_PID=$!
 register_vm_process "$QEMU_PID"
 
 # Wait for the guest to boot and services to be ready
 wait_for_ssh "$BOOT_TIMEOUT" "$QEMU_PID"
 wait_for_docker_api 120
+ssh_exec "grep -qx 'net.ipv4.ip_local_port_range = ${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /etc/sysctl.d/99-testcontainers-ports.conf" || {
+    echo "Error: Guest Docker publish range differs from this profile. Update the stopped guest's port configuration before starting; changing QEMU forwards alone does not update Docker's cached range." >&2
+    exit 1
+}
+wait_for_docker_publish_pool
 
 # --- Success ---
 STARTED=true
-trap - EXIT INT TERM
+trap release_vm_operation EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 echo "VM '${VM_NAME}' is ready in the background (PID ${QEMU_PID})." >&2
 echo "Docker API: tcp://127.0.0.1:${DOCKER_DAEMON_PORT}" >&2
 echo "Testcontainers ports: 127.0.0.1:${TESTCONTAINERS_PORT_START}-${TESTCONTAINERS_PORT_END}" >&2

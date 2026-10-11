@@ -76,6 +76,8 @@ esac
 load_profile "${PROFILE_ARG:-${PLUGIN_DIR}/profiles/dev.profile}"
 require_profile_value VM_NAME
 require_profile_value SSH_PORT
+begin_vm_operation
+require_known_vm_process
 vm_is_running || { echo "Error: VM is not running." >&2; exit 1; }
 
 SSH_HOST="${SSH_HOST:-127.0.0.1}"

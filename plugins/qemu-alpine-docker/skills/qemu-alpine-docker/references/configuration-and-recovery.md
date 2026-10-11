@@ -9,7 +9,16 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 - `TESTCONTAINERS_PORT_START`
 - `TESTCONTAINERS_PORT_END`
 
-The range may contain at most 512 ports. Additional `PORT_FORWARD=host:guest,...` mappings must not overlap reserved ports.
+The bundled end value `auto` resolves to 20015 on Windows and 20255 on Linux,
+starting at 20000. Explicit numeric ranges retain the 512-port ceiling. The gvproxy backend registers SSH, Docker API, the full range and custom
+`PORT_FORWARD=host:guest,...` mappings through its services API. These mappings must be unique and must not overlap reserved ports.
+
+New guests initialize Docker's cached publish pool with the same numeric range
+and restore a broad, disjoint kernel outbound range after readiness. Existing
+disks need a planned migration; see the plugin-root README for compatibility and
+restart requirements. Do not restart a VM owned by another session.
+
+Control ports `GVPROXY_QEMU_PORT` (19200) and `GVPROXY_API_PORT` (19201) are loopback-only and may not overlap forwards. Recovery requires a coordinated stop/start of both QEMU and gvproxy; rules are regenerated from the profile. See README for explicit existing-disk migration.
 
 ## Acceleration and provisioning
 
@@ -24,6 +33,8 @@ The range may contain at most 512 ports. Additional `PORT_FORWARD=host:guest,...
 `TESTCONTAINERS_RESOURCE_METRICS=auto` enables one-second Windows sampling by default and skips the Windows collector on Linux. Explicit `true` requires Windows PowerShell. Change the interval with `TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=1` (1-60 seconds), or disable collection when PowerShell is unavailable. The latest JSON report is stored below the VM base directory at `metrics/latest.json`; it records timings and aggregate resource values but not the test command or working-directory path.
 
 ## Limitations and recovery
+
+Setup, lifecycle and client scripts share an operation lease. Competing calls fail before modifying the VM; migration explicitly allows its nested stop/start. Normal exits and handled signals release the lease. After a forced kill, inspect all plugin processes before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or helper `.control.lock` directories. Never discard QEMU/gvproxy identity records while either owned process remains alive.
 
 Because Docker runs in a remote guest, Host or outer-container paths cannot be used as ordinary Docker bind mounts. Prefer Docker build contexts, named volumes, or test fixtures copied through the Docker API.
 

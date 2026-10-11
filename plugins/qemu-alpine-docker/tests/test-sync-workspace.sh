@@ -34,6 +34,12 @@ case "$*" in
     *"tar -xf -"*) tar -tf - > "$MOCK_ARCHIVE_LOG" ;;
 esac
 MOCK
+cat > "${MOCK_DIR}/bin/python" <<'MOCK'
+#!/bin/bash
+[[ "$1" == *qemu-control.py ]] || exit 99
+exit 0
+MOCK
+chmod +x "${MOCK_DIR}/bin/python"
 chmod +x "${MOCK_DIR}/bin/ssh"
 
 export PATH="${MOCK_DIR}/bin:${PATH}"

@@ -1,6 +1,6 @@
 # QEMU Alpine Docker
 
-This plugin creates one persistent Alpine Linux VM for Docker and Testcontainers workflows inside ordinary Linux Docker containers and on Windows. Automatic acceleration probes KVM on Linux or WHPX on Windows, then falls back to portable TCG emulation. Networking remains unprivileged QEMU user-mode networking with loopback-only port forwarding.
+This plugin creates one persistent Alpine Linux VM for Docker and Testcontainers workflows inside ordinary Linux Docker containers and on Windows. Automatic acceleration probes KVM on Linux or WHPX on Windows, then falls back to portable TCG emulation. Networking uses verified upstream gvproxy v0.9.0 with a loopback TCP QEMU transport and loopback-only port forwarding.
 
 For now, these are the intended environments. On Linux hosts running outside containers, use Docker directly; this plugin is unnecessary.
 
@@ -11,11 +11,13 @@ For now, these are the intended environments. On Linux hosts running outside con
 - Provisioning configuration is rendered from files under `templates/`; scripts supply explicit placeholder values instead of embedding generated files in heredocs.
 - Shared shell behavior is loaded through `scripts/vm-utils.sh`, which initializes common paths and sources focused modules under `scripts/lib/` for runtime, configuration, templating, QEMU, guest access, Alpine images, and VM state.
 - During first provisioning, Alpine selects the fastest mirror from its official list, upgrades the result to HTTPS, validates it, and falls back to the official HTTPS CDN when needed.
-- Unbound accepts guest DNS queries from loopback and the Docker bridge, then forwards them over TCP to QEMU's virtual DNS server at `10.0.2.3`. Docker containers use the bridge gateway at `172.17.0.1` as their resolver. This avoids unreliable upstream UDP return traffic in Windows user-mode networking without depending on a host DNS listener. DHCP lease renewals are prevented from replacing the local resolver selection.
+- Alpine DHCP and Docker containers use gvproxy DNS at `192.168.127.1`. Both UDP and TCP DNS are supported; no guest DNS proxy is installed.
 - Docker and SSH start automatically in the guest.
-- Docker exposes its unauthenticated API only through QEMU's host loopback forward at `127.0.0.1:2375`.
-- Docker automatically allocates published ports from `20000–20255`; QEMU forwards every port in that range to the same guest port.
+- Docker exposes its unauthenticated API only through gvproxy's host loopback forward at `127.0.0.1:2375`.
+- Docker automatically allocates published ports from `20000–20015` on Windows or `20000–20255` on Linux; gvproxy forwards every port in the selected range to the same guest port.
 - A global lock permits only one VM from this plugin to run at a time, which also reserves the forwarded range. Lock-state changes are serialized with an atomic guard directory so concurrent launchers cannot overwrite each other.
+- A separate operation lease spans setup, provisioning, start/stop, migration and client commands (tests, Docker, SSH/SFTP, workspace sync and proxy builds). Competing operations fail before changing VM state. Migration alone explicitly permits its nested stop/start. Normal exits and handled signals release the lease; after a forced kill, inspect all plugin processes before manually removing an interrupted `run/vm-operation.lock` or `vm-state.guard`.
+- QEMU and gvproxy ownership records verify the native executable and creation time before termination. An already-running VM is accepted only after its forwarding rules and guest readiness match the profile. Windows path/PID translation uses the launching Bash runtime's tools.
 - Docker images remain on the qcow2 disk and are reused by later test runs. Do not recreate the VM or run `docker image prune -a` if cache reuse matters.
 - Testcontainers Ryuk stays enabled and uses the guest Docker socket.
 
@@ -76,7 +78,7 @@ Run the scripts from Bash on Linux or Git Bash/MSYS2 on Windows with:
 ./scripts/create-vm.sh ./profiles/dev.profile
 ```
 
-`setup.sh` downloads and verifies the official Alpine virt ISO. `create-vm.sh` builds the unattended ISO, selects the configured accelerator, directly boots the kernel for deterministic automation, selects and persists a usable package mirror, configures Unbound as a local DNS-to-TCP forwarder, boots the disk once, verifies DNS, Docker, and the selected repositories, then writes the persistent ready marker. Mirror selection happens only while provisioning a new disk. If a disk exists without the ready marker, the script stops and preserves it for inspection instead of silently rebuilding it.
+`setup.sh` downloads and verifies the official Alpine virt ISO. `create-vm.sh` builds the unattended ISO, selects the configured accelerator, directly boots the kernel for deterministic automation, selects and persists a usable package mirror, configures Docker to use gvproxy DNS, boots the disk once, verifies DNS, Docker, and the selected repositories, then writes the persistent ready marker. Mirror selection happens only while provisioning a new disk. If a disk exists without the ready marker, the script stops and preserves it for inspection instead of silently rebuilding it.
 
 When the install log proves that disk installation completed and only post-boot verification failed, resume verification without reinstalling:
 
@@ -120,7 +122,7 @@ Other operations:
 - `VM_NAME`, `VM_MEMORY`, `VM_CPUS`, `VM_DISK_SIZE`
 - `VM_ACCELERATOR=auto|kvm|whpx|tcg`; `auto` probes KVM on Linux or WHPX on Windows before falling back to TCG. Explicit hardware modes fail if unavailable
 - `SSH_PORT` and `DOCKER_DAEMON_PORT`
-- `TESTCONTAINERS_PORT_START` and `TESTCONTAINERS_PORT_END` (maximum 512 ports)
+- `TESTCONTAINERS_PORT_START=20000` and `TESTCONTAINERS_PORT_END=auto` (20015 on Windows, 20255 on Linux); explicit numeric ranges remain supported, with a maximum of 512 ports
 - `TESTCONTAINERS_PULL_PAUSE_TIMEOUT` and `TESTCONTAINERS_PULL_TIMEOUT` in seconds; the bundled profile raises both for large image extraction under TCG fallback
 - `TESTCONTAINERS_RESOURCE_METRICS=auto|true|false` and `TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=1`; collection requires Windows PowerShell and accepts intervals from 1 to 60 seconds
 - `PORT_FORWARD=host:guest,...` for additional fixed loopback forwards
@@ -130,6 +132,33 @@ Other operations:
 The bundled development profile selects acceleration automatically and allocates 4 GiB of guest memory plus four virtual CPUs for multi-container and JVM-based Testcontainers suites.
 
 Fixed host ports must not overlap the Testcontainers range. All forwards bind to `127.0.0.1`.
+
+gvproxy owns forwarded listeners, while QEMU owns one TCP transport connection.
+The former Windows QEMU listener warning no longer applies to this backend.
+Explicit ranges retain the 512-port configuration ceiling and require application
+load verification; listener binding alone does not prove protocol responses.
+Ryuk stays enabled and uses the same publish pool; 16 ports limit simultaneous
+published container ports, so reduce test concurrency if the pool is exhausted.
+
+New guests use a Docker startup wrapper that sets the selected pool before each
+daemon execution, initializes the cached allocator, then restores the outbound kernel
+range to `32768–60999` (or its larger disjoint portion for overlapping custom pools).
+On fresh guests, a temporary BusyBox image is imported from guest files, published
+once to verify allocation, and removed without a registry pull. Restored published
+containers also initialize the allocator, allowing a fully occupied pool to restart.
+Startup waits for allocator initialization and outbound restoration before reporting
+success. Docker caches its publish range on first use; leaving the small range
+as the outbound range would make guest outbound connections compete for it.
+Daemon failures retain their exit status and OpenRC supervision remains enabled.
+
+Existing persistent guests are not automatically migrated. Keep their explicit
+profile range until you can update the guest safely. Changing only the host profile
+does not change Docker's cached range; startup rejects a persisted pool mismatch.
+During a planned maintenance window, update `/etc/sysctl.d/99-testcontainers-ports.conf`
+and install the newly rendered wrapper and `/etc/conf.d/docker` configuration with
+the same numeric pool, then restart Docker and QEMU. Preserve custom Docker service
+settings when updating that configuration. Restarting Docker interrupts containers;
+confirm ownership before doing so. A running VM is never restarted to apply defaults.
 
 ## Measured resource reference
 
@@ -235,3 +264,14 @@ compiler installation, compilation, download, or executable replacement.
 Normal exits and handled signals release the owned lock. After a forced kill, a stale lock
 produces an error: confirm no compiler or transfer remains before removing the reported
 lock directory. Do not remove another running build's lock.
+
+## Existing disk migration and network recovery
+
+Use the updated plugin or a matching source checkout for setup, migration, start and stop commands. Until the distribution workflow publishes the update and a new Codex chat loads it, manage a migrated VM with the matching source scripts.
+
+
+First confirm no other session uses the VM and no containers are running. With the old guest running, run `bash scripts/migrate-vm-network.sh profiles/dev.profile`. This installs the verified helper, saves the old guest configuration in `/root/qemu-network-before-gvproxy`, removes Unbound and its boot/DHCP overrides, changes Docker DNS, then gracefully restarts the VM. It preserves the disk, images and configured publish range. Custom Docker DNS configurations require manual review.
+
+`GVPROXY_QEMU_PORT=19200` and `GVPROXY_API_PORT=19201` are loopback control ports; they must be distinct and outside every forward. Python 3 is required for verified process ownership. `GVPROXY_BINARY` can point to a verified helper installed by `setup.sh`.
+
+If gvproxy exits, stop the VM and start it again. Upstream v0.9.0 accepts one QEMU connection per process, so recovery restarts both processes, re-registers all forwards, and waits for SSH and Docker application responses. It does not reconnect an already-running QEMU automatically. Port conflicts fail startup and remove owned processes. Do not restart a VM used by another session. The API can expose ports and must remain on loopback.
