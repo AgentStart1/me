@@ -86,3 +86,8 @@ Never disclose the owner token in tool results or UI. Expired metadata means a s
 Lease metadata is rendered from the bundled `scripts/lock.json.template` with
 JSON-encoded placeholders by `scripts/lock-metadata.py`. Keep both resources
 with the installed helper; field extraction and rendering retain strict JSON validation.
+
+If remote lease deletion fails, `release` returns nonzero and retains the owner
+token for recovery. `run` also returns nonzero when cleanup fails after a successful
+command; an existing command failure or signal status is preserved. Retry release
+with the retained token after checking device connectivity and ownership.

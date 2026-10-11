@@ -206,7 +206,7 @@ acquire_lock() {
 }
 
 release_lock() {
-  adb_cmd get-state >/dev/null
+  adb_cmd get-state >/dev/null || return 1
 
   if ! remote_exists "$LOCK_PATH"; then
     printf "No Android device lock exists at %s\n" "$LOCK_PATH" >&2
@@ -228,9 +228,22 @@ release_lock() {
     return 1
   fi
 
-  remote_rm_lock
-  rm -f "$TOKEN_FILE"
+  if ! remote_rm_lock; then
+    printf "Failed to delete Android device lock; owner token retained for recovery.\n" >&2
+    return 1
+  fi
+  rm -f "$TOKEN_FILE" || return 1
   printf "Released Android device lock at %s\n" "$LOCK_PATH" >&2
+}
+
+finish_run() {
+  local status="$1"
+  trap - EXIT INT TERM
+  if ! with_device_guard release_lock; then
+    echo 'Release failed or mutation guard busy; owner token retained for recovery.' >&2
+    [ "$status" -ne 0 ] || status=1
+  fi
+  exit "$status"
 }
 
 renew_lock() {
@@ -347,9 +360,9 @@ parse_args() {
         exit 2
       fi
       acquire_lock
-      trap 'status=$?; with_device_guard release_lock || true; exit "$status"' EXIT
-      trap 'trap - EXIT INT TERM; with_device_guard release_lock || true; exit 130' INT
-      trap 'trap - EXIT INT TERM; with_device_guard release_lock || true; exit 143' TERM
+      trap 'finish_run "$?"' EXIT
+      trap 'finish_run 130' INT
+      trap 'finish_run 143' TERM
       "${COMMAND[@]}" ;;
     *)
       printf "Unknown command: %s\n" "$mode" >&2

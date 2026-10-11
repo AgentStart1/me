@@ -12,7 +12,9 @@ set -euo pipefail
 if [ "${1:-}" = -s ]; then shift 2; fi
 case "$1" in
     get-state) echo device;;
-    shell) shift; command="${*//\/data\/local\/tmp/$FAKE_DEVICE_ROOT}"; bash -c "$command";;
+    shell)
+        if [ "${FAIL_REMOTE_RM:-0}" = 1 ] && [[ "${2:-}" == 'rm -rf '* ]]; then exit 1; fi
+        shift; command="${*//\/data\/local\/tmp/$FAKE_DEVICE_ROOT}"; bash -c "$command";;
     push)
         [ "${FAIL_PUSH:-0}" != 1 ] || exit 1
         source="$2"
@@ -95,4 +97,29 @@ bash "$helper" release "${options[@]}" --token-file "$fixture/escaped.token" >/d
 status=0
 bash "$helper" run "${options[@]}" --token-file "$fixture/run.token" -- bash -c 'exit 23' >/dev/null || status=$?
 [ "$status" = 23 ] && [ ! -e "$lease" ] && [ ! -e "$lease.guard" ]
+
+# Failed remote deletion retains the recovery token through both entry points.
+for mode in release run; do
+    recovery_token="$fixture/$mode-recovery.token"
+    if [ "$mode" = release ]; then
+        bash "$helper" acquire "${options[@]}" --token-file "$recovery_token" >/dev/null
+        cp "$recovery_token" "$fixture/token-before"
+        status=0
+        FAIL_REMOTE_RM=1 bash "$helper" release "${options[@]}" --token-file "$recovery_token" >"$fixture/release-failure.log" 2>&1 || status=$?
+        cmp "$fixture/token-before" "$recovery_token"
+    else
+        status=0
+        FAIL_REMOTE_RM=1 bash "$helper" run "${options[@]}" --token-file "$recovery_token" -- true >"$fixture/release-failure.log" 2>&1 || status=$?
+    fi
+    [ "$status" -ne 0 ] && [ -s "$recovery_token" ] && [ -f "$lease/lock.json" ] && [ ! -e "$lease.guard" ]
+    grep -Fq "$(cat "$recovery_token")" "$lease/lock.json"
+    ! grep -q 'Released Android device lock' "$fixture/release-failure.log"
+    bash "$helper" release "${options[@]}" --token-file "$recovery_token" >/dev/null
+    [ ! -e "$recovery_token" ] && [ ! -e "$lease" ]
+done
+status=0
+FAIL_REMOTE_RM=1 bash "$helper" run "${options[@]}" --token-file "$fixture/failed-run.token" -- bash -c 'exit 23' >/dev/null 2>&1 || status=$?
+[ "$status" = 23 ] && [ -s "$fixture/failed-run.token" ] && [ -f "$lease/lock.json" ]
+bash "$helper" release "${options[@]}" --token-file "$fixture/failed-run.token" >/dev/null
+
 echo 'PASS: fake-device races, typed JSON/control characters, corrupt-state retention, owner refusal, renewal, atomic publication, failure cleanup and command status'
