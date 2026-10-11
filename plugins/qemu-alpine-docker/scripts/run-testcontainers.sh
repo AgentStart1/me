@@ -99,6 +99,8 @@ if ! vm_is_running; then
     exit 1
 fi
 wait_for_docker_api 30
+check_gvproxy
+verify_docker_publish_pool
 DOCKER_PROXY_DIR="$(docker_proxy_dir)"
 DOCKER_PROXY_NAME=docker
 is_windows && DOCKER_PROXY_NAME=docker.exe

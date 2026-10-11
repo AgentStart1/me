@@ -24,7 +24,7 @@ For now, use this plugin for Linux Docker container environments and Windows env
 - Pass the profile's extended Testcontainers pull pause and total timeouts to host test processes because large image extraction can be quiet under TCG fallback.
 - Use platform-aware `auto` resource metrics: collect Windows/guest metrics through PowerShell on Windows; run Linux commands without that collector. Preserve test exit codes. Explicit `true` requires the Windows collector.
 - Keep Docker's automatic published-port range equal to the gvproxy same-port forwarding range.
-- Keep the existing automatic publish range: `auto` resolves to 20015 on Windows or 20255 on Linux. Preserve explicit ranges up to 512 ports; gvproxy registers every mapping explicitly.
+- `auto` resolves to 29999 on both platforms, giving a 10,000-port pool from the default start 20000. Do not impose a port-count ceiling. Validate the guest kernel range (1024–65535), outbound space and host/guest service collisions. gvproxy registers all TCP mappings before QEMU starts, using one controller and persistent HTTP connection; failed registration cleans the owned launch. Linux hard `nofile` limits and actual host binds remain resource constraints. UDP/SCTP publishing is not forwarded by these scripts.
 - Docker caches its publish pool on daemon initialization. New guests seed it through the supervised startup wrapper, then restore a disjoint broad outbound kernel range. Do not apply new defaults by changing only QEMU forwards or restarting another session's persistent guest; review publish-pool compatibility in the README.
 - Never silently delete an incomplete disk or use `docker image prune -a`.
 - Treat TCP port 2375 as a root-equivalent, unauthenticated API; do not expose it beyond loopback.

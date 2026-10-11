@@ -140,6 +140,10 @@ build_forward_mappings() {
     validate_port "$ssh_value" "SSH_PORT" || return 1
     validate_port "$docker_value" "DOCKER_DAEMON_PORT" || return 1
     validate_port_range "$range_start" "$range_end" || return 1
+    if [ "$range_start" -le 2375 ] && [ "$range_end" -ge 2375 ]; then
+        echo 'Error: Publish pool collides with the guest Docker API port 2375.' >&2
+        return 1
+    fi
     [ "$ssh_value" != "$docker_value" ] || { echo "Error: SSH and Docker API ports must differ." >&2; return 1; }
     if { [ "$ssh_value" -ge "$range_start" ] && [ "$ssh_value" -le "$range_end" ]; } || \
        { [ "$docker_value" -ge "$range_start" ] && [ "$docker_value" -le "$range_end" ]; }; then
@@ -147,7 +151,7 @@ build_forward_mappings() {
         return 1
     fi
     local value="${ssh_value}:22"$'\n'"${docker_value}:2375"
-    local port listener_count=$((range_end - range_start + 3)) used_hosts=",${ssh_value},${docker_value},"
+    local port used_hosts=",${ssh_value},${docker_value},"
     for ((port=range_start; port<=range_end; port++)); do
         value+=$'\n'"${port}:${port}"
     done
@@ -169,7 +173,6 @@ build_forward_mappings() {
                 return 1
             fi
             used_hosts+="${host_port},"
-            listener_count=$((listener_count + 1))
             value+=$'\n'"${host_port}:${guest_port}"
         done
     fi

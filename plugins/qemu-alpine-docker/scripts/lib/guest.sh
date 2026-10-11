@@ -59,11 +59,22 @@ wait_for_docker_api() {
     return 1
 }
 
+verify_docker_publish_pool() {
+    ssh_exec "grep -qx 'net.ipv4.ip_local_port_range = ${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /etc/sysctl.d/99-testcontainers-ports.conf" || {
+        echo "Error: Guest Docker publish range differs from this profile. Update the stopped guest configuration during an owned maintenance window; host forwards alone do not update Docker's cached allocator." >&2
+        return 1
+    }
+    wait_for_docker_publish_pool
+}
+
 wait_for_docker_publish_pool() {
     local deadline=$((SECONDS + 180))
-    # Existing guests without the wrapper retain their old startup behavior.
+    ssh_exec 'test -x /usr/local/libexec/dockerd-with-port-range' || {
+        echo 'Error: Guest lacks the supervised Docker publish-pool wrapper; install the rendered configuration during an owned maintenance window.' >&2
+        return 1
+    }
     while [ "$SECONDS" -lt "$deadline" ]; do
-        if ssh_exec "test ! -x /usr/local/libexec/dockerd-with-port-range || grep -qx '${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /run/qemu-docker-publish-pool.ready" >/dev/null 2>&1; then
+        if ssh_exec "grep -qx '${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /run/qemu-docker-publish-pool.ready" >/dev/null 2>&1; then
             return 0
         fi
         sleep 2
