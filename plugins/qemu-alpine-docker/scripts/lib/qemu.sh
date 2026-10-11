@@ -134,22 +134,22 @@ configure_qemu_acceleration() {
     esac
 }
 
-build_netdev_value() {
+build_forward_mappings() {
     local ssh_value="${SSH_PORT:-2222}" docker_value="${DOCKER_DAEMON_PORT:-2375}"
-    local range_start="${TESTCONTAINERS_PORT_START:-20000}" range_end="${TESTCONTAINERS_PORT_END:-20255}"
-    validate_port "$ssh_value" "SSH_PORT"
-    validate_port "$docker_value" "DOCKER_DAEMON_PORT"
-    validate_port_range "$range_start" "$range_end"
+    local range_start="${TESTCONTAINERS_PORT_START:-20000}" range_end="${TESTCONTAINERS_PORT_END:-$(default_testcontainers_port_end)}"
+    validate_port "$ssh_value" "SSH_PORT" || return 1
+    validate_port "$docker_value" "DOCKER_DAEMON_PORT" || return 1
+    validate_port_range "$range_start" "$range_end" || return 1
     [ "$ssh_value" != "$docker_value" ] || { echo "Error: SSH and Docker API ports must differ." >&2; return 1; }
     if { [ "$ssh_value" -ge "$range_start" ] && [ "$ssh_value" -le "$range_end" ]; } || \
        { [ "$docker_value" -ge "$range_start" ] && [ "$docker_value" -le "$range_end" ]; }; then
         echo "Error: Fixed SSH/Docker API ports must be outside the Testcontainers range." >&2
         return 1
     fi
-    local value="user,id=net0,hostfwd=tcp:127.0.0.1:${ssh_value}-:22,hostfwd=tcp:127.0.0.1:${docker_value}-:2375"
-    local port
+    local value="${ssh_value}:22"$'\n'"${docker_value}:2375"
+    local port listener_count=$((range_end - range_start + 3)) used_hosts=",${ssh_value},${docker_value},"
     for ((port=range_start; port<=range_end; port++)); do
-        value+=",hostfwd=tcp:127.0.0.1:${port}-:${port}"
+        value+=$'\n'"${port}:${port}"
     done
     if [ -n "${PORT_FORWARD:-}" ]; then
         local mapping host_port guest_port
@@ -157,15 +157,35 @@ build_netdev_value() {
         for mapping in "${mappings[@]}"; do
             [[ "$mapping" =~ ^[0-9]+:[0-9]+$ ]] || { echo "Error: Invalid PORT_FORWARD mapping '${mapping}'." >&2; return 1; }
             host_port="${mapping%%:*}"; guest_port="${mapping##*:}"
-            validate_port "$host_port" "PORT_FORWARD host port"
-            validate_port "$guest_port" "PORT_FORWARD guest port"
+            validate_port "$host_port" "PORT_FORWARD host port" || return 1
+            validate_port "$guest_port" "PORT_FORWARD guest port" || return 1
             if [ "$host_port" = "$ssh_value" ] || [ "$host_port" = "$docker_value" ] || \
                { [ "$host_port" -ge "$range_start" ] && [ "$host_port" -le "$range_end" ]; }; then
                 echo "Error: PORT_FORWARD host port ${host_port} collides with a reserved port." >&2
                 return 1
             fi
-            value+=",hostfwd=tcp:127.0.0.1:${host_port}-:${guest_port}"
+            if [[ "$used_hosts" == *",${host_port},"* ]]; then
+                echo "Error: Duplicate PORT_FORWARD host port ${host_port}." >&2
+                return 1
+            fi
+            used_hosts+="${host_port},"
+            listener_count=$((listener_count + 1))
+            value+=$'\n'"${host_port}:${guest_port}"
         done
     fi
+    local transport="${GVPROXY_QEMU_PORT:-19200}" api="${GVPROXY_API_PORT:-19201}"
+    validate_port "$transport" GVPROXY_QEMU_PORT || return 1
+    validate_port "$api" GVPROXY_API_PORT || return 1
+    [ "$transport" != "$api" ] || { echo 'Error: gvproxy control ports must differ.' >&2; return 1; }
+    for port in "$transport" "$api"; do
+        if [[ "$used_hosts" == *",${port},"* ]] || { [ "$port" -ge "$range_start" ] && [ "$port" -le "$range_end" ]; }; then
+            echo 'Error: gvproxy control port collides with a forward.' >&2; return 1
+        fi
+    done
     echo "$value"
+}
+
+build_netdev_value() {
+    build_forward_mappings >/dev/null || return 1
+    echo "socket,id=net0,connect=127.0.0.1:${GVPROXY_QEMU_PORT:-19200}"
 }

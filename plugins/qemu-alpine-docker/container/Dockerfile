@@ -17,6 +17,8 @@ COPY --chown=developer:developer templates /opt/qemu-alpine-docker/templates
 RUN find /opt/qemu-alpine-docker -type f \( -name '*.sh' -o -name '*.profile' -o -name '*.tpl' \) \
     -exec sed -i 's/\r$//' {} +
 ENV QEMU_ALPINE_BASE_DIR=/var/lib/qemu-alpine
+ENV GVPROXY_BINARY=/opt/qemu-alpine-docker/bin/gvproxy
+RUN bash -c 'source /opt/qemu-alpine-docker/scripts/vm-utils.sh; install_gvproxy'
 USER developer
 WORKDIR /workspace
 CMD ["sleep", "infinity"]

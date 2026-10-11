@@ -76,6 +76,7 @@ cleanup() {
     if [ -n "$GUEST_DIR" ]; then
         ssh_exec "rm -rf -- '$GUEST_DIR'" </dev/null || echo "Warning: guest proxy cleanup failed." >&2
     fi
+    release_vm_operation || status=1
     release_build_lock "$BUILD_LOCK"
     exit "$status"
 }
@@ -83,6 +84,9 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 acquire_build_lock "$BUILD_LOCK"
+begin_vm_operation keep-traps
+require_known_vm_process
+vm_is_running || { echo "Error: VM stopped before proxy build reservation." >&2; exit 1; }
 GUEST_CANDIDATE="$(ssh_exec 'mktemp -d /tmp/qemu-docker-proxy.XXXXXXXXXX' </dev/null)"
 [[ "$GUEST_CANDIDATE" =~ ^/tmp/qemu-docker-proxy\.[A-Za-z0-9]+$ ]] || { echo "Error: Invalid guest staging directory." >&2; exit 1; }
 GUEST_DIR="$GUEST_CANDIDATE"

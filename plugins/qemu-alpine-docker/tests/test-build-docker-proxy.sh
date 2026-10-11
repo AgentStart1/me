@@ -31,6 +31,12 @@ cat > "$TEST_DIR/bin/go" <<'MOCK'
 echo 'Host Go must not be used' >&2
 exit 99
 MOCK
+cat > "$TEST_DIR/bin/python" <<'MOCK'
+#!/bin/bash
+[[ "$1" == *qemu-control.py ]] || exit 99
+exit 0
+MOCK
+chmod +x "$TEST_DIR/bin/python"
 chmod +x "$TEST_DIR/bin/ssh" "$TEST_DIR/bin/go"
 export HOME="$TEST_DIR/user"
 if command -v cygpath >/dev/null 2>&1; then export USERPROFILE="$(cygpath -w "$TEST_DIR/user")"; fi

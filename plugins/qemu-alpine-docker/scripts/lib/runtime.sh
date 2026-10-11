@@ -15,7 +15,9 @@ is_windows() { [ "$(platform_tag)" = "win" ]; }
 qemu_native_path() {
     local path="$1"
     if is_windows && command -v cygpath >/dev/null 2>&1; then
-        cygpath -m "$path"
+        local converter="${BASH%/*}/cygpath.exe"
+        [ -x "$converter" ] || converter="$(command -v cygpath)"
+        "$converter" -m "$path"
     else
         echo "$path"
     fi

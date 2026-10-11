@@ -39,7 +39,7 @@ docker exec qemu-dev bash /opt/qemu-alpine-docker/scripts/run-docker.sh -- ps -a
 docker exec qemu-dev python3 /opt/qemu-alpine-docker/scripts/status.py
 ```
 
-Run the development tools, test process, and MCP server in this same outer container/network namespace. Docker's loopback API is at `127.0.0.1:2375` there, and dynamically published guest ports are forwarded to `127.0.0.1:20000–20255` there. A host-side `docker -p` mapping does not make a service bound to the container's loopback reachable. The default design keeps the unauthenticated API local; it does not widen it to `0.0.0.0`.
+Run the development tools, test process, and MCP server in this same outer container/network namespace. `setup.sh` installs verified upstream gvproxy v0.9.0. QEMU and gvproxy share this namespace; Alpine and Docker use gvproxy DNS. Docker's loopback API is at `127.0.0.1:2375` there, and dynamically published guest ports are forwarded to `127.0.0.1:20000–20255` there. A host-side `docker -p` mapping does not make a service bound to the container's loopback reachable. The default design keeps the unauthenticated API local; it does not widen it to `0.0.0.0`.
 
 Use this image as a base for your own JDK, build tools, or Codex environment, and install uv there for the MCP status panel. Before the first test run, compile the Linux Docker CLI proxy inside the outer container, after the VM has started:
 

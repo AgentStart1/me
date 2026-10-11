@@ -25,6 +25,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=vm-utils.sh
 source "${SCRIPT_DIR}/vm-utils.sh"
+load_profile "${PLUGIN_DIR}/profiles/dev.profile"
+begin_vm_operation
 
 echo "=== QEMU Alpine Docker Setup ===" >&2
 
@@ -48,6 +50,9 @@ mkdir -p "${IMAGES_DIR}" "${VM_DIR}" "${RUN_DIR}"
 # Ensure SSH key exists
 echo "Checking SSH key..." >&2
 ensure_ssh_key
+
+# Install the pinned upstream networking helper
+install_gvproxy
 
 # Download Alpine image
 echo "Checking Alpine image..." >&2

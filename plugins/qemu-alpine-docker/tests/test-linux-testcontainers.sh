@@ -8,6 +8,8 @@ mkdir -p "$fixture/bin" "$fixture/state/vms"
 printf '#!/bin/sh\nexit 0\n' > "$fixture/bin/curl"
 chmod +x "$fixture/bin/curl"
 cp "$fixture/bin/curl" "$fixture/bin/docker"
+cp "$fixture/bin/curl" "$fixture/bin/python"
+cp "$fixture/bin/curl" "$fixture/bin/python3"
 printf '%s\n' "$$" > "$fixture/state/vms/alpine-docker.pid"
 cat > "$fixture/command.sh" <<'COMMAND'
 #!/usr/bin/env bash

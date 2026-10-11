@@ -43,3 +43,6 @@ source "${SCRIPT_DIR}/lib/guest.sh"
 source "${SCRIPT_DIR}/lib/alpine-image.sh"
 # shellcheck source=lib/vm-state.sh
 source "${SCRIPT_DIR}/lib/vm-state.sh"
+
+# shellcheck source=lib/gvproxy.sh
+source "${SCRIPT_DIR}/lib/gvproxy.sh"
