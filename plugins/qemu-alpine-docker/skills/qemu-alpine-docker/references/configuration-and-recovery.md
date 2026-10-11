@@ -9,8 +9,9 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 - `TESTCONTAINERS_PORT_START`
 - `TESTCONTAINERS_PORT_END`
 
-The bundled end value `auto` resolves to 20127 on both platforms,
-starting at 20000. Explicit numeric ranges have no count ceiling; the guest kernel
+The end value `auto` selects 128 ports from the configured start on both platforms
+(20000–20127 by default). An automatic pool extending above 65535 is rejected;
+explicit numeric ranges have no count ceiling. The guest kernel
 requires a pool within 1024–65535 and the plugin requires remaining outbound space.
 The pool must also exclude guest Docker API port 2375, even when its host port differs.
 The gvproxy backend registers SSH, Docker API, the full TCP range and custom

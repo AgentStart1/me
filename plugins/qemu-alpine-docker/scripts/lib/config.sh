@@ -27,12 +27,20 @@ load_profile() {
         return 1
     fi
     if [ "${TESTCONTAINERS_PORT_END:-}" = auto ]; then
-        export TESTCONTAINERS_PORT_END="$(default_testcontainers_port_end)"
+        local resolved_end
+        resolved_end="$(default_testcontainers_port_end)" || return 1
+        export TESTCONTAINERS_PORT_END="$resolved_end"
     fi
 }
 
 default_testcontainers_port_end() {
-    echo 20127
+    local start="${TESTCONTAINERS_PORT_START:-20000}"
+    validate_port "$start" TESTCONTAINERS_PORT_START || return 1
+    [ "$start" -le 65408 ] || {
+        echo 'Error: The automatic 128-port pool would exceed port 65535; choose explicit bounds.' >&2
+        return 1
+    }
+    echo $((start + 127))
 }
 
 # Prefer Alpine's ordinary outbound range; large custom pools may require

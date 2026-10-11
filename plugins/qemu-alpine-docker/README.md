@@ -123,11 +123,15 @@ Other operations:
 - `VM_ACCELERATOR=auto|kvm|whpx|tcg`; `auto` probes KVM on Linux or WHPX on Windows before falling back to TCG. Explicit hardware modes fail if unavailable
 - `SSH_PORT` and `DOCKER_DAEMON_PORT`
 - `TESTCONTAINERS_PORT_START=20000` and `TESTCONTAINERS_PORT_END=auto` (20127 on both platforms); explicit numeric ranges have no port-count ceiling
+
 - `TESTCONTAINERS_PULL_PAUSE_TIMEOUT` and `TESTCONTAINERS_PULL_TIMEOUT` in seconds; the bundled profile raises both for large image extraction under TCG fallback
 - `TESTCONTAINERS_RESOURCE_METRICS=auto|true|false` and `TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=1`; collection requires Windows PowerShell and accepts intervals from 1 to 60 seconds
 - `PORT_FORWARD=host:guest,...` for additional fixed loopback forwards
 - `ALPINE_BRANCH` and `ALPINE_MIRROR_BASE`; use `auto` for fastest-mirror detection or an explicit `http://`/`https://` base URL to disable detection
 - `PRELOAD_IMAGES=image,...`
+
+`auto` computes the end from the configured start plus 127, so a custom start
+still gets 128 ports. A pool extending above 65535 must use explicit valid bounds.
 
 The bundled development profile selects acceleration automatically and allocates 4 GiB of guest memory plus four virtual CPUs for multi-container and JVM-based Testcontainers suites.
 
