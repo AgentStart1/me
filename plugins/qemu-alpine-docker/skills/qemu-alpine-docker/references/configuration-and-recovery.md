@@ -15,10 +15,10 @@ starting at 20000. Explicit numeric ranges retain the 512-port ceiling. The gvpr
 
 New guests initialize Docker's cached publish pool with the same numeric range
 and restore a broad, disjoint kernel outbound range after readiness. Existing
-disks need a planned migration; see the plugin-root README for compatibility and
+disks retain their configured publish pools; see the plugin-root README for compatibility and
 restart requirements. Do not restart a VM owned by another session.
 
-Control ports `GVPROXY_QEMU_PORT` (19200) and `GVPROXY_API_PORT` (19201) are loopback-only and may not overlap forwards. Recovery requires a coordinated stop/start of both QEMU and gvproxy; rules are regenerated from the profile. See README for explicit existing-disk migration.
+Control ports `GVPROXY_QEMU_PORT` (19200) and `GVPROXY_API_PORT` (19201) are loopback-only and may not overlap forwards. Recovery requires a coordinated stop/start of both QEMU and gvproxy; rules are regenerated from the profile.
 
 ## Acceleration and provisioning
 
@@ -34,7 +34,7 @@ Control ports `GVPROXY_QEMU_PORT` (19200) and `GVPROXY_API_PORT` (19201) are loo
 
 ## Limitations and recovery
 
-Setup, lifecycle and client scripts share an operation lease. Competing calls fail before modifying the VM; migration explicitly allows its nested stop/start. Normal exits and handled signals release the lease. After a forced kill, inspect all plugin processes before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or helper `.control.lock` directories. Never discard QEMU/gvproxy identity records while either owned process remains alive.
+Setup, lifecycle and client scripts share an operation lease. Competing calls fail before modifying the VM. Normal exits and handled signals release the lease. After a forced kill, inspect all plugin processes before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or helper `.control.lock` directories. Never discard QEMU/gvproxy identity records while either owned process remains alive.
 
 Because Docker runs in a remote guest, Host or outer-container paths cannot be used as ordinary Docker bind mounts. Prefer Docker build contexts, named volumes, or test fixtures copied through the Docker API.
 

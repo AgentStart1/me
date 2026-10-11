@@ -16,7 +16,7 @@ For now, these are the intended environments. On Linux hosts running outside con
 - Docker exposes its unauthenticated API only through gvproxy's host loopback forward at `127.0.0.1:2375`.
 - Docker automatically allocates published ports from `20000–20015` on Windows or `20000–20255` on Linux; gvproxy forwards every port in the selected range to the same guest port.
 - A global lock permits only one VM from this plugin to run at a time, which also reserves the forwarded range. Lock-state changes are serialized with an atomic guard directory so concurrent launchers cannot overwrite each other.
-- A separate operation lease spans setup, provisioning, start/stop, migration and client commands (tests, Docker, SSH/SFTP, workspace sync and proxy builds). Competing operations fail before changing VM state. Migration alone explicitly permits its nested stop/start. Normal exits and handled signals release the lease; after a forced kill, inspect all plugin processes before manually removing an interrupted `run/vm-operation.lock` or `vm-state.guard`.
+- A separate operation lease spans setup, provisioning, start/stop and client commands (tests, Docker, SSH/SFTP, workspace sync and proxy builds). Competing operations fail before changing VM state. Normal exits and handled signals release the lease; after a forced kill, inspect all plugin processes before manually removing an interrupted `run/vm-operation.lock` or `vm-state.guard`.
 - QEMU and gvproxy ownership records verify the native executable and creation time before termination. An already-running VM is accepted only after its forwarding rules and guest readiness match the profile. Windows path/PID translation uses the launching Bash runtime's tools.
 - Docker images remain on the qcow2 disk and are reused by later test runs. Do not recreate the VM or run `docker image prune -a` if cache reuse matters.
 - Testcontainers Ryuk stays enabled and uses the guest Docker socket.
@@ -265,12 +265,9 @@ Normal exits and handled signals release the owned lock. After a forced kill, a 
 produces an error: confirm no compiler or transfer remains before removing the reported
 lock directory. Do not remove another running build's lock.
 
-## Existing disk migration and network recovery
+## Network recovery
 
-Use the updated plugin or a matching source checkout for setup, migration, start and stop commands. Until the distribution workflow publishes the update and a new Codex chat loads it, manage a migrated VM with the matching source scripts.
-
-
-First confirm no other session uses the VM and no containers are running. With the old guest running, run `bash scripts/migrate-vm-network.sh profiles/dev.profile`. This installs the verified helper, saves the old guest configuration in `/root/qemu-network-before-gvproxy`, removes Unbound and its boot/DHCP overrides, changes Docker DNS, then gracefully restarts the VM. It preserves the disk, images and configured publish range. Custom Docker DNS configurations require manual review.
+Use the updated plugin or a matching source checkout for setup, start and stop commands. Until the distribution workflow publishes the update and a new Codex chat loads it, manage the VM with the matching source scripts.
 
 `GVPROXY_QEMU_PORT=19200` and `GVPROXY_API_PORT=19201` are loopback control ports; they must be distinct and outside every forward. Python 3 is required for verified process ownership. `GVPROXY_BINARY` can point to a verified helper installed by `setup.sh`.
 

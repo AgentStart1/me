@@ -123,7 +123,7 @@ printf '{}'
             owner = launch("start-vm")
             wait_for(qstate.exists, owner)
             qrecord, hrecord = json.loads(qstate.read_text()), json.loads(hstate.read_text())
-            for contender in ["start-vm", "stop-vm", "create-vm", "migrate-vm-network"]:
+            for contender in ["start-vm", "stop-vm", "create-vm"]:
                 assert launch(contender).wait(timeout=15) != 0, contender
                 assert identity(qrecord["pid"]) == qrecord["identity"]
                 assert json.loads(qstate.read_text()) == qrecord
@@ -131,7 +131,8 @@ printf '{}'
             assert owner.wait(timeout=30) == 0
             assert not operation.exists()
             assert launch("start-vm").wait(timeout=30) == 0  # Healthy idempotency.
-            assert launch("migrate-vm-network").wait(timeout=60) == 0  # Nested stop/start.
+            assert launch("stop-vm").wait(timeout=30) == 0
+            assert launch("start-vm").wait(timeout=30) == 0  # Coordinated restart.
             assert not operation.exists()
             assert launch("stop-vm").wait(timeout=30) == 0
             assert not qstate.exists() and not hstate.exists()
@@ -199,7 +200,7 @@ printf '{}'
                     record = json.loads(state.read_text())
                     if identity(record["pid"]) == record["identity"]:
                         terminate(record)
-        print("PASS: competing start/stop/create/migrate, nested migration, healthy idempotency, TERM/timeout cleanup, test reservation and disk preservation")
+        print("PASS: competing start/stop/create, coordinated restart, healthy idempotency, TERM/timeout cleanup, test reservation and disk preservation")
 
 
 if __name__ == "__main__":

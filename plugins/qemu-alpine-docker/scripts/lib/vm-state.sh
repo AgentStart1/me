@@ -145,13 +145,8 @@ clear_vm_process_state_guarded() {
 clear_vm_process_state() { with_vm_state_guard clear_vm_process_state_guarded "$@"; }
 
 acquire_vm_operation_guarded() {
-    local operation_dir="${RUN_DIR}/vm-operation.lock" token="$1" owner
+    local operation_dir="${RUN_DIR}/vm-operation.lock" token="$1"
     if [ -d "$operation_dir" ]; then
-        owner="$(cat "$operation_dir/owner.pid" 2>/dev/null || true)"
-        if [ "$(cat "$operation_dir/token" 2>/dev/null || true)" = "$token" ] &&
-           [ "$(cat "$operation_dir/vm-name" 2>/dev/null || true)" = "$VM_NAME" ] && process_is_running "$owner"; then
-            return 0 # Nested stop/start inside an explicitly owned migration.
-        fi
         echo 'Error: VM lifecycle operation is busy or interrupted. Inspect vm-operation.lock; remove it only after confirming all lifecycle scripts have exited.' >&2
         return 1
     fi
@@ -174,9 +169,6 @@ release_vm_operation_guarded() {
 release_vm_operation() { with_vm_state_guard release_vm_operation_guarded; }
 begin_vm_operation() {
     local token="${BASHPID:-$$}-${RANDOM}-${RANDOM}"
-    if [ "${VM_OPERATION_ALLOW_NESTED:-}" = migration ]; then
-        token="${VM_OPERATION_TOKEN:-$token}"
-    fi
     with_vm_state_guard acquire_vm_operation_guarded "$token" || return 1
     export VM_OPERATION_TOKEN="$token"
     if [ "${1:-}" != keep-traps ]; then

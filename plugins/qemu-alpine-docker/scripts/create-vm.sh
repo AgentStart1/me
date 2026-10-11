@@ -160,10 +160,6 @@ trap 'exit 143' TERM
 #   - OpenRC boot script for guest setup
 #
 if [ "$VERIFY_ONLY" != "true" ]; then
-    # Remove obsolete generated DNS files from pre-migration failed overlays.
-    # The persistent disk and unrelated overlay content are preserved.
-    rm -f "${OVERLAY_DIR}/etc/local.d/use-local-dns.start" \
-        "${OVERLAY_DIR}/etc/unbound/unbound.conf" "${OVERLAY_DIR}/udhcpc.conf"
     mkdir -p "$VM_HOME" "${OVERLAY_DIR}/etc/local.d" "${OVERLAY_DIR}/etc/runlevels/default"
     mkdir -p "${OVERLAY_DIR}/etc/sysctl.d" "${OVERLAY_DIR}/etc/conf.d"
     mkdir -p "${OVERLAY_DIR}/usr/local/libexec"

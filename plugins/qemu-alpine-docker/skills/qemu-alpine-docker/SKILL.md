@@ -13,19 +13,19 @@ For now, use this plugin for Linux Docker container environments and Windows env
 
 - Use the bundled persistent Alpine VM with unprivileged gvproxy networking inside Linux Docker containers and on Windows.
 - Run at most one plugin VM at a time. The scripts serialize lock-state updates with an atomic guard and enforce a global VM lock.
-- Whole-operation leases also protect setup and VM clients from concurrent lifecycle changes. Only migration explicitly shares its lease with nested stop/start. Do not bypass a busy lease. After forced termination, confirm all plugin lifecycle/client processes have exited before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or a helper `.control.lock`; preserve process records until both owned processes are confirmed stopped.
+- Whole-operation leases also protect setup and VM clients from concurrent lifecycle changes. Do not bypass a busy lease. After forced termination, confirm all plugin lifecycle/client processes have exited before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or a helper `.control.lock`; preserve process records until both owned processes are confirmed stopped.
 - Cleanup verifies QEMU/gvproxy native executable and creation time before signalling. Healthy repeated starts check forwarding rules, SSH, Docker and the publish pool. On Windows use the launching Bash runtime for path and PID conversion; bypass HTTP proxies explicitly for `127.0.0.1` instead of passing a wildcard to curl.
 - In auto mode, probe KVM with `-cpu host` on Linux or WHPX with `-cpu qemu64` on Windows. Fall back to multi-threaded TCG with `-cpu max` if hardware acceleration is unavailable. Explicit `kvm`/`whpx` must fail clearly instead of silently falling back.
 - Use gvproxy v0.9.0 over a loopback TCP QEMU socket with either accelerator; preserve MAC `5a:94:ef:e4:0c:ee`.
 - Bind every host forward to `127.0.0.1`.
 - Reuse the persistent qcow2 disk so Docker images survive between test runs.
-- Resolve Alpine and Docker upstream DNS through gvproxy at `192.168.127.1`; remove Unbound and DHCP DNS overrides during explicit existing-disk migration.
+- Resolve Alpine and Docker upstream DNS through gvproxy at `192.168.127.1`.
 - Keep Testcontainers Ryuk enabled.
 - Pass the profile's extended Testcontainers pull pause and total timeouts to host test processes because large image extraction can be quiet under TCG fallback.
 - Use platform-aware `auto` resource metrics: collect Windows/guest metrics through PowerShell on Windows; run Linux commands without that collector. Preserve test exit codes. Explicit `true` requires the Windows collector.
 - Keep Docker's automatic published-port range equal to the gvproxy same-port forwarding range.
 - Keep the existing automatic publish range: `auto` resolves to 20015 on Windows or 20255 on Linux. Preserve explicit ranges up to 512 ports; gvproxy registers every mapping explicitly.
-- Docker caches its publish pool on daemon initialization. New guests seed it through the supervised startup wrapper, then restore a disjoint broad outbound kernel range. Do not apply new defaults by changing only QEMU forwards or restarting another session's persistent guest; plan migration using the README.
+- Docker caches its publish pool on daemon initialization. New guests seed it through the supervised startup wrapper, then restore a disjoint broad outbound kernel range. Do not apply new defaults by changing only QEMU forwards or restarting another session's persistent guest; review publish-pool compatibility in the README.
 - Never silently delete an incomplete disk or use `docker image prune -a`.
 - Treat TCP port 2375 as a root-equivalent, unauthenticated API; do not expose it beyond loopback.
 - Render provisioning configuration from `templates/*.tpl` with the shared `render_template` helper; keep scripts limited to runtime values and orchestration.
@@ -47,7 +47,6 @@ For now, use this plugin for Linux Docker container environments and Windows env
 - `scripts/lib/`: focused runtime, configuration, template, QEMU, guest, Alpine-image, and VM-state modules loaded by the facade
 
 - `templates/`: Alpine answers, guest setup, sysctl, and Docker daemon configuration templates
-- `scripts/migrate-vm-network.sh`: explicit migration preserving existing disk and images
 - `scripts/lib/gvproxy.sh` and `scripts/gvproxy-control.py`: verified helper lifecycle, readiness, forwarding registration and cleanup
 - `profiles/dev.profile`
 - `tests/test-vm-utils.sh`
