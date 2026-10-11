@@ -81,9 +81,16 @@ PY
     cmp "$fixture/invalid-before" "$lease/lock.json"
 done
 rm "$lease/lock.json"; rmdir "$lease"
-bash "$helper" acquire "${options[@]}" --token-file "$fixture/escaped.token" --test-name $'quoted "name"\nnext line' >/dev/null
+bash "$helper" acquire "${options[@]}" --token-file "$fixture/escaped.token" --test-name $'quoted "name"\nnext line ${owner_token}\n' >/dev/null
 bash "$helper" renew "${options[@]}" --token-file "$fixture/escaped.token" >/dev/null
-grep -Fq '\nnext line' "$lease/lock.json"
+grep -Fq '\nnext line ${owner_token}\n' "$lease/lock.json"
+python3 - "$lease/lock.json" <<'PY'
+import json,sys
+from pathlib import Path
+record=json.loads(Path(sys.argv[1]).read_text())
+assert record['test_name'] == 'quoted "name"\nnext line ${owner_token}\n'
+assert isinstance(record['expires_at_epoch'],int)
+PY
 bash "$helper" release "${options[@]}" --token-file "$fixture/escaped.token" >/dev/null
 status=0
 bash "$helper" run "${options[@]}" --token-file "$fixture/run.token" -- bash -c 'exit 23' >/dev/null || status=$?

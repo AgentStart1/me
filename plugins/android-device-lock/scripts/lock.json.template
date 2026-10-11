@@ -1,0 +1,13 @@
+{
+  "project_dir": ${project_dir},
+  "test_name": ${test_name},
+  "requested_at_utc": ${requested_at_utc},
+  "acquired_at_utc": ${acquired_at_utc},
+  "max_timeout_seconds": ${max_timeout_seconds},
+  "expires_at_epoch": ${expires_at_epoch},
+  "host": ${host},
+  "pid": ${pid},
+  "adb_serial": ${adb_serial},
+  "lock_path": ${lock_path},
+  "owner_token": ${owner_token}
+}

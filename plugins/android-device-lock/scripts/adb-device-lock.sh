@@ -68,11 +68,6 @@ push_metadata() {
   adb_cmd shell "mv $(shell_quote "$(lock_json_path).tmp") $(shell_quote "$(lock_json_path)")" >/dev/null
 }
 
-json_escape() {
-  printf '%s' "$1" | PYTHONIOENCODING=utf-8 "$METADATA_PYTHON" -c \
-    'import json,sys; print(json.dumps(sys.stdin.read())[1:-1], end="")'
-}
-
 remote_exists() {
   adb_cmd shell "[ -e $(shell_quote "$1") ]" >/dev/null 2>&1
 }
@@ -101,38 +96,10 @@ make_token() {
   printf "%s:%s:%s:%s" "$(hostname 2>/dev/null || printf unknown-host)" "$$" "$(now_epoch)" "$RANDOM"
 }
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 metadata_field() {
-  PYTHONIOENCODING=utf-8 "$METADATA_PYTHON" -c '
-import json,sys
-def reject_constant(_):
-    raise ValueError()
-def unique_fields(pairs):
-    result={}
-    for key,value in pairs:
-        if key in result: raise ValueError()
-        result[key]=value
-    return result
-try:
-    record=json.load(sys.stdin,object_pairs_hook=unique_fields,parse_constant=reject_constant)
-    if not isinstance(record,dict): raise ValueError()
-    if not isinstance(record.get("owner_token"),str) or not record["owner_token"]: raise ValueError()
-    if type(record.get("expires_at_epoch")) is not int or record["expires_at_epoch"] < 0: raise ValueError()
-    for key in ("project_dir","test_name","requested_at_utc","acquired_at_utc","host"):
-        if not isinstance(record.get(key),str): raise ValueError()
-    for key in ("adb_serial","lock_path"):
-        if key in record and not isinstance(record[key],str): raise ValueError()
-    for key in ("pid","max_timeout_seconds"):
-        if type(record.get(key)) is not int or record[key] <= 0: raise ValueError()
-    kind,key=sys.argv[1:]
-    if kind == "summary":
-        print(json.dumps({k:record[k] for k in ("host","pid","test_name","expires_at_epoch") if k in record}))
-    else:
-        value=record.get(key)
-        if (kind == "number" and type(value) is not int) or (kind == "string" and not isinstance(value,str)): raise ValueError()
-        print(value,end="")
-except (ValueError,TypeError,KeyError):
-    raise SystemExit(1)
-' "$1" "$2"
+  PYTHONIOENCODING=utf-8 "$METADATA_PYTHON" "$SCRIPT_DIR/lock-metadata.py" "$1" "$2"
 }
 
 extract_json_number() { metadata_field number "$1"; }
@@ -145,21 +112,12 @@ write_metadata() {
   local expires_at="$4"
   local tmp_file
   tmp_file="$(mktemp)"
-  cat >"$tmp_file" <<JSON
-{
-  "project_dir": "$(json_escape "$PROJECT_DIR")",
-  "test_name": "$(json_escape "$TEST_NAME")",
-  "requested_at_utc": "$requested_at",
-  "acquired_at_utc": "$acquired_at",
-  "max_timeout_seconds": $MAX_TIMEOUT_SECONDS,
-  "expires_at_epoch": $expires_at,
-  "host": "$(json_escape "$(hostname 2>/dev/null || printf unknown-host)")",
-  "pid": $$,
-  "adb_serial": "$(json_escape "$SERIAL")",
-  "lock_path": "$(json_escape "$LOCK_PATH")",
-  "owner_token": "$(json_escape "$token")"
-}
-JSON
+  if ! PYTHONIOENCODING=utf-8 "$METADATA_PYTHON" "$SCRIPT_DIR/lock-metadata.py" render \
+      "$PROJECT_DIR" "$TEST_NAME" "$requested_at" "$acquired_at" \
+      "$MAX_TIMEOUT_SECONDS" "$expires_at" "$(hostname 2>/dev/null || printf unknown-host)" \
+      "$$" "$SERIAL" "$LOCK_PATH" "$token" >"$tmp_file"; then
+    rm -f "$tmp_file"; return 1
+  fi
   if ! push_metadata "$tmp_file"; then rm -f "$tmp_file"; return 1; fi
   rm -f "$tmp_file"
 }
@@ -301,21 +259,11 @@ renew_lock() {
   local new_expires_at tmp_file
   new_expires_at=$(( $(now_epoch) + MAX_TIMEOUT_SECONDS ))
   tmp_file="$(mktemp)"
-  cat >"$tmp_file" <<JSON
-{
-  "project_dir": "$(json_escape "$(printf "%s" "$metadata" | extract_json_string project_dir)")",
-  "test_name": "$(json_escape "$(printf "%s" "$metadata" | extract_json_string test_name)")",
-  "requested_at_utc": "$(printf "%s" "$metadata" | extract_json_string requested_at_utc)",
-  "acquired_at_utc": "$(printf "%s" "$metadata" | extract_json_string acquired_at_utc)",
-  "max_timeout_seconds": $MAX_TIMEOUT_SECONDS,
-  "expires_at_epoch": $new_expires_at,
-  "host": "$(json_escape "$(printf "%s" "$metadata" | extract_json_string host)")",
-  "pid": $(printf "%s" "$metadata" | extract_json_number pid || echo 0),
-  "adb_serial": "$(json_escape "$SERIAL")",
-  "lock_path": "$(json_escape "$LOCK_PATH")",
-  "owner_token": "$(json_escape "$actual_token")"
-}
-JSON
+  if ! printf '%s' "$metadata" | PYTHONIOENCODING=utf-8 "$METADATA_PYTHON" \
+      "$SCRIPT_DIR/lock-metadata.py" renew "$MAX_TIMEOUT_SECONDS" "$new_expires_at" \
+      "$SERIAL" "$LOCK_PATH" >"$tmp_file"; then
+    rm -f "$tmp_file"; return 1
+  fi
   if ! push_metadata "$tmp_file"; then rm -f "$tmp_file"; return 1; fi
   rm -f "$tmp_file"
   printf "Renewed Android device lock at %s, expires at epoch %d\n" "$LOCK_PATH" "$new_expires_at" >&2
