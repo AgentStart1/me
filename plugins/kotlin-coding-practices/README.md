@@ -4,6 +4,10 @@ This plugin provides focused Kotlin and Android Kotlin guidance for structured c
 coroutine-friendly synchronization, immutable values, sealed state models and state machines, and explicit boundaries around platform APIs
 that require Java threading or blocking behavior.
 
+When translating coroutine failures into results or UI state, propagate
+`CancellationException`. `runCatching` includes cancellation among caught failures;
+continuing after it can publish stale state or keep cancelled work running.
+
 ## Contents
 
 - `plugin.json` declares the portable plugin; client manifests are generated.

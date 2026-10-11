@@ -80,7 +80,7 @@ For Paging 3:
 ```kotlin
 viewLifecycleOwner.lifecycleScope.launch {
     repeatOnLifecycle(Lifecycle.State.STARTED) {
-        viewModel.items.collectLatest(adapter::submitData)
+        host.items.collectLatest(adapter::submitData)
     }
 }
 ```
@@ -104,7 +104,8 @@ viewLifecycleOwner.lifecycleScope.launch {
 - Clear binding references in `onDestroyView`.
 - Collect flows with `viewLifecycleOwner.repeatOnLifecycle`.
 - Submit immutable lists; do not mutate a list after passing it to `submitList`.
-- Keep item click effects in the Fragment/ViewModel boundary, not in the adapter.
+- Route item callbacks through the UI adapter into the framework-independent Host.
+  Keep navigation and other effects in the Host's effect channel; the view renders them.
 
 ## Layout And Performance
 
@@ -120,7 +121,7 @@ viewLifecycleOwner.lifecycleScope.launch {
 
 - Represent screen state outside the adapter: loading, empty, content, error, offline, and refreshing.
 - Represent row state with stable ids, not positions.
-- Selection, expansion, swipe state, and pending operations should live in ViewModel or a dedicated state holder and be projected into UI models.
+- Selection, expansion, swipe state, and pending operations live in the framework-independent Host and are projected into immutable UI models. A ViewModel may adapt Host lifetime/state to Android.
 - Avoid letting recycled views carry old visual state. Every bind should produce the same row for the same item.
 
 ## Multiple View Types
@@ -133,7 +134,7 @@ viewLifecycleOwner.lifecycleScope.launch {
 ## Testing Guidance
 
 - Unit test custom `DiffUtil.ItemCallback` behavior for identity, content equality, and payloads.
-- Test ViewModel list mapping separately from adapter rendering.
+- Test Host list mapping separately from adapter rendering.
 - For Paging, test `PagingData` transformations and load-state handling.
 - Add UI or screenshot tests only when the change affects row layout, selection, empty/error states, or load-state presentation.
 

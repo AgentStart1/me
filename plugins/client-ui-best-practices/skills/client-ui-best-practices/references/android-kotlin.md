@@ -12,13 +12,22 @@ class ProfileHost(
     val state = _state.asStateFlow()
     private val _effects = MutableSharedFlow<ProfileEffect>()
     val effects = _effects.asSharedFlow()
+    private var refreshGeneration = 0L // Mutated only by hostScope coordination.
 
     fun refresh() = hostScope.launch {
+        val generation = ++refreshGeneration
         _state.update { it.copy(isLoading = true) }
-        val result = runCatching {
-            withContext(dispatcher.io) { repository.loadProfile() }
+        val result = try {
+            Result.success(withContext(dispatcher.io) { repository.loadProfile() })
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Result.failure(failure)
         }
-        _state.update { current -> current.reduce(result) }
+        ensureActive()
+        if (generation == refreshGeneration) {
+            _state.update { current -> current.reduce(result) }
+        }
     }
 
     fun close() = hostScope.cancel()
@@ -28,4 +37,8 @@ class ProfileHost(
 - Collect render state with lifecycle-aware APIs such as `collectAsStateWithLifecycle()` or `repeatOnLifecycle`.
 - Collect one-time effects in a lifecycle-aware coroutine launched by the UI owner.
 - Put CPU-heavy Flow operators upstream of `flowOn(dispatcher.default)`.
+- Propagate `CancellationException`; cancellation must not publish a failure state.
+- A serial dispatcher serializes execution between suspensions, not an entire
+  asynchronous request. For overlapping refreshes, cancel prior work, serialize
+  complete operations, or reject completions with a request identity before reduction.
 - Use `StrictMode`, explicit Looper assertions, and profilers when diagnosing main-thread work.

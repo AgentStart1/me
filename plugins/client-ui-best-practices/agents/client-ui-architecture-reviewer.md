@@ -21,5 +21,8 @@ stay in that scope, blocking I/O switches to `dispatcher.io`, CPU-heavy work swi
 Flag business tasks launched from composables, framework types in Hosts, and state transitions that
 cannot be covered by focused coroutine tests.
 
+Check suspension boundaries: serial dispatchers and actors can interleave requests.
+Flag stale completions and cancellation converted into ordinary failure state.
+
 Return findings first with file and line references, then a minimal refactoring plan and focused
 tests. Do not rewrite code or broaden the architecture without parent approval.

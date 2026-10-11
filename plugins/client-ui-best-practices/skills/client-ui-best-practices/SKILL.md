@@ -25,6 +25,9 @@ Every feature Host must:
 - Confine Host state mutation and effect emission to that serial executor. Do not add locks or parallel mutations unless concurrent state access is an explicit requirement.
 - Switch only blocking or CPU-intensive portions to appropriate worker executors, then resume Host coordination before changing state.
 - Inject schedulers, clocks, and asynchronous dependencies that affect behavior so tests can control them.
+- Preserve cancellation as control flow. A serial executor/actor does not serialize
+  complete operations across suspension; explicitly prevent superseded work from
+  publishing stale state through cancellation, operation serialization or request identity.
 - Provide deterministic cancellation owned by the screen, controller, presenter, or other component that owns the Host.
 
 Platform-neutral shape:

@@ -23,3 +23,6 @@ function ProfileScreen({ host }: { host: ProfileHost }) {
 - Keep effects in a separate consumable channel rather than encoding transient events as durable render state.
 - Do not perform expensive transformations during render; compute them in the Host or a worker.
 - Tie subscriptions and cancellation to component ownership and unmounting.
+- One JavaScript event loop does not serialize complete asynchronous requests.
+  Use abort signals and/or request identities so superseded completions cannot
+  overwrite the current snapshot, and do not publish cancellation as an error.

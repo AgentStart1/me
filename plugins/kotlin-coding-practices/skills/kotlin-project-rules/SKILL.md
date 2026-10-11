@@ -15,6 +15,9 @@ For Kotlin project work, make concurrency design decisions coroutine-first. Pref
 - Avoid raw `Thread`, `thread { ... }`, `Runnable`, `HandlerThread`, manual thread lifecycle management, `Executor`, `ExecutorService`, `Future`, and direct Java thread-pool APIs for new Kotlin code. Prefer coroutines with an appropriate dispatcher or the concurrency abstraction already used by the project.
 - Avoid `synchronized`, monitor locks, `wait`, `notify`, `notifyAll`, `ReentrantLock`, and other Java blocking synchronization primitives. Prefer coroutine-friendly state ownership, immutable snapshots, actors, `Mutex.withLock`, `StateFlow`, or `Channel`.
 - Avoid `Thread.sleep` and blocking waits. Prefer `delay`, suspending APIs, timeouts, or coroutine test scheduler controls.
+- Rethrow `CancellationException` when translating coroutine exceptions into result
+  or UI state. `runCatching` catches cancellation too; do not turn it into an error
+  state or continue device/network work after the owning scope was cancelled.
 - If a platform or third-party API requires Java threading or synchronization, isolate it behind a small boundary, keep the rest of the Kotlin code coroutine-based, define cancellation/shutdown behavior, and add tests for lifecycle behavior.
 - After changing coroutine or concurrency behavior, run the relevant unit, integration, or Android tests that cover cancellation, dispatcher selection, lifecycle cleanup, and error propagation.
 

@@ -1,8 +1,13 @@
 # Client UI Best Practices Plugin
 
-This Codex plugin provides client UI threading and state-driven rendering guidance. It defines a
+This portable plugin provides client UI threading and state-driven rendering guidance. It defines a
 platform-independent `Host` boundary that owns observable UI-ready state and asynchronous
 business tasks, so feature behavior can be tested without a UI runtime.
+
+Cancellation remains control flow, and serial dispatchers/actors can interleave
+asynchronous requests at suspension points. The examples preserve cancellation and
+use request generations to reject superseded completions. Claude agent routing
+applies to generated Claude packages; Codex loads the portable skill guidance.
 
 ## Contents
 
