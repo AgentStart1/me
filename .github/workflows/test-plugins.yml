@@ -76,6 +76,8 @@ jobs:
       - run: uv run --with playwright==1.62.0 playwright install --with-deps chromium
       - run: uv run --script tests/android-status/test-panels.py
       - run: bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
+      - run: bash plugins/android-emulator-profile/tests/test-install-sdk.sh
+      - run: bash plugins/android-device-lock/tests/test-device-lock.sh
 
   qemu-status:
     runs-on: ubuntu-latest

@@ -15,6 +15,9 @@ Run the project's existing test command from its original working directory. Do 
 reimplement the helper, or add project wrappers, dependencies, build changes, CI wiring, or
 documentation merely to use the lock. Keep temporary token files outside the project. Use the
 same device-side lock path across projects; project metadata only identifies the lease owner.
+Use the same guarded helper version across participants. Inspect interrupted mutation
+guards instead of deleting them automatically. Bound commands within the fixed lease or
+renew before expiry; stop device work if renewal or ownership cannot be confirmed.
 
 Run the narrowest meaningful test, collect logs and screenshots on failure, release the lock in all
 exit paths, and report commands, artifact paths, skipped checks, and residual risk. Do not reset an

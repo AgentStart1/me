@@ -48,7 +48,8 @@ push_metadata() {
   if command -v cygpath >/dev/null 2>&1; then
     source="$(cygpath -w "$source")"
   fi
-  adb_cmd push "$source" "$(lock_json_path)" >/dev/null
+  adb_cmd push "$source" "$(lock_json_path).tmp" >/dev/null || return 1
+  adb_cmd shell "mv $(shell_quote "$(lock_json_path).tmp") $(shell_quote "$(lock_json_path)")" >/dev/null
 }
 
 json_escape() {
@@ -113,7 +114,7 @@ write_metadata() {
   "owner_token": "$(json_escape "$token")"
 }
 JSON
-  push_metadata "$tmp_file"
+  if ! push_metadata "$tmp_file"; then rm -f "$tmp_file"; return 1; fi
   rm -f "$tmp_file"
 }
 
@@ -121,7 +122,7 @@ print_existing_lock() {
   local metadata
   metadata="$(remote_read "$(lock_json_path)")"
   if [[ -n "$metadata" ]]; then
-    printf "%s\n" "$metadata" >&2
+    printf "%s\n" "$metadata" | sed '/"owner_token"/d' >&2
   else
     printf "Lock exists at %s, but no readable lock.json was found.\n" "$LOCK_PATH" >&2
   fi
@@ -129,6 +130,48 @@ print_existing_lock() {
 
 try_acquire_once() {
   adb_cmd shell "mkdir $(shell_quote "$LOCK_PATH")" >/dev/null 2>&1
+}
+
+# Every participant must use this guard protocol: mkdir alone cannot protect
+# expiry check/remove/reacquire or token-checked release/renew.
+with_device_guard() {
+  local callback="$1"; shift
+  (
+    local guard="${LOCK_PATH}.guard"
+    adb_cmd shell "mkdir $(shell_quote "$guard")" >/dev/null 2>&1 || return 1
+    cleanup_guard() {
+      local status=$?
+      trap - EXIT INT TERM
+      adb_cmd shell "rmdir $(shell_quote "$guard")" >/dev/null || status=2
+      exit "$status"
+    }
+    trap cleanup_guard EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    "$callback" "$@"
+  )
+}
+
+acquire_guarded() {
+  local token="$1" requested_at="$2"
+  if ! try_acquire_once; then
+    local metadata expires_at now
+    metadata="$(remote_read "$(lock_json_path)")"
+    expires_at="$(printf '%s' "$metadata" | extract_json_number expires_at_epoch || true)"
+    now="$(now_epoch)"
+    [[ -n "$expires_at" && "$expires_at" -le "$now" ]] || return 1
+    remote_rm_lock || return 2
+    try_acquire_once || return 2
+  fi
+  local acquired_at expires_at
+  acquired_at="$(now_utc)"
+  expires_at=$(( $(now_epoch) + MAX_TIMEOUT_SECONDS ))
+  if ! write_metadata "$token" "$requested_at" "$acquired_at" "$expires_at" ||
+      ! printf '%s\n' "$token" > "$TOKEN_FILE"; then
+    remote_rm_lock || true
+    return 2
+  fi
+  printf 'Acquired Android device lock at %s\n' "$LOCK_PATH" >&2
 }
 
 acquire_lock() {
@@ -140,27 +183,11 @@ acquire_lock() {
   deadline=$(( $(now_epoch) + WAIT_TIMEOUT_SECONDS ))
 
   while true; do
-    if try_acquire_once; then
-      local acquired_at expires_at
-      acquired_at="$(now_utc)"
-      expires_at=$(( $(now_epoch) + MAX_TIMEOUT_SECONDS ))
-      write_metadata "$token" "$requested_at" "$acquired_at" "$expires_at"
-      if [[ -n "$TOKEN_FILE" ]]; then
-        printf "%s\n" "$token" >"$TOKEN_FILE"
-      fi
-      printf "Acquired Android device lock at %s\n" "$LOCK_PATH" >&2
-      return 0
-    fi
-
-    local metadata expires_at now
-    metadata="$(remote_read "$(lock_json_path)")"
-    expires_at="$(printf "%s" "$metadata" | extract_json_number expires_at_epoch || true)"
+    local status=0 now
+    with_device_guard acquire_guarded "$token" "$requested_at" || status=$?
+    [ "$status" -ne 0 ] || return 0
+    [ "$status" -eq 1 ] || return "$status"
     now="$(now_epoch)"
-    if [[ -n "$expires_at" && "$expires_at" -le "$now" ]]; then
-      printf "Removing expired Android device lock at %s\n" "$LOCK_PATH" >&2
-      remote_rm_lock
-      continue
-    fi
 
     if [[ "$now" -ge "$deadline" ]]; then
       printf "Timed out waiting for Android device lock at %s\n" "$LOCK_PATH" >&2
@@ -242,7 +269,7 @@ renew_lock() {
   "owner_token": "$(json_escape "$actual_token")"
 }
 JSON
-  push_metadata "$tmp_file"
+  if ! push_metadata "$tmp_file"; then rm -f "$tmp_file"; return 1; fi
   rm -f "$tmp_file"
   printf "Renewed Android device lock at %s, expires at epoch %d\n" "$LOCK_PATH" "$new_expires_at" >&2
 }
@@ -295,6 +322,14 @@ parse_args() {
   if [[ -z "$PROJECT_DIR" ]]; then
     PROJECT_DIR="$(pwd)"
   fi
+  if [[ ! "$LOCK_PATH" =~ ^/data/local/tmp/[^/]+(/[^/]+)*$ || "$LOCK_PATH" == *'/../'* || "$LOCK_PATH" == *'/./'* || "$LOCK_PATH" == */.. || "$LOCK_PATH" == */. ]]; then
+    echo 'Error: lock path must name a directory below /data/local/tmp without parent traversal.' >&2
+    exit 2
+  fi
+  for value in "$MAX_TIMEOUT_SECONDS" "$POLL_SECONDS"; do
+    [[ "$value" =~ ^[1-9][0-9]*$ ]] || { echo 'Error: lease duration and poll interval must be positive integers.' >&2; exit 2; }
+  done
+  [[ "$WAIT_TIMEOUT_SECONDS" =~ ^(0|[1-9][0-9]*)$ ]] || { echo 'Error: wait timeout must be a nonnegative integer.' >&2; exit 2; }
   if [[ -z "$TEST_NAME" ]]; then
     TEST_NAME="android-device-test"
   fi
@@ -306,17 +341,18 @@ parse_args() {
     acquire)
       acquire_lock ;;
     release)
-      release_lock ;;
+      with_device_guard release_lock || { echo 'Release failed or mutation guard busy; inspect ownership before retrying.' >&2; return 1; } ;;
     renew)
-      renew_lock ;;
+      with_device_guard renew_lock || { echo 'Renew failed or mutation guard busy; stop device work if the lease cannot be renewed.' >&2; return 1; } ;;
     run)
       if [[ ${#COMMAND[@]} -eq 0 ]]; then
         printf "run requires a command after --\n" >&2
         exit 2
       fi
       acquire_lock
-      trap 'status=$?; release_lock || true; exit "$status"' EXIT
-      trap 'status=$?; trap - EXIT INT TERM; release_lock || true; exit "$status"' INT TERM
+      trap 'status=$?; with_device_guard release_lock || true; exit "$status"' EXIT
+      trap 'trap - EXIT INT TERM; with_device_guard release_lock || true; exit 130' INT
+      trap 'trap - EXIT INT TERM; with_device_guard release_lock || true; exit 143' TERM
       "${COMMAND[@]}" ;;
     *)
       printf "Unknown command: %s\n" "$mode" >&2

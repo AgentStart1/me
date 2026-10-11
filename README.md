@@ -32,7 +32,13 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for builds, validation, CI, and distributio
 
 ## Host Emulator Access From a VM
 
-If the Android emulator runs on the host machine and a VM needs to access the host ADB port, add port forwarding and firewall rules on the host. This example assumes the VM subnet is `192.168.80.0/24` and the host address on that virtual network is `192.168.80.1`:
+Choose the route and target first. The host ADB server normally uses 5037; an
+individual emulator has its own console/ADB port pair, often 5554/5555. Use the
+observed endpoint for the selected emulator rather than assuming every device uses 5555.
+With gvproxy, the guest host alias `192.168.127.254` reaches host loopback, so check
+that existing route before adding a Windows proxy. Other isolated VM networks may
+need a scoped proxy/firewall rule. This example specifically assumes the selected
+ADB endpoint is 5555, VM subnet is `192.168.80.0/24`, and its host interface is `192.168.80.1`:
 
 ```powershell
 netsh interface portproxy add v4tov4 listenaddress=192.168.80.1 listenport=5555 connectaddress=127.0.0.1 connectport=5555
@@ -51,12 +57,9 @@ Confirm the host is listening:
 netstat -ano | findstr "192.168.80.1:5555"
 ```
 
-If it is not listening, restart the service:
-
-```shell
-net stop iphlpsvc
-net start iphlpsvc
-```
+If it is not listening, inspect the interface address, port owner, proxy entry and
+IP Helper service state. Restarting that service interrupts other port proxies;
+use an owned maintenance window instead of a blanket stop/start workaround.
 
 The [QEMU Alpine Docker plugin](plugins/qemu-alpine-docker/README.md#vm--containers-status-panel) includes a read-only VM, service-health, and container status panel for MCP Apps hosts.
 

@@ -15,6 +15,7 @@ Paths resolve relative to this plugin root:
 - `scripts/start-avd.sh`
 - `scripts/profile-utils.sh`
 - `tests/test-start-avd-docker.sh`
+- `tests/test-install-sdk.sh`
 - `profiles/mobile.profile`
 - `profiles/watch.profile`
 - `profiles/tablet.profile`
@@ -41,7 +42,7 @@ Start a configured emulator:
 ./scripts/start-avd.sh ./profiles/mobile.profile
 ```
 
-Run the fake-command smoke test from the repository root:
+Run the fake-command smoke test from the plugin root:
 
 ```bash
 tests/test-start-avd-docker.sh
@@ -51,17 +52,26 @@ tests/test-start-avd-docker.sh
 
 - When using a non-default profile, pass the profile path as the first argument.
 - If no profile path is provided, `create-avd.sh` and `start-avd.sh` use `${ANDROID_PROFILE:-${ANDROID_PROFILE_DIR:-$HOME/android-profiles}/mobile.profile}`.
-- When adding or checking `EMULATOR_FLAG_*` and `EMULATOR_VALUE_*` entries, use the official emulator command-line reference: https://developer.android.google.cn/studio/run/emulator-commandline
+- Check the installed tool's options against the [official command-line reference](https://developer.android.com/studio/run/emulator-commandline). Routine emulator management can use the current Android CLI when available; the bundled scripts implement the explicit profile/configuration workflow. Do not assume their flags can be transferred unchanged to another launcher.
 - `SYS_IMG_PKG` must be an Android system image package prefix without the ABI suffix.
-- Scripts append the ABI based on the runtime architecture: `x86_64` uses `x86_64`, `aarch64` uses `arm64-v8a`.
+- Scripts append the ABI based on the runtime architecture: `x86_64` uses `x86_64`, `aarch64`/`arm64` use `arm64-v8a`; unsupported architectures fail before creation.
 - Do not define `ARCH`, `ABI`, `AVD_ARCH`, `AVD_ABI`, `AVDMANAGER_ABI`, `AVDMANAGER_ARCH`, `EMULATOR_ABI`, or `EMULATOR_ARCH` in profile files.
+- Profiles are literal data with an optional matching outer quote pair, never shell programs.
+- Keep the AVD start guard and native locks intact during competing operations.
+  Inspect interrupted guards/locks before recovery. Stop only the owned emulator process.
+- Initialize a new AVD's partition size before its first userdata image. Resizing
+  existing or custom userdata requires explicit `EMULATOR_ALLOW_DATA_WIPE=true`;
+  do not enable that setting without authorization to erase that AVD's data.
 
 ## Usage Notes
 
-- Prefer running scripts from the plugin root so relative paths work naturally.
-- Before running workflows that download SDK packages or start long-running emulator processes, ask the user first.
+- Resolve the installed plugin root from this skill location and use absolute script/profile paths. Keep the target project's working directory unchanged.
+- Ensure SDK downloads and emulator startup are covered by the user's request or existing authorization; ask only if that scope is missing. Do not request approval again for an already authorized operation.
 - `test-start-avd-docker.sh` uses fake `emulator` and `adb` commands; it does not start Docker or a real emulator.
-- If the emulator runs on the host and a VM needs to access the host ADB port, prompt the user to set up `netsh interface portproxy` port forwarding on the host and add firewall rules allowing the VM subnet to access port `5555`.
+- Distinguish the host ADB server (5037) from the selected emulator's ADB endpoint
+  (often 5555, but determined by its console/ADB port pair). Verify the VM route first;
+  gvproxy's host alias can reach host loopback. Add a scoped port proxy/firewall rule
+  only when the network actually needs one; do not restart shared proxy services blindly.
 
 ## Read-only status and screen preview
 

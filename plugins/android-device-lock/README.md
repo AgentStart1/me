@@ -8,6 +8,13 @@ The agent invokes the installed plugin's lock helper by absolute path, runs the 
 
 All projects sharing a device use the same device-side lock path. The project directory and test name recorded in metadata only identify the owner. Token files and temporary orchestration remain outside the project. See the skill for resolving the installed helper and running multi-step operations.
 
+Lease mutations use an atomic device-side `<lock-path>.guard`, covering expiry
+takeover, token validation, renewal and release. Every participant must use the
+same helper version and path. Interrupted guards and unreadable metadata require
+inspection; directory age alone is not proof that device work stopped. Custom lock
+paths stay below `/data/local/tmp`. The fixed-duration `run` lease must exceed the
+whole command; longer operations need manual renewal and cancellation on lost ownership.
+
 ## Device Leases status panel
 
 Open **Device Leases** from a supporting MCP Apps host's global sidebar or thread tabs, or call `android_device_lock_status`. The read-only panel displays each ADB device's connectivity, lease state, task, project basename, owner host/PID, and remaining lease duration. Filter by device, serial, task, or owner; refresh manually or enable ten-second auto-refresh while visible.
