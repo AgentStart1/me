@@ -5,7 +5,8 @@ This portable plugin provides Android RecyclerView guidance for creating, review
 Feature state and effects follow the framework-independent Host contract; Android
 ViewModels may adapt that Host to the view lifecycle. A prepend sentinel changes
 diff positions but does not guarantee visibility or anchoring when offscreen.
-Validate actual layout behavior; Paging headers use `ConcatAdapter` or `insertHeaderItem`.
+Validate actual layout and state-restoration behavior; Paging headers use
+`ConcatAdapter` or `insertHeaderItem`.
 
 ## Contents
 

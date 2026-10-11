@@ -107,6 +107,9 @@ For the sentinel layout:
 - Keep height stable across binds.
 - Avoid click, focus, accessibility noise, and dynamic content unless it is a real header.
 - Be careful with `0dp` height. It can work as a pure diff anchor, but if the UX depends on visibility or animation, test it on the target layouts.
+- A sentinel makes `itemCount` nonzero even without content. `PREVENT_WHEN_EMPTY`
+  therefore does not defer restoration until real rows arrive; use an explicit
+  restoration policy or independently owned header/content adapters when needed.
 
 ## Adapter Position Helpers
 
