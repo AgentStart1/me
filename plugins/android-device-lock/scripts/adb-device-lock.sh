@@ -11,6 +11,22 @@ TOKEN_FILE=""
 SERIAL=""
 COMMAND=()
 
+METADATA_PYTHON=
+
+resolve_metadata_python() {
+  local candidate
+  local -a candidates=(python3 python)
+  [ -z "${ANDROID_DEVICE_LOCK_PYTHON:-}" ] || candidates=("$ANDROID_DEVICE_LOCK_PYTHON")
+  for candidate in "${candidates[@]}"; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+        "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info.major >= 3 else 1)' >/dev/null 2>&1; then
+      METADATA_PYTHON="$candidate"; return 0
+    fi
+  done
+  echo 'Error: Device lock metadata requires Python 3; set ANDROID_DEVICE_LOCK_PYTHON.' >&2
+  return 1
+}
+
 usage() {
   cat <<'USAGE'
 Usage:
@@ -53,7 +69,8 @@ push_metadata() {
 }
 
 json_escape() {
-  printf "%s" "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+  printf '%s' "$1" | PYTHONIOENCODING=utf-8 "$METADATA_PYTHON" -c \
+    'import json,sys; print(json.dumps(sys.stdin.read())[1:-1], end="")'
 }
 
 remote_exists() {
@@ -84,13 +101,42 @@ make_token() {
   printf "%s:%s:%s:%s" "$(hostname 2>/dev/null || printf unknown-host)" "$$" "$(now_epoch)" "$RANDOM"
 }
 
-extract_json_number() {
-  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p" | head -n 1
+metadata_field() {
+  PYTHONIOENCODING=utf-8 "$METADATA_PYTHON" -c '
+import json,sys
+def reject_constant(_):
+    raise ValueError()
+def unique_fields(pairs):
+    result={}
+    for key,value in pairs:
+        if key in result: raise ValueError()
+        result[key]=value
+    return result
+try:
+    record=json.load(sys.stdin,object_pairs_hook=unique_fields,parse_constant=reject_constant)
+    if not isinstance(record,dict): raise ValueError()
+    if not isinstance(record.get("owner_token"),str) or not record["owner_token"]: raise ValueError()
+    if type(record.get("expires_at_epoch")) is not int or record["expires_at_epoch"] < 0: raise ValueError()
+    for key in ("project_dir","test_name","requested_at_utc","acquired_at_utc","host"):
+        if not isinstance(record.get(key),str): raise ValueError()
+    for key in ("adb_serial","lock_path"):
+        if key in record and not isinstance(record[key],str): raise ValueError()
+    for key in ("pid","max_timeout_seconds"):
+        if type(record.get(key)) is not int or record[key] <= 0: raise ValueError()
+    kind,key=sys.argv[1:]
+    if kind == "summary":
+        print(json.dumps({k:record[k] for k in ("host","pid","test_name","expires_at_epoch") if k in record}))
+    else:
+        value=record.get(key)
+        if (kind == "number" and type(value) is not int) or (kind == "string" and not isinstance(value,str)): raise ValueError()
+        print(value,end="")
+except (ValueError,TypeError,KeyError):
+    raise SystemExit(1)
+' "$1" "$2"
 }
 
-extract_json_string() {
-  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" | head -n 1
-}
+extract_json_number() { metadata_field number "$1"; }
+extract_json_string() { metadata_field string "$1"; }
 
 write_metadata() {
   local token="$1"
@@ -122,9 +168,10 @@ print_existing_lock() {
   local metadata
   metadata="$(remote_read "$(lock_json_path)")"
   if [[ -n "$metadata" ]]; then
-    printf "%s\n" "$metadata" | sed '/"owner_token"/d' >&2
+    printf '%s' "$metadata" | metadata_field summary '' >&2 ||
+      echo 'Existing lease metadata is unreadable; ownership remains unknown.' >&2
   else
-    printf "Lock exists at %s, but no readable lock.json was found.\n" "$LOCK_PATH" >&2
+    printf "No readable lease metadata at %s; inspect lease and mutation guard state.\n" "$LOCK_PATH" >&2
   fi
 }
 
@@ -336,6 +383,8 @@ parse_args() {
   if [[ -z "$TOKEN_FILE" ]]; then
     TOKEN_FILE="$(mktemp)"
   fi
+
+  resolve_metadata_python || return 1
 
   case "$mode" in
     acquire)

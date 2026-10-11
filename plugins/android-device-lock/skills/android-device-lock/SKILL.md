@@ -64,6 +64,8 @@ The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain
 - If metadata is malformed or missing, ownership is unknown. The helper does not
   infer expiry from directory mtime; inspect before recovery. Interrupted `.guard`
   directories are also preserved until all mutation operations are confirmed stopped.
+- Metadata requires working Python 3 for strict JSON/type checks; set
+  `ANDROID_DEVICE_LOCK_PYTHON` when automatic interpreter lookup is unavailable.
 - If release fails because the token does not match, do not delete the lock; another run owns it.
 - Do not clear app data, install APKs, start device test sessions, or reset the emulator before acquiring the lock.
 - The `run` command uses a fixed-duration lease and does not automatically renew it.

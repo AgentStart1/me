@@ -30,7 +30,10 @@ done
 lease="$FAKE_DEVICE_ROOT/test.lock.d"
 options=(--serial fake-device --lock-path /data/local/tmp/test.lock.d --wait-timeout-seconds 0 --poll-seconds 1)
 mkdir "$lease"
-printf '{"expires_at_epoch":1,"owner_token":"expired-private-token"}\n' > "$lease/lock.json"
+cat > "$lease/lock.json" <<'JSON'
+{"project_dir":"/fixture","test_name":"expired-fixture","requested_at_utc":"1970-01-01T00:00:00Z","acquired_at_utc":"1970-01-01T00:00:00Z","max_timeout_seconds":1,"expires_at_epoch":1,"host":"fixture-host","pid":1,"owner_token":"expired-private-token"}
+JSON
+cp "$lease/lock.json" "$fixture/valid-record"
 bash "$helper" acquire "${options[@]}" --token-file "$fixture/a.token" > "$fixture/a.log" 2>&1 &
 a=$!
 bash "$helper" acquire "${options[@]}" --token-file "$fixture/b.token" > "$fixture/b.log" 2>&1 &
@@ -54,7 +57,35 @@ mkdir "$lease.guard"
 if bash "$helper" acquire "${options[@]}" --token-file "$fixture/busy.token" >/dev/null 2>&1; then exit 1; fi
 [ -d "$lease.guard" ] && [ ! -e "$lease" ]
 rmdir "$lease.guard"
+mkdir "$lease"
+printf '{"expires_at_epoch":1,"owner_token":"must-stay-private", broken}\n' > "$lease/lock.json"
+cp "$lease/lock.json" "$fixture/corrupt-before"
+if bash "$helper" acquire "${options[@]}" --token-file "$fixture/corrupt.token" > "$fixture/corrupt.log" 2>&1; then exit 1; fi
+cmp "$fixture/corrupt-before" "$lease/lock.json"
+! grep -q must-stay-private "$fixture/corrupt.log"
+for kind in boolean missing duplicate nonfinite; do
+    python3 - "$fixture/valid-record" "$lease/lock.json" "$kind" <<'PY'
+import json,sys
+from pathlib import Path
+record=json.loads(Path(sys.argv[1]).read_text())
+kind=sys.argv[3]
+if kind == 'boolean': record['expires_at_epoch']=True
+if kind == 'missing': del record['host']
+if kind == 'nonfinite': record['extra']=float('nan')
+content=json.dumps(record)
+if kind == 'duplicate': content=content[:-1]+',"expires_at_epoch":1}'
+Path(sys.argv[2]).write_text(content)
+PY
+    cp "$lease/lock.json" "$fixture/invalid-before"
+    if bash "$helper" acquire "${options[@]}" --token-file "$fixture/invalid.token" >/dev/null 2>&1; then exit 1; fi
+    cmp "$fixture/invalid-before" "$lease/lock.json"
+done
+rm "$lease/lock.json"; rmdir "$lease"
+bash "$helper" acquire "${options[@]}" --token-file "$fixture/escaped.token" --test-name $'quoted "name"\nnext line' >/dev/null
+bash "$helper" renew "${options[@]}" --token-file "$fixture/escaped.token" >/dev/null
+grep -Fq '\nnext line' "$lease/lock.json"
+bash "$helper" release "${options[@]}" --token-file "$fixture/escaped.token" >/dev/null
 status=0
 bash "$helper" run "${options[@]}" --token-file "$fixture/run.token" -- bash -c 'exit 23' >/dev/null || status=$?
 [ "$status" = 23 ] && [ ! -e "$lease" ] && [ ! -e "$lease.guard" ]
-echo 'PASS: fake-device expiry race, owner refusal, renewal, atomic publication, upload failure, interrupted guard and command status'
+echo 'PASS: fake-device races, typed JSON/control characters, corrupt-state retention, owner refusal, renewal, atomic publication, failure cleanup and command status'
