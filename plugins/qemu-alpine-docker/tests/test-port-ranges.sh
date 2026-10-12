@@ -9,23 +9,34 @@ source "${PLUGIN_DIR}/scripts/vm-utils.sh"
 assert_equals() { [ "$1" = "$2" ] || { echo "FAIL: $3 ($2)" >&2; exit 1; }; }
 is_windows() { return 0; }
 load_profile "${PLUGIN_DIR}/profiles/dev.profile"
-assert_equals 20015 "$TESTCONTAINERS_PORT_END" 'Windows profile default'
+assert_equals 20127 "$TESTCONTAINERS_PORT_END" 'Windows profile default'
 mappings="$(build_forward_mappings)"
-assert_equals 21 "$(wc -l <<< "$mappings" | tr -d ' ')" 'control/custom/default forwards'
+assert_equals 133 "$(wc -l <<< "$mappings" | tr -d ' ')" '128 data plus control/custom forwards'
 assert_equals 'socket,id=net0,connect=127.0.0.1:19200' "$(build_netdev_value)" 'one QEMU connection'
 is_windows() { return 1; }
 load_profile "${PLUGIN_DIR}/profiles/dev.profile"
-assert_equals 20255 "$TESTCONTAINERS_PORT_END" 'Linux profile default'
+assert_equals 20127 "$TESTCONTAINERS_PORT_END" 'Linux profile default'
+printf 'TESTCONTAINERS_PORT_START=21000\nTESTCONTAINERS_PORT_END=auto\n' > "$MOCK_DIR/shifted.profile"
+load_profile "$MOCK_DIR/shifted.profile"
+assert_equals 21127 "$TESTCONTAINERS_PORT_END" 'auto follows custom pool start'
+assert_equals 133 "$(build_forward_mappings | wc -l | tr -d ' ')" 'custom start still selects 128 data ports'
+printf 'TESTCONTAINERS_PORT_START=65500\nTESTCONTAINERS_PORT_END=auto\n' > "$MOCK_DIR/overflow.profile"
+if load_profile "$MOCK_DIR/overflow.profile" >/dev/null 2>&1; then echo 'FAIL: overflowing automatic pool accepted'; exit 1; fi
+TESTCONTAINERS_PORT_START=20000
+TESTCONTAINERS_PORT_END=29999
+assert_equals 10005 "$(build_forward_mappings | wc -l | tr -d ' ')" 'explicit 10,000-port pool remains supported'
 TESTCONTAINERS_PORT_END=20511
 assert_equals 517 "$(build_forward_mappings | wc -l | tr -d ' ')" '512 data plus control/custom forwards'
 TESTCONTAINERS_PORT_END=20512
-if build_netdev_value >/dev/null 2>&1; then echo 'FAIL: 513 ports accepted'; exit 1; fi
+assert_equals 518 "$(build_forward_mappings | wc -l | tr -d ' ')" '513 ports accepted'
+TESTCONTAINERS_PORT_END=65535
+assert_equals 45541 "$(build_forward_mappings | wc -l | tr -d ' ')" 'range reaches protocol maximum'
 TESTCONTAINERS_PORT_END=20015
 for PORT_FORWARD in 2222:80 2375:80 20000:80 9090:80,9090:81; do
     if build_netdev_value >/dev/null 2>&1; then echo "FAIL: collision accepted"; exit 1; fi
 done
 PORT_FORWARD=
-for bounds in '0 15' '20000 65536' '20001 20000'; do
+for bounds in '0 15' '20000 65536' '20001 20000' '1 1000' '1024 65535'; do
     read -r TESTCONTAINERS_PORT_START TESTCONTAINERS_PORT_END <<< "$bounds"
     if build_netdev_value >/dev/null 2>&1; then echo 'FAIL: invalid range accepted'; exit 1; fi
 done
@@ -35,6 +46,15 @@ TESTCONTAINERS_PORT_START=32768 TESTCONTAINERS_PORT_END=33279
 assert_equals '33280 60999' "$(guest_outbound_port_range)" 'low overlap removed'
 TESTCONTAINERS_PORT_START=60488 TESTCONTAINERS_PORT_END=60999
 assert_equals '32768 60487' "$(guest_outbound_port_range)" 'high overlap removed'
+TESTCONTAINERS_PORT_START=32768 TESTCONTAINERS_PORT_END=60999
+assert_equals '1024 32767' "$(guest_outbound_port_range)" 'whole ordinary outbound range covered'
+TESTCONTAINERS_PORT_START=1024 TESTCONTAINERS_PORT_END=65534
+assert_equals '65535 65535' "$(guest_outbound_port_range)" 'last available outbound port retained'
+TESTCONTAINERS_PORT_END=65535
+if guest_outbound_port_range >/dev/null 2>&1; then echo 'FAIL: no outbound ports accepted'; exit 1; fi
+TESTCONTAINERS_PORT_START=2300 TESTCONTAINERS_PORT_END=2400 DOCKER_DAEMON_PORT=12375
+if build_forward_mappings >/dev/null 2>&1; then echo 'FAIL: guest Docker API collision accepted'; exit 1; fi
+DOCKER_DAEMON_PORT=2375
 
 render_template "${PLUGIN_DIR}/templates/dockerd-with-port-range.sh.tpl" "$MOCK_DIR/wrapper" \
     TESTCONTAINERS_PORT_START 20000 TESTCONTAINERS_PORT_END 20015 \
@@ -127,4 +147,7 @@ wait "$wrapper_pid" || status=$?
 assert_equals 143 "$status" 'termination status preserved'
 [ ! -e "$MOCK_DIR/publish-ready" ]
 if kill -0 "$(cat "$MOCK_DIR/daemon.pid")" 2>/dev/null; then echo 'FAIL: child daemon survived termination'; exit 1; fi
-echo 'PASS: platform defaults, gvproxy mappings, collisions, outbound separation and daemon lifecycle'
+ssh_exec() { return 1; }
+if wait_for_docker_publish_pool >/dev/null 2>&1; then echo 'FAIL: missing wrapper accepted'; exit 1; fi
+if verify_docker_publish_pool >/dev/null 2>&1; then echo 'FAIL: mismatched persisted pool accepted'; exit 1; fi
+echo 'PASS: shared defaults, unrestricted counts, gvproxy mappings, collisions, outbound separation and daemon lifecycle'

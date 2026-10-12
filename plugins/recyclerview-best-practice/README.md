@@ -1,6 +1,12 @@
 # RecyclerView Best Practice Plugin
 
-This Codex plugin provides an Android RecyclerView skill for creating, reviewing, and refactoring list UI code.
+This portable plugin provides Android RecyclerView guidance for creating, reviewing, and refactoring list UI code.
+
+Feature state and effects follow the framework-independent Host contract; Android
+ViewModels may adapt that Host to the view lifecycle. A prepend sentinel changes
+diff positions but does not guarantee visibility or anchoring when offscreen.
+Validate actual layout and state-restoration behavior; Paging headers use
+`ConcatAdapter` or `insertHeaderItem`.
 
 ## Contents
 

@@ -22,12 +22,12 @@ validate_system_image_arch() {
         x86_64)
             expected_abi="x86_64"
             ;;
-        aarch64)
+        aarch64|arm64)
             expected_abi="arm64-v8a"
             ;;
         *)
-            echo "Warning: Unknown architecture $arch. Skipping SYS_IMG_PKG ABI validation." >&2
-            return 0
+            echo "Error: Unsupported host architecture $arch; cannot select a system-image ABI." >&2
+            return 1
             ;;
     esac
 
@@ -107,7 +107,14 @@ echo "System image package prefix: $SYS_IMG_PKG" >&2
 echo "Resolved system image package: $RESOLVED_SYS_IMG_PKG" >&2
 install_system_image_if_needed "$RESOLVED_SYS_IMG_PKG"
 
-if ! "$AVDMANAGER" list avd | grep -q "Name: $AVD_NAME"; then
+if ! "$AVDMANAGER" list avd | AVD_MATCH_NAME="$AVD_NAME" awk '
+    /^[[:space:]]*Name:/ {
+        sub(/^[[:space:]]*Name:[[:space:]]*/, "")
+        sub(/[[:space:]]*$/, "")
+        if ($0 == ENVIRON["AVD_MATCH_NAME"]) found = 1
+    }
+    END { exit found ? 0 : 1 }
+'; then
     declare -a avdmanager_args
 
     echo "Creating AVD: $AVD_NAME" >&2

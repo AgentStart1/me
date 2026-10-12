@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
 # collect-test-results.sh
 # Collects test results from standard project locations
@@ -19,8 +19,7 @@ get_cache_dir() {
 
 # Default configuration
 OUTPUT_DIR="${REPORT_OUTPUT_DIR:-$(get_cache_dir)}"
-TEST_RESULT_DIRS="${TEST_RESULT_DIRS:-}"
-BASE_REF="${GIT_BASE_REF:-main}"
+TEST_RESULT_DIRS="${TEST_RESULT_DIRS:-${REPORT_DIRS:-}}"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -39,7 +38,7 @@ while [[ $# -gt 0 ]]; do
             echo "Collects test results from standard project locations."
             echo ""
             echo "Options:"
-            echo "  --output-dir DIR    Output directory for collected results (default: ./test-reports)"
+            echo "  --output-dir DIR    Output directory (default: ~/.cache/test-reports/<project-hash>)"
             echo "  --test-dirs DIRS    Colon-separated list of directories to scan"
             echo "  --help, -h          Show this help message"
             exit 0
@@ -52,7 +51,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Create output directory
-mkdir -p "$OUTPUT_DIR/reports"
+command -v jq >/dev/null 2>&1 || { echo 'Error: jq is required to write the report summary.' >&2; exit 1; }
+mkdir -p "$OUTPUT_DIR/reports" "$OUTPUT_DIR/test-results"
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
 # Function to generate a meaningful report name from its path
 get_report_name() {
@@ -69,7 +70,7 @@ get_report_name() {
     rel_path="${rel_path#test-results/}"
 
     # Replace / with - and clean up
-    rel_path=$(echo "$rel_path" | tr '/' '-' | sed 's/^-//;s/-$//')
+    rel_path=$(echo "$rel_path" | tr '/' '-' | sed 's/^-//;s/-$//;s/[^[:alnum:]_.-]/_/g')
 
     # Fallback to generic name if empty
     if [[ -z "$rel_path" ]]; then
@@ -89,8 +90,12 @@ collect_test_report() {
         return 0
     fi
 
+    if [[ "$OUTPUT_DIR/" == "$report_dir/"* ]]; then
+        echo 'Error: Output directory must be outside a report being copied.' >&2
+        return 1
+    fi
     mkdir -p "$target_dir"
-    cp -r "$report_dir"/* "$target_dir/" 2>/dev/null || true
+    cp -r "$report_dir/." "$target_dir/" || return 1
 
     # Check if index.html references ../css/ or ../js/ and copy those if needed
     if [[ -f "$target_dir/index.html" ]]; then
@@ -131,6 +136,9 @@ default_dirs=(
     "./app/build/reports"
     "./androidApp/build/reports"
     "./shared/build/reports"
+    "./build/test-results"
+    "./app/build/test-results"
+    "./shared/build/test-results"
     "./target/surefire-reports"
     "./target/failsafe-reports"
     "./test-results"
@@ -140,7 +148,7 @@ default_dirs=(
 
 for dir in "${default_dirs[@]}"; do
     if [[ -d "$dir" ]]; then
-        search_dirs+=("$dir")
+        search_dirs+=("$(cd "$dir" && pwd)")
     fi
 done
 
@@ -149,7 +157,7 @@ if [[ -n "$TEST_RESULT_DIRS" ]]; then
     IFS=':' read -ra custom_dirs <<< "$TEST_RESULT_DIRS"
     for dir in "${custom_dirs[@]}"; do
         if [[ -d "$dir" ]]; then
-            search_dirs+=("$dir")
+            search_dirs+=("$(cd "$dir" && pwd)")
         fi
     done
 fi
@@ -176,7 +184,7 @@ for dir in "${search_dirs[@]}"; do
             # Skip if this directory or a parent was already collected
             skip=false
             for collected in "${collected_dirs[@]}"; do
-                if [[ "$report_dir" == "$collected" ]] || [[ "$collected" == "$report_dir/"* ]]; then
+                if [[ "$report_dir" == "$collected" ]] || [[ "$report_dir" == "$collected/"* ]]; then
                     skip=true
                     break
                 fi
@@ -195,21 +203,26 @@ for dir in "${search_dirs[@]}"; do
             if [[ -n "$result" ]]; then
                 report_dirs+=("$result")
                 collected_dirs+=("$report_dir")
-                ((total_reports++))
+                total_reports=$((total_reports + 1))
                 echo "  Collected report: $report_dir -> $report_name"
             fi
         fi
-    done < <(find "$dir" -maxdepth 4 -name "index.html" 2>/dev/null || true)
+    done < <(find "$dir" -maxdepth 4 -path "$OUTPUT_DIR" -prune -o -name "index.html" -printf '%d %p\n' 2>/dev/null | sort -n | cut -d' ' -f2-)
 done
 
 # Also collect standalone XML files
 xml_count=0
+declare -A seen_xml=()
 for dir in "${search_dirs[@]}"; do
     if [[ -d "$dir" ]]; then
         while IFS= read -r -d '' file; do
-            cp "$file" "$OUTPUT_DIR/test-results/" 2>/dev/null || true
-            ((xml_count++))
-        done < <(find "$dir" -maxdepth 1 -type f \( -name "*-tests.xml" -o -name "TEST-*.xml" \) -print0 2>/dev/null || true)
+            [ -z "${seen_xml[$file]+present}" ] || continue
+            xml_hash=$(printf '%s' "$file" | md5sum | cut -d' ' -f1)
+            xml_name=$(basename "$file" | sed 's/[^[:alnum:]_.$-]/_/g')
+            cp "$file" "$OUTPUT_DIR/test-results/${xml_hash}-${xml_name}"
+            seen_xml["$file"]=1
+            xml_count=$((xml_count + 1))
+        done < <(find "$dir" -maxdepth 4 -path "$OUTPUT_DIR" -prune -o -type f \( -name "*-tests.xml" -o -name "TEST-*.xml" \) -print0 2>/dev/null)
     fi
 done
 
@@ -224,7 +237,7 @@ cat > "$OUTPUT_DIR/reports/summary.json" <<EOF
   "collection_time": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "total_reports": $total_reports,
   "xml_files": $xml_count,
-  "report_directories": $(printf '%s\n' "${report_dirs[@]}" | jq -R . | jq -s .)
+  "report_directories": $(if [ "${#report_dirs[@]}" -eq 0 ]; then echo '[]'; else printf '%s\n' "${report_dirs[@]}" | jq -R . | jq -s .; fi)
 }
 EOF
 

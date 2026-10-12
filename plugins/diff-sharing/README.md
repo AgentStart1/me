@@ -12,12 +12,18 @@ plugins/diff-sharing/scripts/start-ngrok.sh
 
 When `difft` is on `PATH`, the generated page opens with Difftastic selected. Otherwise it defaults to Git diff and marks Difftastic unavailable.
 
+For an installed plugin, resolve scripts by absolute path and run from the project
+being compared. `start-ngrok.sh --local-only` serves the report on loopback. The
+normal launcher also stays local if ngrok is absent or fails to authenticate, using
+saved ngrok credentials or `NGROK_AUTHTOKEN` when available. Keep the launcher running
+while using the URL; Ctrl+C stops only its own server and tunnel.
+
 ## Configuration
 
 | Variable | Description | Default |
 |---|---|---|
 | `REPORT_OUTPUT_DIR` | Output directory for generated artifacts | `~/.cache/diff-reports/<project-hash>` |
-| `NGROK_AUTHTOKEN` | ngrok authentication token | Required for a public tunnel |
+| `NGROK_AUTHTOKEN` | ngrok token override | Saved credentials when unset |
 | `NGROK_PORT` | Local port to expose | `8080` |
 | `PYTHON_COMMAND` | Python 3 executable used by the local server | `python3`, then `python` |
 | `GIT_BASE_REF` | Base Git ref | `main` |

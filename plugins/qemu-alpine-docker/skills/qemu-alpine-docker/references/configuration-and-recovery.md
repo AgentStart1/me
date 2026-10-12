@@ -9,9 +9,19 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 - `TESTCONTAINERS_PORT_START`
 - `TESTCONTAINERS_PORT_END`
 
-The bundled end value `auto` resolves to 20015 on Windows and 20255 on Linux,
-starting at 20000. Explicit numeric ranges retain the 512-port ceiling. The gvproxy backend registers SSH, Docker API, the full range and custom
+The end value `auto` selects 128 ports from the configured start on both platforms
+(20000–20127 by default). An automatic pool extending above 65535 is rejected;
+explicit numeric ranges have no count ceiling. The guest kernel
+requires a pool within 1024–65535 and the plugin requires remaining outbound space.
+The pool must also exclude guest Docker API port 2375, even when its host port differs.
+The gvproxy backend registers SSH, Docker API, the full TCP range and custom
 `PORT_FORWARD=host:guest,...` mappings through its services API. These mappings must be unique and must not overlap reserved ports.
+
+Registration completes before QEMU starts, using one connection without retries.
+Any failure cleans the owned helper and partial rules. Linux helper file descriptor
+limits must cover all listeners plus connection headroom; startup reports an
+insufficient hard limit. UDP/SCTP publishing is not forwarded. See the README for
+resource constraints and maintenance of existing guests with smaller explicit pools.
 
 New guests initialize Docker's cached publish pool with the same numeric range
 and restore a broad, disjoint kernel outbound range after readiness. Existing

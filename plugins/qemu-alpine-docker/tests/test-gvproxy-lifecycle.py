@@ -58,13 +58,13 @@ def main():
                 with urllib.request.urlopen(req, timeout=5) as response:
                     return response.read()
             ports = []
-            for _ in range(70):
+            for _ in range(640):
                 port = free_port()
                 request("expose", port)
                 ports.append(port)
-            assert len(json.loads(request("all"))) == 70
+            assert len(json.loads(request("all"))) == 640
             request("unexpose", ports[-1])
-            assert len(json.loads(request("all"))) == 69
+            assert len(json.loads(request("all"))) == 639
             with socket.socket() as conflict:
                 conflict.bind(("127.0.0.1", ports[-1]))
                 conflict.listen()
@@ -76,6 +76,27 @@ def main():
                     raise AssertionError("port collision accepted")
         finally:
             subprocess.run(stop, check=True, capture_output=True)
+        assert not state.exists()
+        # Exercise the actual batch startup path above the removed 512-port cap.
+        batch_ports = ports[:600]
+        mappings = "".join(f"{port}:80\n" for port in batch_ports).encode()
+        subprocess.run(start + ["--configure"], input=mappings, check=True, capture_output=True)
+        try:
+            assert subprocess.run(check, input=mappings, capture_output=True).returncode == 0
+        finally:
+            subprocess.run(stop, check=True, capture_output=True)
+        # A late bind failure cleans the helper and every earlier listener.
+        with socket.socket() as conflict:
+            conflict.bind(("127.0.0.1", batch_ports[-1]))
+            conflict.listen()
+            failed = subprocess.run(start + ["--configure"], input=mappings, capture_output=True)
+            assert failed.returncode != 0
+            assert not state.exists()
+            with socket.socket() as released:
+                if os.name != "nt":
+                    released.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                released.bind(("127.0.0.1", batch_ports[0]))
+        assert subprocess.run(start + ["--configure"], input=b"0:80\n", capture_output=True).returncode != 0
         assert not state.exists()
         with socket.socket() as conflict:
             if os.name != "nt":
@@ -91,7 +112,7 @@ def main():
         for _ in range(2):
             subprocess.run(start, check=True, capture_output=True)
             subprocess.run(stop, check=True, capture_output=True)
-    print("PASS: real gvproxy readiness, 70 registrations, unexpose, collisions, PID reuse refusal and restart")
+    print("PASS: real gvproxy readiness, 640 registrations, 600-rule batch startup, partial failure cleanup, collisions, PID reuse refusal and restart")
 
 
 if __name__ == "__main__":

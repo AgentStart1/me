@@ -27,25 +27,42 @@ load_profile() {
         return 1
     fi
     if [ "${TESTCONTAINERS_PORT_END:-}" = auto ]; then
-        export TESTCONTAINERS_PORT_END="$(default_testcontainers_port_end)"
+        local resolved_end
+        resolved_end="$(default_testcontainers_port_end)" || return 1
+        export TESTCONTAINERS_PORT_END="$resolved_end"
     fi
 }
 
 default_testcontainers_port_end() {
-    if is_windows; then echo 20015; else echo 20255; fi
+    local start="${TESTCONTAINERS_PORT_START:-20000}"
+    validate_port "$start" TESTCONTAINERS_PORT_START || return 1
+    [ "$start" -le 65408 ] || {
+        echo 'Error: The automatic 128-port pool would exceed port 65535; choose explicit bounds.' >&2
+        return 1
+    }
+    echo $((start + 127))
 }
 
-# Select the larger disjoint part of Alpine's ordinary outbound range when a
-# custom publish pool overlaps it. The 512-port ceiling leaves ample space.
+# Prefer Alpine's ordinary outbound range; large custom pools may require
+# selecting the larger disjoint part of the unprivileged port space instead.
 guest_outbound_port_range() {
-    local start="$TESTCONTAINERS_PORT_START" end="$TESTCONTAINERS_PORT_END"
-    if [ "$end" -lt 32768 ] || [ "$start" -gt 60999 ]; then
-        echo '32768 60999'
-    elif [ $((start - 32768)) -ge $((60999 - end)) ]; then
-        echo "32768 $((start - 1))"
-    else
-        echo "$((end + 1)) 60999"
-    fi
+    local start="${1:-$TESTCONTAINERS_PORT_START}" end="${2:-$TESTCONTAINERS_PORT_END}"
+    local low high left right
+    for bounds in '32768 60999' '1024 65535'; do
+        read -r low high <<< "$bounds"
+        if [ "$end" -lt "$low" ] || [ "$start" -gt "$high" ]; then
+            echo "$low $high"; return 0
+        fi
+        left=$((start > low ? start - low : 0))
+        right=$((end < high ? high - end : 0))
+        if [ "$left" -gt 0 ] || [ "$right" -gt 0 ]; then
+            if [ "$left" -ge "$right" ]; then echo "$low $((start - 1))"
+            else echo "$((end + 1)) $high"; fi
+            return 0
+        fi
+    done
+    echo 'Error: Publish pool leaves no unprivileged guest outbound ports.' >&2
+    return 1
 }
 
 require_profile_value() {
@@ -72,10 +89,11 @@ validate_port_range() {
         echo "Error: Testcontainers port range start must not exceed end." >&2
         return 1
     }
-    [ $((end - start + 1)) -le 512 ] || {
-        echo "Error: Testcontainers port range may contain at most 512 ports." >&2
+    [ "$start" -ge 1024 ] || {
+        echo "Error: Docker publish pool must start at 1024 or above (guest kernel ephemeral range)." >&2
         return 1
     }
+    guest_outbound_port_range "$start" "$end" >/dev/null
 }
 
 validate_image_reference() {

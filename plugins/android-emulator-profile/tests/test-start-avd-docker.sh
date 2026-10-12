@@ -30,6 +30,7 @@ assert_profile_arg_case() {
 }
 
 cleanup() {
+    if [ -n "${holding_driver:-}" ]; then kill -TERM "$holding_driver" 2>/dev/null || true; wait "$holding_driver" 2>/dev/null || true; fi
     rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
@@ -48,10 +49,13 @@ CREATE_AVD_OUT="${TMP_DIR}/create-avd.out"
 CREATE_AVD_ERR="${TMP_DIR}/create-avd.err"
 
 mkdir -p "${AVD_HOME}/docker-test-avd.avd" \
+    "${AVD_HOME}/unrelated.avd" \
     "${SDK_HOME}/cmdline-tools/latest/bin" \
     "${SDK_HOME}/emulator" \
     "${SDK_HOME}/platform-tools"
 touch "${AVD_HOME}/docker-test-avd.avd/stale.lock"
+touch "${AVD_HOME}/unrelated.avd/running.lock"
+printf existing-data > "${AVD_HOME}/docker-test-avd.avd/userdata-qemu.img"
 cat > "${AVD_HOME}/docker-test-avd.avd/config.ini" <<'CONFIG'
 hw.gpu.enabled=no
 hw.gpu.mode=auto
@@ -67,6 +71,11 @@ set -euo pipefail
 printf "%s\n" "$@" > "${EMULATOR_ARGS_LOG}"
 printf "DISPLAY=%s\n" "${DISPLAY:-}" > "${EMULATOR_ENV_LOG}"
 cp "${ANDROID_AVD_HOME}/docker-test-avd.avd/config.ini" "${EMULATOR_CONFIG_LOG}"
+if [ "${FAKE_EMULATOR_HOLD:-0}" = 1 ]; then
+    echo $$ > "$FAKE_EMULATOR_PID"
+    trap 'exit 0' TERM INT
+    while :; do sleep 0.1; done
+fi
 exit 0
 EMULATOR
 
@@ -91,7 +100,9 @@ cat > "${SDK_HOME}/cmdline-tools/latest/bin/avdmanager" <<'AVDMANAGER'
 #!/usr/bin/env bash
 set -euo pipefail
 if [ "${1:-}" = "list" ] && [ "${2:-}" = "avd" ]; then
-    printf '%s\n' 'Name: docker-test-avd'
+    printf 'Name: %s\n' "${LISTED_AVD_NAME:-docker-test-avd}"
+else
+    printf '%s\n' "$@" > "$AVDMANAGER_ARGS_LOG"
 fi
 exit 0
 AVDMANAGER
@@ -122,6 +133,28 @@ EMULATOR_CONFIG_disk__dataPartition__size=10G
 EMULATOR_CONFIG_duplicate__key=final
 PROFILE
 
+# Shell syntax in a value must remain data and must not run project commands.
+printf 'TEST_LITERAL=value; touch %s/should-not-exist\n' "$TMP_DIR" > "$TMP_DIR/literal.profile"
+load_profile "$TMP_DIR/literal.profile"
+[ ! -e "$TMP_DIR/should-not-exist" ]
+[[ "$TEST_LITERAL" == 'value; touch '* ]]
+
+# Refusing an unapproved wipe must leave existing config and locks unchanged.
+cp "${AVD_HOME}/docker-test-avd.avd/config.ini" "$TMP_DIR/config-before"
+if HOME="$HOME_DIR" bash "${PLUGIN_DIR}/scripts/start-avd.sh" "$PROFILE_PATH" > "$START_AVD_OUT" 2> "$START_AVD_ERR"; then
+    echo 'FAIL: existing AVD lock ignored' >&2; exit 1
+fi
+cmp "$TMP_DIR/config-before" "${AVD_HOME}/docker-test-avd.avd/config.ini"
+grep -q 'Existing AVD lock' "$START_AVD_ERR"
+[ -e "${AVD_HOME}/docker-test-avd.avd/stale.lock" ]
+rm "${AVD_HOME}/docker-test-avd.avd/stale.lock"
+if HOME="$HOME_DIR" bash "${PLUGIN_DIR}/scripts/start-avd.sh" "$PROFILE_PATH" > "$START_AVD_OUT" 2> "$START_AVD_ERR"; then
+    echo 'FAIL: AVD resize silently allowed data wipe' >&2; exit 1
+fi
+cmp "$TMP_DIR/config-before" "${AVD_HOME}/docker-test-avd.avd/config.ini"
+grep -q EMULATOR_ALLOW_DATA_WIPE "$START_AVD_ERR"
+printf '\nEMULATOR_ALLOW_DATA_WIPE=true\n' >> "$PROFILE_PATH"
+
 echo "Running start-avd.sh smoke test with fake emulator commands..."
 
 assert_profile_arg_case
@@ -135,6 +168,9 @@ if ! HOME="$HOME_DIR" \
 fi
 
 grep -q "AVD 'docker-test-avd' already exists." "$CREATE_AVD_ERR"
+HOME="$HOME_DIR" LISTED_AVD_NAME=docker-test-avd-extra AVDMANAGER_ARGS_LOG="$TMP_DIR/create-args" \
+    bash "${PLUGIN_DIR}/scripts/create-avd.sh" "$PROFILE_PATH" > "$CREATE_AVD_OUT" 2> "$CREATE_AVD_ERR"
+grep -qx create "$TMP_DIR/create-args"
 
 if ! HOME="$HOME_DIR" \
     EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" \
@@ -179,10 +215,9 @@ if grep -q -- "-verbose" "$EMULATOR_ARGS_LOG"; then
     exit 1
 fi
 
-if [ -e "${AVD_HOME}/docker-test-avd.avd/stale.lock" ]; then
-    echo "Error: stale AVD lock file was not removed." >&2
-    exit 1
-fi
+[ -e "${AVD_HOME}/unrelated.avd/running.lock" ]
+[ ! -e "${AVD_HOME}/docker-test-avd.avd/config.ini.profile-start.guard" ]
+[ ! -e "$ADB_ARGS_LOG" ]
 
 if ! HOME="$HOME_DIR" \
     EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" \
@@ -200,5 +235,33 @@ if grep -q -- "-wipe-data" "$EMULATOR_ARGS_LOG"; then
     echo "Error: -wipe-data was unexpectedly passed after data partition size matched." >&2
     exit 1
 fi
+
+# A new AVD without userdata can set its size before first boot without a wipe.
+rm "${AVD_HOME}/docker-test-avd.avd/userdata-qemu.img"
+sed -i 's/disk.dataPartition.size=10G/disk.dataPartition.size=2G/' "${AVD_HOME}/docker-test-avd.avd/config.ini"
+sed '/EMULATOR_ALLOW_DATA_WIPE=/d' "$PROFILE_PATH" > "$TMP_DIR/fresh.profile"
+HOME="$HOME_DIR" EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" EMULATOR_ENV_LOG="$EMULATOR_ENV_LOG" \
+    EMULATOR_CONFIG_LOG="$EMULATOR_CONFIG_LOG" ADB_ARGS_LOG="$ADB_ARGS_LOG" \
+    bash "${PLUGIN_DIR}/scripts/start-avd.sh" "$TMP_DIR/fresh.profile" > "$START_AVD_OUT" 2> "$START_AVD_ERR"
+! grep -q -- -wipe-data "$EMULATOR_ARGS_LOG"
+
+HOME="$HOME_DIR" EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" EMULATOR_ENV_LOG="$EMULATOR_ENV_LOG" \
+    EMULATOR_CONFIG_LOG="$EMULATOR_CONFIG_LOG" ADB_ARGS_LOG="$ADB_ARGS_LOG" \
+    FAKE_EMULATOR_HOLD=1 FAKE_EMULATOR_PID="$TMP_DIR/held.pid" \
+    bash "${PLUGIN_DIR}/scripts/start-avd.sh" "$PROFILE_PATH" > "$START_AVD_OUT" 2> "$START_AVD_ERR" &
+holding_driver=$!
+for ((attempt=0; attempt<100; attempt++)); do [ ! -f "$TMP_DIR/held.pid" ] || break; sleep 0.05; done
+[ -f "$TMP_DIR/held.pid" ]
+if HOME="$HOME_DIR" bash "${PLUGIN_DIR}/scripts/start-avd.sh" "$PROFILE_PATH" > "$TMP_DIR/contender.log" 2>&1; then
+    echo 'FAIL: competing start accepted' >&2; exit 1
+fi
+grep -q 'guard is busy' "$TMP_DIR/contender.log"
+kill -TERM "$holding_driver"
+status=0; wait "$holding_driver" || status=$?
+holding_driver=
+[ "$status" = 143 ]
+[ ! -e "${AVD_HOME}/docker-test-avd.avd/config.ini.profile-start.guard" ]
+! kill -0 "$(cat "$TMP_DIR/held.pid")" 2>/dev/null
+[ ! -e "$ADB_ARGS_LOG" ]
 
 echo "start-avd.sh fake-command smoke test passed."

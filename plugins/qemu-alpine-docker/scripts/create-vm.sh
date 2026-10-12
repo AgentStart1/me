@@ -314,8 +314,7 @@ wait_for_docker_api 120
 ssh_exec "docker info >/dev/null"
 # Verify the persisted publish pool matches this profile. Runtime sysctl is
 # restored by the daemon wrapper only after Docker has initialized its cache.
-ssh_exec "grep -qx 'net.ipv4.ip_local_port_range = ${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /etc/sysctl.d/99-testcontainers-ports.conf"
-wait_for_docker_publish_pool
+verify_docker_publish_pool
 
 # --- Optional image preloading ---
 # If PRELOAD_IMAGES is set, pull Docker images into the VM during provisioning.

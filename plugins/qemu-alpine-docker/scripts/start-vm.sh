@@ -52,8 +52,7 @@ if vm_is_running; then
     check_gvproxy
     wait_for_ssh "$BOOT_TIMEOUT" "$(vm_pid)"
     wait_for_docker_api 120
-    ssh_exec "grep -qx 'net.ipv4.ip_local_port_range = ${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /etc/sysctl.d/99-testcontainers-ports.conf"
-    wait_for_docker_publish_pool
+    verify_docker_publish_pool
     qemu_control record --pid "$(vm_pid)" --name "$VM_NAME" --state "$(qemu_native_path "$(vm_identity_file)")"
     echo "VM '${VM_NAME}' is already running (PID $(vm_pid))." >&2
     exit 0
@@ -100,7 +99,7 @@ start_gvproxy
 
 # --- QEMU arguments ---
 # The VM runs with the same acceleration and resource settings as during provisioning.
-# Port forwarding is configured via the -netdev argument (build_netdev_value).
+# gvproxy owns the registered forwards; -netdev establishes only its transport.
 qemu_args=(
     -name "$VM_NAME"
     "${QEMU_ACCEL_ARGS[@]}"
@@ -123,11 +122,7 @@ register_vm_process "$QEMU_PID"
 # Wait for the guest to boot and services to be ready
 wait_for_ssh "$BOOT_TIMEOUT" "$QEMU_PID"
 wait_for_docker_api 120
-ssh_exec "grep -qx 'net.ipv4.ip_local_port_range = ${TESTCONTAINERS_PORT_START} ${TESTCONTAINERS_PORT_END}' /etc/sysctl.d/99-testcontainers-ports.conf" || {
-    echo "Error: Guest Docker publish range differs from this profile. Update the stopped guest's port configuration before starting; changing QEMU forwards alone does not update Docker's cached range." >&2
-    exit 1
-}
-wait_for_docker_publish_pool
+verify_docker_publish_pool
 
 # --- Success ---
 STARTED=true

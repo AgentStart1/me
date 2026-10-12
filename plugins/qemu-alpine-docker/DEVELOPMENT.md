@@ -1,18 +1,82 @@
 # QEMU status panel development
 
+## gvproxy port allocation audit
+
+The default pool is now 20000–20127 on Windows and Linux. The former 16/256-port
+defaults and 512-port ceiling came from the previous networking policy, not a
+gvproxy protocol limit. [Upstream v0.9.0's forwarder](https://github.com/containers/gvisor-tap-vsock/blob/v0.9.0/pkg/services/forwarder/ports.go)
+keeps a map of listeners and reports actual bind failures. It supports TCP and UDP;
+this plugin's profile format and registration remain TCP-only. SCTP is not a
+supported forwarder transport. No old QEMU user-networking backend, DNS proxy,
+migration workaround, or QEMU listener-count check remains in the runtime.
+
+The review covered shared configuration, guest templates/OpenRC allocator seeding,
+host lifecycle and operation leases, test/CLI wrappers, container provisioning,
+read-only status/UI, package registration/generation and CI. Changes remove the
+port-count policy, batch registrations, handle full outbound-range overlap, reject
+guest Docker API collisions even with a remapped host API, require wrapper readiness,
+and validate the running rules/pool before host test commands. Acceleration/platform
+PID handling, the one-accept QEMU transport, process identity checks, singleton/operation
+locks, Ryuk, preserved disks/images and read-only status budgets remain necessary.
+Status resource sampling (32 running containers/eight workers) and compact per-container
+port lists are presentation/IO budgets, not publish-pool limits. No UI resource
+limit was removed to imply greater network capacity.
+
+Local Windows verification with the pinned helper registered and checked 10,000
+rules in an isolated process in 3.25 seconds. This proves registration, not 10,000
+simultaneous application responses. A separate range hit an occupied host port and
+aborted with all partial listeners cleaned. The real helper suite covers 640 rules,
+600-rule batch startup, late collision cleanup, invalid input, PID reuse refusal
+and restart. Real bare-QEMU lifecycle fixtures cover contention, timeout/TERM,
+healthy repeated starts, test leases, exit status and an unchanged sentinel disk.
+Configuration/daemon mocks cover the 128-port default, counts beyond 512,
+protocol boundaries, outbound fallback, missing wrappers and daemon cleanup.
+Controller unit tests cover connection reuse, redirect refusal, batch deadline and
+Unix soft/hard descriptor behavior. Status backend, portable/client package and
+generation/CLI/workflow checks complete the local regression surface.
+
+The shared persistent guest was leased by an active test operation during this
+review, so no real guest restart, allocator migration, fresh ISO install or new
+application-load result is claimed. Linux runtime/descriptor tests are part of CI;
+local Windows runs cannot establish actual KVM or Linux arm64 behavior. Earlier
+migration load results below remain evidence for that earlier version and scope.
+
+## Verification and architecture
+
 Port configuration tests run without QEMU or guest access:
 
 ```bash
 bash ./tests/test-port-ranges.sh
+python3 ./tests/test-gvproxy-control.py
 ./tests/test-vm-utils.sh
 ./tests/test-linux-testcontainers.sh
 ```
 
-The port suite covers platform defaults, explicit 512-port compatibility,
+The port suite covers the shared 128-port default, explicit pools beyond 512 ports,
 gvproxy mappings including controls/custom forwards, duplicate
 and reserved ports, outbound range separation, Docker cache initialization and
 daemon exit status. Its daemon lifecycle uses mocks; it does not prove a particular
 QEMU binary's socket capacity or replace fresh Alpine/OpenRC provisioning validation.
+
+The fixed pool is retained deliberately: all forwarding listeners are ready before
+Docker can hand a random port to Testcontainers. An asynchronous Docker event watcher
+would introduce a gap between allocation and host connectivity. The default ends
+below Alpine's ordinary outbound range and the same policy applies on both platforms.
+It is configurable, with no synthetic count ceiling. Guest kernel ephemeral range
+validation and a nonempty disjoint outbound range remain necessary; see
+[Linux's range checks](https://github.com/torvalds/linux/blob/v6.12/net/ipv4/sysctl_net_ipv4.c).
+Moby reads only the range at allocator initialization, not `ip_local_reserved_ports`.
+The wrapper must seed a mapping before restoring outbound sysctl; Docker API readiness
+alone is insufficient. Old guests lacking that wrapper now fail explicitly.
+
+`gvproxy-control.py start --configure` accepts stdin mappings and keeps registration
+inside the process ownership guard and launch cleanup. HTTP requests reuse one
+loopback connection, bypass environment proxies, reject non-200 responses including
+redirects and do not retry. Each request has a five-second timeout; the batch budget
+is 30 seconds plus 20 ms per mapping. Linux startup raises its inherited soft
+`RLIMIT_NOFILE` to the listener count plus 256 within the hard limit. It never changes
+the hard limit. Connections can require more resources under load. Failed registration
+kills the owned helper and removes partial rules through process termination.
 The startup wrapper remains under Alpine's stock OpenRC supervisor through
 `DOCKERD_BINARY`, so restarts/respawns seed the pool before every daemon execution.
 Its readiness check uses the guest Unix socket, independent of host forwarding.
@@ -23,7 +87,9 @@ imports BusyBox plus its musl loader from local files, briefly publishes a conta
 checks the automatic port, then removes its own container/image. Restored mappings
 already initialize the allocator; no extra pool port is required in that case.
 The guest readiness marker is written after outbound restoration and cleared on
-wrapper exit; host startup/provisioning wait for it when the wrapper is installed.
+wrapper exit; host startup/provisioning and test commands require it. The test
+wrapper checks the running helper rules and persisted guest pool before launching
+the command, so a new default cannot silently use an old guest's allocation pool.
 
 gvproxy v0.9.0 is pinned with upstream SHA-256 hashes. Source verification uses [the release](https://github.com/containers/gvisor-tap-vsock/releases/tag/v0.9.0), `cmd/gvproxy/config.go`, `cmd/gvproxy/main.go`, and `pkg/virtualnetwork/services.go`. The QEMU socket uses guest `192.168.127.2`, gateway/DNS `.1`, host alias `.254`, and fixed guest MAC `5a:94:ef:e4:0c:ee`. The services endpoint is `/services/forwarder/{expose,unexpose,all}`. Startup validates control/forward collisions and verifies native PID executable plus creation time before cleanup. No QEMU `hostfwd` remains. Launch includes `-ssh-port -1` to disable upstream's implicit 2222 rule; SSH is registered through the API with the profile's other forwards.
 

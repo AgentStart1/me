@@ -44,8 +44,17 @@ load_profile() {
             return 1
         fi
 
-        parsed_value=""
-        eval "parsed_value=${raw_value}"
+        # Profiles are data, not shell programs. Strip one optional quote pair
+        # without evaluating separators, redirections, globs, or assignments.
+        parsed_value="$(trim_whitespace "$raw_value")"
+        if [[ "$parsed_value" == \"* || "$parsed_value" == \'* ]]; then
+            local quote="${parsed_value:0:1}"
+            if [ "${#parsed_value}" -lt 2 ] || [ "${parsed_value: -1}" != "$quote" ]; then
+                echo "Error: unmatched profile quotes at ${profile_path}:${line_number}" >&2
+                return 1
+            fi
+            parsed_value="${parsed_value:1:${#parsed_value}-2}"
+        fi
         printf -v "$key" '%s' "$parsed_value"
         export "$key"
         PROFILE_LOADED_KEYS["$profile_path:$key"]=1

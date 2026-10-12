@@ -14,7 +14,7 @@ For now, these are the intended environments. On Linux hosts running outside con
 - Alpine DHCP and Docker containers use gvproxy DNS at `192.168.127.1`. Both UDP and TCP DNS are supported; no guest DNS proxy is installed.
 - Docker and SSH start automatically in the guest.
 - Docker exposes its unauthenticated API only through gvproxy's host loopback forward at `127.0.0.1:2375`.
-- Docker automatically allocates published ports from `20000–20015` on Windows or `20000–20255` on Linux; gvproxy forwards every port in the selected range to the same guest port.
+- Docker automatically allocates published ports from `20000–20127` on both platforms; gvproxy forwards every TCP port in the selected range to the same guest port before QEMU starts.
 - A global lock permits only one VM from this plugin to run at a time, which also reserves the forwarded range. Lock-state changes are serialized with an atomic guard directory so concurrent launchers cannot overwrite each other.
 - A separate operation lease spans setup, provisioning, start/stop and client commands (tests, Docker, SSH/SFTP, workspace sync and proxy builds). Competing operations fail before changing VM state. Normal exits and handled signals release the lease; after a forced kill, inspect all plugin processes before manually removing an interrupted `run/vm-operation.lock` or `vm-state.guard`.
 - QEMU and gvproxy ownership records verify the native executable and creation time before termination. An already-running VM is accepted only after its forwarding rules and guest readiness match the profile. Windows path/PID translation uses the launching Bash runtime's tools.
@@ -122,12 +122,16 @@ Other operations:
 - `VM_NAME`, `VM_MEMORY`, `VM_CPUS`, `VM_DISK_SIZE`
 - `VM_ACCELERATOR=auto|kvm|whpx|tcg`; `auto` probes KVM on Linux or WHPX on Windows before falling back to TCG. Explicit hardware modes fail if unavailable
 - `SSH_PORT` and `DOCKER_DAEMON_PORT`
-- `TESTCONTAINERS_PORT_START=20000` and `TESTCONTAINERS_PORT_END=auto` (20015 on Windows, 20255 on Linux); explicit numeric ranges remain supported, with a maximum of 512 ports
+- `TESTCONTAINERS_PORT_START=20000` and `TESTCONTAINERS_PORT_END=auto` (20127 on both platforms); explicit numeric ranges have no port-count ceiling
+
 - `TESTCONTAINERS_PULL_PAUSE_TIMEOUT` and `TESTCONTAINERS_PULL_TIMEOUT` in seconds; the bundled profile raises both for large image extraction under TCG fallback
 - `TESTCONTAINERS_RESOURCE_METRICS=auto|true|false` and `TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=1`; collection requires Windows PowerShell and accepts intervals from 1 to 60 seconds
 - `PORT_FORWARD=host:guest,...` for additional fixed loopback forwards
 - `ALPINE_BRANCH` and `ALPINE_MIRROR_BASE`; use `auto` for fastest-mirror detection or an explicit `http://`/`https://` base URL to disable detection
 - `PRELOAD_IMAGES=image,...`
+
+`auto` computes the end from the configured start plus 127, so a custom start
+still gets 128 ports. A pool extending above 65535 must use explicit valid bounds.
 
 The bundled development profile selects acceleration automatically and allocates 4 GiB of guest memory plus four virtual CPUs for multi-container and JVM-based Testcontainers suites.
 
@@ -135,19 +139,29 @@ Fixed host ports must not overlap the Testcontainers range. All forwards bind to
 
 gvproxy owns forwarded listeners, while QEMU owns one TCP transport connection.
 The former Windows QEMU listener warning no longer applies to this backend.
-Explicit ranges retain the 512-port configuration ceiling and require application
-load verification; listener binding alone does not prove protocol responses.
-Ryuk stays enabled and uses the same publish pool; 16 ports limit simultaneous
-published container ports, so reduce test concurrency if the pool is exhausted.
+The 128-port default is a configurable allocation pool, not a gvproxy capacity
+limit. Explicit pools must lie within `1024–65535`, leave guest outbound ports,
+and avoid host forwards/control ports and guest Docker API port 2375. Startup
+registers the entire pool in one controller using a persistent HTTP connection;
+a failed bind or request aborts and cleans the owned helper, without connection retries.
+On Linux the helper inherits enough file descriptors for its listeners plus 256
+descriptors of connection headroom. A smaller hard limit requires raising the
+host/container `nofile` limit or selecting a smaller pool. Host port availability,
+memory, descriptors and concurrent connections still determine practical capacity.
+Ryuk stays enabled and shares the pool. All plugin forwards currently use TCP;
+UDP/SCTP published ports are not exposed by these scripts. Binding listeners
+does not prove application responses or load capacity.
 
 New guests use a Docker startup wrapper that sets the selected pool before each
 daemon execution, initializes the cached allocator, then restores the outbound kernel
 range to `32768–60999` (or its larger disjoint portion for overlapping custom pools).
+If a pool covers that whole interval, it selects the larger disjoint portion of
+`1024–65535`; a pool leaving no outbound port is rejected before launch.
 On fresh guests, a temporary BusyBox image is imported from guest files, published
 once to verify allocation, and removed without a registry pull. Restored published
 containers also initialize the allocator, allowing a fully occupied pool to restart.
 Startup waits for allocator initialization and outbound restoration before reporting
-success. Docker caches its publish range on first use; leaving the small range
+success; guests lacking the wrapper fail with a maintenance instruction. Docker caches its publish range on first use; leaving the publish range
 as the outbound range would make guest outbound connections compete for it.
 Daemon failures retain their exit status and OpenRC supervision remains enabled.
 

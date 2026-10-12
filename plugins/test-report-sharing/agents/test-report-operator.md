@@ -13,4 +13,7 @@ Coordinate the report collection and sharing workflow:
 4. Run `start-ngrok.sh`; use its public ngrok URL when configured or its local server URL otherwise.
 5. Return the available URL, report summary (total reports), and any warnings about missing artifacts or configuration.
 
-If ngrok is not installed or configured, report the local server URL instead and instruct the user to install ngrok or set `NGROK_AUTHTOKEN`. Do not install ngrok automatically.
+Resolve scripts from the installed plugin root and run them from the target project directory.
+If ngrok is unavailable or fails authentication, keep the loopback server running and return
+its actual URL. Use `--local-only` for an explicitly local preview. Do not install ngrok or
+claim an anonymous free tunnel. Stop only the processes started for this report.

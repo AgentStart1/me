@@ -10,7 +10,9 @@ chmod +x "$fixture/bin/curl"
 cp "$fixture/bin/curl" "$fixture/bin/docker"
 cp "$fixture/bin/curl" "$fixture/bin/python"
 cp "$fixture/bin/curl" "$fixture/bin/python3"
+cp "$fixture/bin/curl" "$fixture/bin/ssh"
 printf '%s\n' "$$" > "$fixture/state/vms/alpine-docker.pid"
+touch "$fixture/state/vms/alpine-docker.gvproxy.pid"
 cat > "$fixture/command.sh" <<'COMMAND'
 #!/usr/bin/env bash
 set -euo pipefail

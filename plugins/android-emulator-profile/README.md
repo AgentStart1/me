@@ -9,6 +9,24 @@ This plugin provides profile-driven Android Virtual Device creation and emulator
 - Start emulators with architecture-aware defaults.
 - Run a fake-command smoke test without starting a real emulator.
 
+Use Bash 4.3+ and GNU-compatible shell utilities for these scripts. Resolve their
+absolute paths from the installed plugin root; supplied profiles are literal data.
+The SDK installer downloads outside the project directory, respects existing SDK
+ownership and keeps replaced tools in a `cmdline-tools/previous.*` directory. Its
+bundled command-line-tools release is a minimum setup choice, not a claim to always
+download the latest upstream release; newer installed tools are reused.
+
+Emulator startup preserves existing `DISPLAY` unless the profile overrides it.
+It refuses an occupied/interrupted AVD start guard or native lock, and shutdown
+targets only the process it launched. Confirm all owners have stopped before manual
+lock recovery. A new AVD can set its partition size before first boot; resizing
+existing or custom userdata requires explicit `EMULATOR_ALLOW_DATA_WIPE=true`.
+This setting authorizes a destructive reset of that AVD and should not be a routine default.
+
+For ordinary device management, consult the current [Android CLI guidance](https://developer.android.com/studio/run/emulator-commandline).
+The bundled scripts remain available for the profile/configuration workflow; check
+installed emulator flags rather than assuming every SDK version supports them.
+
 ## Android Emulators status panel
 
 Open **Android Emulators** from a supporting MCP Apps host's global sidebar or thread tabs, or call `android_emulator_status`. The read-only panel lists configured AVDs and connected emulators, including boot readiness, serial, Android/API version, ABI, configured memory, and resolution. It supports filtering, manual refresh, and optional ten-second auto-refresh while visible. Failed probes remain unknown or unavailable. A configured AVD without an observed ADB connection is marked disconnected; that does not assert that its process stopped.

@@ -9,8 +9,11 @@ Coordinate the code-diff sharing workflow:
 
 1. Inspect the current Git repository and resolve the requested base and comparison refs.
 2. Run `generate-diff-report.sh`. When `difft` is available, confirm the generated page defaults to Difftastic; otherwise explain that Git diff is the fallback default. Do not install Difftastic automatically.
-3. Run `generate-report-site.sh` to assemble the static site.
+3. Run `generate-diff-site.sh` to assemble the static site.
 4. Run `start-ngrok.sh`; use its public ngrok URL when configured or its local server URL otherwise.
 5. Return the available URL, compared refs, files changed, line statistics, default renderer, and any warnings.
 
-If ngrok is not installed or configured, report the local server URL instead and instruct the user to install ngrok or set `NGROK_AUTHTOKEN`.
+Resolve scripts from the installed plugin root and run them from the target project directory.
+If ngrok is unavailable or fails authentication, keep the loopback server running and return
+its actual URL. Use `--local-only` for an explicitly local preview. Do not install ngrok or
+claim an anonymous free tunnel. Stop only the processes started for this report.

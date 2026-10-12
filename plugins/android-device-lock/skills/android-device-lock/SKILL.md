@@ -21,7 +21,10 @@ The plugin manages device access outside the target project. Acquire the lock th
 
 - Acquire the device lock before starting a device test session, installing or running the app, or changing device state.
 - Store the lock on the device or emulator, not only on the host.
-- Use the bundled helper’s atomic lock directory and metadata file. `adb shell mkdir <lockdir>` is atomic on the device and avoids check-then-write races.
+- Use the bundled helper's device-side mutation guard plus atomic lease directory.
+  Expiry takeover, release and renewal must remain inside the guard; a token read
+  followed by an unguarded delete can remove a successor's lease. All participants
+  must use the same helper version and path. Metadata is published with a rename.
 - Include at least `project_dir`, `test_name`, `requested_at_utc`, `acquired_at_utc`, `max_timeout_seconds`, `expires_at_epoch`, `host`, `pid`, and `owner_token` in lock metadata.
 - If a valid lock exists, wait and poll until it is released or expires.
 - If the lock is expired, remove it and acquire a fresh lock.
@@ -58,9 +61,17 @@ The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain
 ## Failure Handling
 
 - If `adb` cannot see the device, fail before waiting for the lock.
-- If lock metadata is malformed, treat the lock as active unless it can be proven expired by the directory mtime under the shared device-lock policy.
+- If metadata is malformed or missing, ownership is unknown. The helper does not
+  infer expiry from directory mtime; inspect before recovery. Interrupted `.guard`
+  directories are also preserved until all mutation operations are confirmed stopped.
+- Metadata requires working Python 3 for strict JSON/type checks; set
+  `ANDROID_DEVICE_LOCK_PYTHON` when automatic interpreter lookup is unavailable.
 - If release fails because the token does not match, do not delete the lock; another run owns it.
 - Do not clear app data, install APKs, start device test sessions, or reset the emulator before acquiring the lock.
+- The `run` command uses a fixed-duration lease and does not automatically renew it.
+  Bound the command within that lease; use manual renewal for longer operations and
+  stop device work before expiry if renewal cannot be confirmed. Custom paths must
+  stay below `/data/local/tmp` without parent traversal.
 
 ## Bundled Resource
 
@@ -71,3 +82,12 @@ The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain
 For requests to view device occupancy, current owner, task, or expiry, call `android_device_lock_status` to open **Device Leases** from the global sidebar or beside the conversation. Observation requires no acquisition or release. If MCP Apps are unavailable, run `scripts/lock_status.py` with Python 3 and summarize its JSON snapshot.
 
 Never disclose the owner token in tool results or UI. Expired metadata means a stale lease is still present, not that the panel has released the device. Offline devices and unreadable metadata must remain unknown/unavailable. The helper has no durable waiting queue, so do not invent waiting-task data. For custom lock locations, set `ANDROID_DEVICE_LOCK_PATH` to the same path used by `--lock-path`.
+
+Lease metadata is rendered from the bundled `scripts/lock.json.template` with
+JSON-encoded placeholders by `scripts/lock-metadata.py`. Keep both resources
+with the installed helper; field extraction and rendering retain strict JSON validation.
+
+If remote lease deletion fails, `release` returns nonzero and retains the owner
+token for recovery. `run` also returns nonzero when cleanup fails after a successful
+command; an existing command failure or signal status is preserved. Retry release
+with the retained token after checking device connectivity and ownership.

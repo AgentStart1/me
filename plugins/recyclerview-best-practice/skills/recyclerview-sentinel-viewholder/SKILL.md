@@ -28,7 +28,10 @@ new: sentinel 0 1 2
 diff: insert item 0 at adapter position 1
 ```
 
-The sentinel remains the stable first row. The new item is inserted after the sentinel, so the update is modeled as a visible-area insertion below a known anchor.
+The sentinel remains the stable first row and changes the diff insertion index to 1.
+That alone does not guarantee visibility or scroll behavior: an offscreen sentinel
+is still before the visible anchor. Verify the intended layout/anchor behavior with
+the actual LayoutManager, scroll position, reverse layout and item heights.
 
 ## Data Model
 
@@ -104,6 +107,9 @@ For the sentinel layout:
 - Keep height stable across binds.
 - Avoid click, focus, accessibility noise, and dynamic content unless it is a real header.
 - Be careful with `0dp` height. It can work as a pure diff anchor, but if the UX depends on visibility or animation, test it on the target layouts.
+- A sentinel makes `itemCount` nonzero even without content. `PREVENT_WHEN_EMPTY`
+  therefore does not defer restoration until real rows arrive; use an explicit
+  restoration policy or independently owned header/content adapters when needed.
 
 ## Adapter Position Helpers
 
@@ -134,6 +140,7 @@ For `PagingDataAdapter`, prefer built-in Paging behavior first. Use a sentinel o
 Options:
 
 - Use `ConcatAdapter` with a one-row sentinel/header adapter before the paged adapter.
-- Or map paging items into row models only if the codebase already has a row-model pipeline.
+- Or use Paging's `insertHeaderItem` after mapping to a shared row-model type,
+  if the codebase already owns that pipeline. Mapping items alone adds no header.
 
 Do not inject the sentinel into the database paging source. It is UI structure, not domain data.

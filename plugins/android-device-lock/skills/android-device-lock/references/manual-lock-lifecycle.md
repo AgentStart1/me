@@ -5,27 +5,29 @@ Use manual acquisition from an agent-owned shell session when device operations 
 ```bash
 token_file="$(mktemp)"
 "$DEVICE_LOCK_PLUGIN_ROOT/scripts/adb-device-lock.sh" acquire \
+  --serial "$ANDROID_SERIAL" \
   --project-dir "$PWD" \
   --test-name "android-device-suite" \
   --token-file "$token_file"
 
-trap '"$DEVICE_LOCK_PLUGIN_ROOT/scripts/adb-device-lock.sh" release --token-file "$token_file"' EXIT
+trap '"$DEVICE_LOCK_PLUGIN_ROOT/scripts/adb-device-lock.sh" release --serial "$ANDROID_SERIAL" --token-file "$token_file"' EXIT
 ./gradlew connectedAndroidTest
 ```
 
 Renew the lease periodically for long-running suites:
 
 ```bash
-(
-  while kill -0 "$$" 2>/dev/null; do
-    sleep 1200
-    "$DEVICE_LOCK_PLUGIN_ROOT/scripts/adb-device-lock.sh" renew \
-      --token-file "$token_file" || break
-  done
-) &
-renew_pid=$!
-trap 'kill "$renew_pid" 2>/dev/null; "$DEVICE_LOCK_PLUGIN_ROOT/scripts/adb-device-lock.sh" release --token-file "$token_file"' EXIT
-npm run test:long-suite
+"$DEVICE_LOCK_PLUGIN_ROOT/scripts/adb-device-lock.sh" renew \
+  --serial "$ANDROID_SERIAL" \
+  --token-file "$token_file" \
+  --max-timeout-seconds 1800
 ```
 
 Remove the temporary token file after releasing the lease. Release only with the token returned by acquisition. If renewal or release reports an owner-token mismatch, leave the lock intact because another run owns it.
+
+Renew before expiry throughout the operation. An automatic renewer must have the
+same lifetime as its test command and stop device work on renewal failure; merely
+exiting a background renewal loop while the test continues loses exclusivity.
+The helper's `run` mode does not automatically extend its lease. Keep acquisition,
+renewal and release on the same serial and lock path; include `--serial` in the
+acquisition/release examples when more than one device is connected.

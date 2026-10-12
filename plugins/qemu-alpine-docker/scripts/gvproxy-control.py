@@ -1,5 +1,7 @@
 """Own a gvproxy process without confusing native and MSYS process IDs."""
 import argparse
+from contextlib import closing
+import http.client
 import json
 import os
 from pathlib import Path
@@ -19,6 +21,60 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 LOCAL_HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+
+
+def read_mappings(stream):
+    mappings = []
+    hosts = set()
+    for line in stream.read().splitlines():
+        host, guest = line.split(":")
+        if not all(value.isascii() and value.isdecimal() and 1 <= int(value) <= 65535
+                   for value in (host, guest)):
+            raise ValueError("Forward ports must be integers from 1 to 65535")
+        host, guest = int(host), int(guest)
+        if host in hosts:
+            raise ValueError(f"Duplicate forward host port {host}")
+        hosts.add(host)
+        mappings.append((host, guest))
+    return mappings
+
+
+def listener_budget(count):
+    """Ensure the child can hold listeners with room for transport and connections."""
+    if os.name == "nt":
+        return
+    import resource
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    required = count + 256
+    if hard != resource.RLIM_INFINITY and hard < required:
+        raise RuntimeError(f"gvproxy needs at least {required} file descriptors; hard limit is {hard}. "
+                           "Raise the host/container nofile limit or select a smaller publish pool.")
+    if soft != resource.RLIM_INFINITY and soft < required:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (required, hard))
+
+
+def register_mappings(api, mappings):
+    # Reuse one HTTP connection instead of launching one curl process per port.
+    # No connection retries: any failed bind/request aborts the owned launch.
+    deadline = time.monotonic() + 30 + len(mappings) / 50
+    with closing(http.client.HTTPConnection("127.0.0.1", api, timeout=5)) as connection:
+        for host, guest in mappings:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("gvproxy forwarding registration exceeded its size-aware startup budget")
+            connection.timeout = min(5, remaining)
+            if connection.sock is not None:
+                connection.sock.settimeout(connection.timeout)
+            payload = json.dumps({"local": f"127.0.0.1:{host}",
+                                  "remote": f"192.168.127.2:{guest}", "protocol": "tcp"})
+            connection.request("POST", "/services/forwarder/expose", payload,
+                               {"Content-Type": "application/json"})
+            response = connection.getresponse()
+            response.read()
+            if time.monotonic() > deadline:
+                raise TimeoutError("gvproxy forwarding registration exceeded its size-aware startup budget")
+            if response.status != 200:
+                raise RuntimeError(f"gvproxy failed to register TCP {host}:{guest} (HTTP {response.status})")
 
 
 def remove_owned_state(state, record):
@@ -42,6 +98,8 @@ def stop(state):
 
 
 def start(args):
+    mappings = read_mappings(sys.stdin) if args.configure else []
+    listener_budget(len(mappings))
     state = Path(args.state)
     if state.exists():
         raise RuntimeError("Existing gvproxy ownership state; run stop-vm.sh before restarting")
@@ -52,13 +110,13 @@ def start(args):
     with state.open("x") as reservation:
         json.dump(pending, reservation)
     try:
-        launch(args, state, pending)
+        launch(args, state, pending, mappings)
     except BaseException:
         remove_owned_state(state, pending)
         raise
 
 
-def launch(args, state, pending):
+def launch(args, state, pending, mappings):
     # Probe all configured sockets before starting; gvproxy still owns the real bind.
     with socket.socket() as transport, socket.socket() as api:
         if os.name != "nt":
@@ -89,13 +147,19 @@ def launch(args, state, pending):
                 # Connecting would consume upstream's one QEMU accept, so inspect
                 # bind exclusivity instead; QEMU establishes the actual connection.
                 if owns_listeners(proc.pid, [args.transport, args.api]) and proc.poll() is None:
-                    return
+                    break
             except (OSError, ValueError):
                 pass
             if time.monotonic() > deadline:
                 break
             time.sleep(0.1)
-        raise RuntimeError("gvproxy exited or failed readiness; inspect gvproxy.log")
+        else:
+            raise RuntimeError("gvproxy exited before readiness; inspect gvproxy.log")
+        if time.monotonic() > deadline:
+            raise RuntimeError("gvproxy failed readiness; inspect gvproxy.log")
+        register_mappings(args.api, mappings)
+        if proc.poll() is not None:
+            raise RuntimeError("gvproxy exited during forwarding registration")
     except BaseException:
         proc.kill()
         proc.wait()
@@ -112,6 +176,7 @@ def main():
     parser.add_argument("--log")
     parser.add_argument("--transport", type=int)
     parser.add_argument("--api", type=int)
+    parser.add_argument("--configure", action="store_true", help="Register stdin host:guest mappings during owned launch")
     args = parser.parse_args()
     # SIGTERM must run the same cleanup as exceptions and keyboard interrupts.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
@@ -140,8 +205,7 @@ def dispatch(args):
             with LOCAL_HTTP.open(f"http://127.0.0.1:{args.api}/services/forwarder/all", timeout=5) as response:
                 rules = json.load(response)
             actual = {(r["local"], r["remote"], r["protocol"]) for r in rules}
-            for line in sys.stdin.read().splitlines():
-                host, guest = line.split(":")
+            for host, guest in read_mappings(sys.stdin):
                 if (f"127.0.0.1:{host}", f"192.168.127.2:{guest}", "tcp") not in actual:
                     raise RuntimeError("Running gvproxy forwards differ from this profile")
 

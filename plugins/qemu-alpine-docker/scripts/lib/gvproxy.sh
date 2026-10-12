@@ -36,16 +36,12 @@ gvproxy_control() {
 
 start_gvproxy() {
     local binary="$(gvproxy_binary)"
-    build_forward_mappings >/dev/null || return 1
+    local mappings; mappings="$(build_forward_mappings)" || return 1
     [ -x "$binary" ] || { echo 'Error: run setup.sh to install verified gvproxy v0.9.0.' >&2; return 1; }
-    gvproxy_control start --binary "$(qemu_native_path "$binary")" \
+    gvproxy_control start --configure --binary "$(qemu_native_path "$binary")" \
         --state "$(qemu_native_path "$(gvproxy_pid_file)")" \
         --log "$(qemu_native_path "${VM_DIR}/${VM_NAME}/gvproxy.log")" \
-        --transport "${GVPROXY_QEMU_PORT:-19200}" --api "${GVPROXY_API_PORT:-19201}"
-    local host_port guest_port
-    while IFS=: read -r host_port guest_port; do
-        gvproxy_api expose "$host_port" "$guest_port" || { stop_gvproxy; return 1; }
-    done < <(build_forward_mappings)
+        --transport "${GVPROXY_QEMU_PORT:-19200}" --api "${GVPROXY_API_PORT:-19201}" <<< "$mappings"
 }
 
 stop_gvproxy() {
@@ -55,9 +51,10 @@ stop_gvproxy() {
 
 check_gvproxy() {
     [ -f "$(gvproxy_pid_file)" ] || { echo 'Error: running VM has no gvproxy state; migrate its network explicitly.' >&2; return 1; }
-    build_forward_mappings | gvproxy_control check --api "${GVPROXY_API_PORT:-19201}" \
+    local mappings; mappings="$(build_forward_mappings)" || return 1
+    gvproxy_control check --api "${GVPROXY_API_PORT:-19201}" \
         --transport "${GVPROXY_QEMU_PORT:-19200}" \
-        --state "$(qemu_native_path "$(gvproxy_pid_file)")"
+        --state "$(qemu_native_path "$(gvproxy_pid_file)")" <<< "$mappings"
 }
 
 gvproxy_api() {

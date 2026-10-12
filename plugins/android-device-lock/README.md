@@ -8,6 +8,18 @@ The agent invokes the installed plugin's lock helper by absolute path, runs the 
 
 All projects sharing a device use the same device-side lock path. The project directory and test name recorded in metadata only identify the owner. Token files and temporary orchestration remain outside the project. See the skill for resolving the installed helper and running multi-step operations.
 
+Lease mutations use an atomic device-side `<lock-path>.guard`, covering expiry
+takeover, token validation, renewal and release. Every participant must use the
+same helper version and path. Interrupted guards and unreadable metadata require
+inspection; directory age alone is not proof that device work stopped. Custom lock
+paths stay below `/data/local/tmp`. The fixed-duration `run` lease must exceed the
+whole command; longer operations need manual renewal and cancellation on lost ownership.
+
+The helper uses Python 3's JSON library for typed ownership checks and escaping.
+It tries working `python3` and `python` commands; set `ANDROID_DEVICE_LOCK_PYTHON`
+to an explicit interpreter when needed. Invalid JSON or field types leave ownership
+unknown rather than extracting expiry/tokens from text patterns.
+
 ## Device Leases status panel
 
 Open **Device Leases** from a supporting MCP Apps host's global sidebar or thread tabs, or call `android_device_lock_status`. The read-only panel displays each ADB device's connectivity, lease state, task, project basename, owner host/PID, and remaining lease duration. Filter by device, serial, task, or owner; refresh manually or enable ten-second auto-refresh while visible.
@@ -44,3 +56,12 @@ The panel requires a host supporting MCP Apps and the OpenAI global sidebar and 
 ## Plugin packaging
 
 `plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.
+
+Lease metadata is rendered from the bundled `scripts/lock.json.template` with
+JSON-encoded placeholders by `scripts/lock-metadata.py`. Keep both resources
+with the installed helper; field extraction and rendering retain strict JSON validation.
+
+If remote lease deletion fails, `release` returns nonzero and retains the owner
+token for recovery. `run` also returns nonzero when cleanup fails after a successful
+command; an existing command failure or signal status is preserved. Retry release
+with the retained token after checking device connectivity and ownership.

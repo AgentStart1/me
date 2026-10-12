@@ -1,122 +1,83 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# start-ngrok.sh
-# Starts an ngrok tunnel to expose the report site
-#
-# Usage: start-ngrok.sh [--port PORT] [--output-dir DIR]
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
-
-# Generate cache directory based on project path hash
 get_cache_dir() {
-    local project_dir="${1:-$PWD}"
     local project_hash
-    project_hash=$(echo -n "$project_dir" | md5sum | cut -d' ' -f1)
-    echo "${HOME}/.cache/test-reports/${project_hash}"
+    project_hash=$(printf '%s' "$PWD" | md5sum | cut -d' ' -f1)
+    printf '%s\n' "${HOME}/.cache/test-reports/${project_hash}"
 }
-
-# Default configuration
 OUTPUT_DIR="${REPORT_OUTPUT_DIR:-$(get_cache_dir)}"
 PORT="${NGROK_PORT:-8080}"
-NGROK_AUTHTOKEN="${NGROK_AUTHTOKEN:-}"
+PYTHON_COMMAND="${PYTHON_COMMAND:-}"
+LOCAL_ONLY=false
 
-# Parse arguments
-while [[ $# -gt 0 ]]; do
+find_python() {
+    local candidate
+    local -a candidates=(python3 python)
+    [ -z "$PYTHON_COMMAND" ] || candidates=("$PYTHON_COMMAND")
+    for candidate in "${candidates[@]}"; do
+        if command -v "$candidate" >/dev/null 2>&1 &&
+            "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info.major >= 3 else 1)' >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"; return 0
+        fi
+    done
+    echo 'Error: No working Python 3 interpreter; set PYTHON_COMMAND.' >&2
+    return 1
+}
+
+while [ $# -gt 0 ]; do
     case "$1" in
-        --port)
-            PORT="$2"
-            shift 2
-            ;;
-        --output-dir)
-            OUTPUT_DIR="$2"
-            shift 2
-            ;;
+        --port|--output-dir)
+            [ $# -ge 2 ] && [ -n "$2" ] || { echo "Error: $1 requires a value." >&2; exit 2; }
+            case "$1" in --port) PORT="$2";; --output-dir) OUTPUT_DIR="$2";; esac
+            shift 2;;
+        --local-only) LOCAL_ONLY=true; shift;;
         --help|-h)
-            echo "Usage: $0 [--port PORT] [--output-dir DIR]"
-            echo ""
-            echo "Starts an ngrok tunnel to expose the report site."
-            echo ""
-            echo "Options:"
-            echo "  --port PORT         Local port to serve the report (default: 8080)"
-            echo "  --output-dir DIR    Directory containing the report site (default: ./test-reports)"
-            echo "  --help, -h          Show this help message"
-            echo ""
-            echo "Environment variables:"
-            echo "  NGROK_AUTHTOKEN     ngrok authentication token (required for public tunnel)"
-            echo "  NGROK_PORT          Local port to expose (default: 8080)"
-            echo "  REPORT_OUTPUT_DIR   Directory containing the report site"
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1" >&2
-            exit 1
-            ;;
+            echo 'Usage: start-ngrok.sh [--port PORT] [--output-dir DIR] [--local-only]'
+            echo 'Serves the report on loopback; uses ngrok when available, otherwise stays local.'
+            echo 'Defaults: NGROK_PORT=8080, REPORT_OUTPUT_DIR=~/.cache/test-reports/<project-hash>.'
+            echo 'PYTHON_COMMAND selects Python 3; NGROK_AUTHTOKEN or saved ngrok credentials enable a tunnel.'
+            exit 0;;
+        *) echo "Unknown option: $1" >&2; exit 2;;
     esac
 done
-
-# Check if ngrok is installed
-if ! command -v ngrok &> /dev/null; then
-    echo "Error: ngrok is not installed" >&2
-    echo ""
-    echo "Please install ngrok:" >&2
-    echo "  • macOS: brew install ngrok" >&2
-    echo "  • Linux: snap install ngrok" >&2
-    echo "  • Windows: choco install ngrok" >&2
-    echo ""
-    echo "Or download from: https://ngrok.com/download" >&2
-    exit 1
-fi
-
-# Check if report site exists
-if [[ ! -f "$OUTPUT_DIR/index.html" ]]; then
-    echo "Error: Report site not found at $OUTPUT_DIR/index.html" >&2
-    echo "Run generate-report-site.sh first." >&2
-    exit 1
-fi
-
-# Check for auth token
-if [[ -z "$NGROK_AUTHTOKEN" ]]; then
-    echo "Warning: NGROK_AUTHTOKEN not set" >&2
-    echo "Using ngrok free tier with limited features." >&2
-    echo "Set NGROK_AUTHTOKEN for full features and custom domains." >&2
-    echo ""
-fi
-
-echo "Starting report server..."
-echo "  Directory: $OUTPUT_DIR"
-echo "  Port: $PORT"
-
-# Start HTTP server in background
-HTTP_PID=""
+[[ "$PORT" =~ ^[1-9][0-9]{0,4}$ ]] && [ "$PORT" -le 65535 ] || {
+    echo 'Error: Port must be an integer from 1 to 65535.' >&2; exit 2;
+}
+[ -f "$OUTPUT_DIR/index.html" ] || {
+    echo "Error: Report site missing; run generate-report-site.sh first." >&2; exit 1;
+}
+PYTHON_EXECUTABLE="$(find_python)"
+HTTP_PID=
+TUNNEL_PID=
 cleanup() {
-    if [[ -n "$HTTP_PID" ]]; then
-        echo ""
-        echo "Stopping HTTP server (PID: $HTTP_PID)..."
-        kill "$HTTP_PID" 2>/dev/null || true
-        wait "$HTTP_PID" 2>/dev/null || true
-    fi
+    local status=$?
+    trap - EXIT INT TERM
+    local child
+    for child in "$TUNNEL_PID" "$HTTP_PID"; do
+        [ -n "$child" ] || continue
+        if jobs -pr | grep -qx "$child"; then kill "$child" 2>/dev/null || true; fi
+        wait "$child" 2>/dev/null || true
+    done
+    exit "$status"
 }
 trap cleanup EXIT
-
-cd "$OUTPUT_DIR"
-python3 -m http.server "$PORT" &
+trap 'exit 130' INT
+trap 'exit 143' TERM
+"$PYTHON_EXECUTABLE" -m http.server "$PORT" --bind 127.0.0.1 --directory "$OUTPUT_DIR" &
 HTTP_PID=$!
 sleep 1
-
-# Verify server is running
-if ! kill -0 "$HTTP_PID" 2>/dev/null; then
-    echo "Error: Failed to start HTTP server" >&2
-    exit 1
+kill -0 "$HTTP_PID" 2>/dev/null || { echo 'Error: Report server failed to start.' >&2; exit 1; }
+echo "Local report: http://127.0.0.1:$PORT"
+echo 'Press Ctrl+C to stop this report server.'
+if [ "$LOCAL_ONLY" = false ] && command -v ngrok >/dev/null 2>&1; then
+    # The agent may use saved credentials. Never print tokens or claim anonymous access.
+    ngrok http "http://127.0.0.1:$PORT" --log=stdout &
+    TUNNEL_PID=$!
+    if wait "$TUNNEL_PID"; then exit 0; fi
+    TUNNEL_PID=
+    echo 'ngrok could not start; the loopback report remains available.' >&2
+elif [ "$LOCAL_ONLY" = false ]; then
+    echo 'ngrok is unavailable; the loopback report remains available.' >&2
 fi
-
-echo "HTTP server running on http://localhost:$PORT (PID: $HTTP_PID)"
-
-# Start ngrok
-echo ""
-echo "Starting ngrok tunnel..."
-echo "  Press Ctrl+C to stop"
-echo ""
-
-ngrok http "$PORT" --log=stdout
+wait "$HTTP_PID"

@@ -12,7 +12,7 @@ GVPROXY_QEMU_PORT=19200
 GVPROXY_API_PORT=19201
 PORT_FORWARD=8080:80,3000:3000,5000:5000
 TESTCONTAINERS_PORT_START=20000
-# auto selects 20015 on Windows and 20255 on Linux.
+# auto selects 20127 on both platforms (128 ports with the default start).
 TESTCONTAINERS_PORT_END=auto
 # Pure TCG may spend longer than Testcontainers defaults extracting large image layers.
 TESTCONTAINERS_PULL_PAUSE_TIMEOUT=300
