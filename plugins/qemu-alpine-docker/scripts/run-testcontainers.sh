@@ -25,11 +25,6 @@
 #
 set -euo pipefail
 
-# Keep the environment launcher from this Bash installation. vm-utils may add
-# another MSYS2 installation to PATH; using its env.exe under Git Bash can
-# make Windows OpenSSH exit 255 before initialization (even for ssh -V).
-HOST_ENV_BIN="$(command -v env)"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=vm-utils.sh
 source "${SCRIPT_DIR}/vm-utils.sh"
@@ -173,7 +168,7 @@ echo "Running Testcontainers command." >&2
 # Retain the owner shell until the command returns so its lease is released.
 # The env command ensures the variables are passed through the MSYS-to-native process boundary.
 if [ "$TESTCONTAINERS_RESOURCE_METRICS_VALUE" = "false" ]; then
-    if "$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"; then exit 0; else exit "$?"; fi
+    if env "${COMMAND_ENV[@]}" "$@"; then exit 0; else exit "$?"; fi
 fi
 
 # --- Resource metrics (Windows only) ---
@@ -242,4 +237,4 @@ trap finish_resource_metrics EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-"$HOST_ENV_BIN" "${COMMAND_ENV[@]}" "$@"
+env "${COMMAND_ENV[@]}" "$@"
