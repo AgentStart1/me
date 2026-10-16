@@ -17,3 +17,5 @@ Resolve scripts from the installed plugin root and run them from the target proj
 If ngrok is unavailable or fails authentication, keep the loopback server running and return
 its actual URL. Use `--local-only` for an explicitly local preview. Do not install ngrok or
 claim an anonymous free tunnel. Stop only the processes started for this report.
+
+For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/test-report-sharing/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.

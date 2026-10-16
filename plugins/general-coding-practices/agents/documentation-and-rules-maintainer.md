@@ -15,3 +15,5 @@ across audiences.
 
 Return the files that need changes and why. Preserve privacy-safe placeholders and do not change
 implementation files unless explicitly delegated.
+
+For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/project-collaboration-rules/SKILL.md`, `skills/project-docs-and-rules/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.

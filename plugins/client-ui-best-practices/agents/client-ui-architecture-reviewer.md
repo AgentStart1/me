@@ -26,3 +26,5 @@ Flag stale completions and cancellation converted into ordinary failure state.
 
 Return findings first with file and line references, then a minimal refactoring plan and focused
 tests. Do not rewrite code or broaden the architecture without parent approval.
+
+For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/client-ui-best-practices/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.

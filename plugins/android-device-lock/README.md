@@ -65,3 +65,7 @@ If remote lease deletion fails, `release` returns nonzero and retains the owner
 token for recovery. `run` also returns nonzero when cleanup fails after a successful
 command; an existing command failure or signal status is preserved. Retry release
 with the retained token after checking device connectivity and ownership.
+
+## Improvement feedback
+
+Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.

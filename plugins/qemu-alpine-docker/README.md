@@ -291,3 +291,7 @@ Use the updated plugin or a matching source checkout for setup, start and stop c
 `GVPROXY_QEMU_PORT=19200` and `GVPROXY_API_PORT=19201` are loopback control ports; they must be distinct and outside every forward. Python 3 is required for verified process ownership. `GVPROXY_BINARY` can point to a verified helper installed by `setup.sh`.
 
 If gvproxy exits, stop the VM and start it again. Upstream v0.9.0 accepts one QEMU connection per process, so recovery restarts both processes, re-registers all forwards, and waits for SSH and Docker application responses. It does not reconnect an already-running QEMU automatically. Port conflicts fail startup and remove owned processes. Do not restart a VM used by another session. The API can expose ports and must remain on loopback.
+
+## Improvement feedback
+
+Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
