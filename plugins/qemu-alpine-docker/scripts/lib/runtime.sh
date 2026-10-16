@@ -45,7 +45,9 @@ ensure_msys2_tools() {
         )
         for dir in "${candidates[@]}"; do
             if [ -d "$dir" ] && [[ ":$PATH:" != *":$dir:"* ]]; then
-                export PATH="$dir:$PATH"
+                # Preserve the caller's Bash runtime and existing tool choices.
+                # https://github.com/storytellerF/me/issues/41: crossing MSYS2 runtimes can lose child environment variables.
+                export PATH="$PATH:$dir"
             fi
         done
     fi

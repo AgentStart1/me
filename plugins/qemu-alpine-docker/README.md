@@ -71,6 +71,11 @@ Run the scripts from Bash on Linux or Git Bash/MSYS2 on Windows with:
 - `curl`, `tar`, and `sha256sum`
 - A running Alpine VM with repository access for the first Go installation and dependency download
 
+On Windows, known MSYS2 tool directories and Windows OpenSSH are appended to
+`PATH` as fallbacks. Existing commands retain priority, including the Bash runtime
+used to launch the scripts. This also makes MSYS2's `xorriso` available without
+replacing Git Bash's tools.
+
 ## First-time provisioning
 
 ```bash

@@ -71,6 +71,8 @@ Together they cover:
 - `diff-sharing` and `test-report-sharing` shell suites in separate matrix jobs.
 - Android status UI, backend, browser checks, and emulator startup regressions.
 - QEMU status UI, backend, browser checks, and VM shell regression suites.
+- Windows Git Bash with a separate MSYS2 installation and xorriso, checking
+  fallback PATH ordering and proxy environment delivery to child Bash.
 - Docker proxy Go tests with the race detector.
 - The unprivileged QEMU container runtime smoke test.
 

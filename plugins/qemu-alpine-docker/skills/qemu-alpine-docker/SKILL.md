@@ -127,6 +127,8 @@ The start script returns after SSH and the Docker API are ready. The test wrappe
 It unsets TLS variables and `TESTCONTAINERS_RYUK_DISABLED` and preserves the test command's exit code. With `auto` metrics, Windows collects and reports resource averages and peaks; Linux runs without the PowerShell collector and does not update the metrics report.
 
 On Windows, keep the environment launcher from the Bash installation that started the wrapper.
+Append fallback MSYS2 tool directories to `PATH` so existing Bash and tool choices
+retain priority; do not prepend another installation's runtime.
 Do not replace it with another MSYS2 installation's `env.exe` after changing `PATH`:
 native Windows SSH can exit 255 before initialization when runtimes are mixed.
 
