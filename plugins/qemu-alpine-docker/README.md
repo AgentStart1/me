@@ -181,9 +181,6 @@ confirm ownership before doing so. A running VM is never restarted to apply defa
 
 ## Measured resource reference
 
-The test wrapper preserves the `env` executable from its owning Bash installation before
-adding tool directories to `PATH`. Mixing an MSYS2 `env.exe` with Git Bash can make
-native Windows OpenSSH exit 255 without diagnostics, even for `ssh -V`.
 On Windows, the proxy follows Docker's Windows archive permissions: it adds execute bits and removes
 group/world write permissions so scripts can run in Linux images without Dockerfile workarounds.
 In a Linux container, it preserves the source file permission bits; scripts must already have their required execute bits.
