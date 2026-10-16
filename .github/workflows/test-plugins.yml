@@ -124,6 +124,23 @@ jobs:
       - run: bash plugins/qemu-alpine-docker/tests/test-sync-workspace.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-build-docker-proxy.sh
 
+  windows-msys2-path:
+    name: Windows MSYS2 path regression
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          location: C:\
+          install: xorriso
+      - name: Verify Git Bash with separate MSYS2 fallback tools
+        shell: bash
+        run: |
+          test "$(cygpath -m /usr/bin/bash.exe)" = 'C:/Program Files/Git/usr/bin/bash.exe'
+          test -x /c/msys64/usr/bin/bash.exe
+          test -x /c/msys64/usr/bin/xorriso.exe
+          bash plugins/qemu-alpine-docker/tests/test-msys2-path.sh
+
   docker-proxy:
     name: QEMU Docker proxy Go tests
     runs-on: ubuntu-latest
