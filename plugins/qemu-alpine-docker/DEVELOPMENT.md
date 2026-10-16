@@ -1,5 +1,12 @@
 # QEMU status panel development
 
+## Windows fallback tool paths
+
+Run `bash ./tests/test-msys2-path.sh` from Git Bash with a separate MSYS2
+installation to check fallback path ordering, repeated initialization, existing
+command selection, and proxy variable delivery to a child Bash. The test also
+starts available QEMU and xorriso binaries for version checks; it does not use a VM.
+
 ## gvproxy port allocation audit
 
 The default pool is now 20000–20127 on Windows and Linux. The former 16/256-port
