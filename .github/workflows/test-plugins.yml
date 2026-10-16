@@ -132,6 +132,8 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with:
           location: C:\
+          release: false
+          msystem: UCRT64
           install: xorriso
       - name: Verify Git Bash with separate MSYS2 fallback tools
         shell: bash
