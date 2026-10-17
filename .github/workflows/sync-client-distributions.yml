@@ -122,9 +122,16 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.UPSTREAM_GITHUB_TOKEN }}
+          SYNC_CLIENT: ${{ matrix.client }}
         run: |
+          python scripts/render-sync-pr.py \
+            --distribution "$RUNNER_TEMP/me.${{ matrix.client }}" \
+            --output-dir "$RUNNER_TEMP/sync-pr"
+          pr_title="$(cat "$RUNNER_TEMP/sync-pr/title.txt")"
           existing_pr="$(gh pr list --repo "$UPSTREAM_REPOSITORY" --head "$SYNC_BRANCH" --state open --json url --jq '.[0].url')"
           if [[ -n "$existing_pr" ]]; then
+            gh pr edit "$existing_pr" --repo "$UPSTREAM_REPOSITORY" \
+              --title "$pr_title" --body-file "$RUNNER_TEMP/sync-pr/body.md"
             echo "Updated existing pull request: $existing_pr"
             exit 0
           fi
@@ -133,5 +140,5 @@ jobs:
             --repo "$UPSTREAM_REPOSITORY" \
             --base main \
             --head "$SYNC_BRANCH" \
-            --title "chore: sync generated ${{ matrix.client }} plugins" \
-            --body "Generated from storytellerF/me commit ${GITHUB_SHA}."
+            --title "$pr_title" \
+            --body-file "$RUNNER_TEMP/sync-pr/body.md"
