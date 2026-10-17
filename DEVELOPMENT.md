@@ -56,6 +56,21 @@ Run `python scripts/validate-plugin-packages.py --client claude ../me.claude` an
 
 The sync workflow needs `UPSTREAM_GITHUB_TOKEN` with repository write and pull-request permissions for both existing destination repositories. It opens a separate generated PR for each client; destination PRs must merge before users receive updates. Start a new Codex thread after synchronized plugin updates are published and installed.
 
+## Code design skill ownership
+
+The former Kotlin plugin is consolidated into `general-coding-practices`, whose
+`code-design-rules` entrypoint owns language-independent control-flow, state, and concurrency invariants.
+One-shot callback adapters must settle once and clean up; repeated listeners use
+owned streams with explicit buffering and termination.
+Keep native APIs, state examples, cancellation differences, documentation terms,
+and platform test guidance in its `references/` files. Link each supported platform
+from the entrypoint and keep the plugin README/platform metadata aligned. The
+Kotlin plugin and skill identifiers are retired; generated marketplace cleanup
+removes the old package and includes the new skill in both clients. Validate source
+frontmatter separately and use the distribution checks above to verify all reference
+resources and unchanged Codex skill copies. Prompt checks do not prove application
+or model behavior.
+
 ## Continuous integration
 
 Two validation workflows run on every pull request, pushes to `main`, and
@@ -65,7 +80,7 @@ validates all portable sources and both Codex and Claude distributions.
 every suite is connected to CI. They use separate concurrency groups.
 Together they cover:
 
-- All nine portable plugins and both generated client distributions, including
+- All eight portable plugins and both generated client distributions, including
   prompt-only plugins, skill frontmatter, agent routing, resource integrity,
   regeneration, CLI behavior, and generated Codex skill checks.
 - `diff-sharing` and `test-report-sharing` shell suites in separate matrix jobs.
