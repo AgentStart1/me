@@ -1,0 +1,30 @@
+## Summary
+
+Sync generated **{client}** packages from [{source_subject}]({source_url}).
+
+## Affected plugins
+
+{plugins}
+
+## Generated changes
+
+```text
+{diff_stat}
+```
+
+## Validation
+
+The sync workflow completed these checks before opening or updating this PR:
+
+- Portable source and generated {client} package validation.
+- Package generation and routing regression tests.
+- {client_validation}
+
+## Traceability
+
+- Source commit: [{source_sha}]({source_url})
+- Workflow run: [Sync client distributions]({run_url})
+
+Generated files are maintained in the source repository. Merge this PR to publish
+the synchronized distribution. After installing updated Codex plugins, start a
+new Codex chat to load the changes.

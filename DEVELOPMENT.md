@@ -56,6 +56,12 @@ Run `python scripts/validate-plugin-packages.py --client claude ../me.claude` an
 
 The sync workflow needs `UPSTREAM_GITHUB_TOKEN` with repository write and pull-request permissions for both existing destination repositories. It opens a separate generated PR for each client; destination PRs must merge before users receive updates. Start a new Codex thread after synchronized plugin updates are published and installed.
 
+Sync PR titles include the source commit subject. `scripts/render-sync-pr.py`
+renders the shared `scripts/templates/sync-pr.md.template` with affected plugin
+versions (including removals), generated diff statistics, completed client checks,
+and source/run links. The workflow refreshes both title and body for existing PRs.
+The renderer runs after the generated sync commit and compares it with its parent.
+
 ## Code design skill ownership
 
 The former Kotlin plugin is consolidated into `general-coding-practices`, whose
