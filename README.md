@@ -14,6 +14,10 @@ This repository is the source of truth. Each `plugins/*/plugin.json` targets Age
 
 GitHub Actions generates distribution pull requests in `me.claude` and `me.codex` after changes merge to `main`, or on manual dispatch. Install from those repositories.
 
+## Improvement feedback
+
+Every plugin's skills include an upstream feedback workflow for actionable plugin improvements. Reports target [storytellerF/me](https://github.com/storytellerF/me/issues), check open and closed issues first, and use sanitized or synthetic examples. Posting follows the user's existing authorization; without it, the agent prepares a draft. Installing a plugin alone does not authorize public posting.
+
 ## Installation
 
 ### Codex

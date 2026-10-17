@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "recyclerview-best-practice",
-  "version": "0.3.2-20261011061758",
+  "version": "0.3.3-20261016225904",
   "description": "Android RecyclerView guidance for adapters, diffing, paging, state, prepend anchors, and performance.",
   "author": {
     "name": "Local Android Practices"

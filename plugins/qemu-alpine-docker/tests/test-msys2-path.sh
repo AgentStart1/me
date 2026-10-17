@@ -24,7 +24,7 @@ done
 extended_path="$PATH"
 ensure_msys2_tools
 [ "$PATH" = "$extended_path" ]
-QEMU_DOCKER_SSH_PORT=probe QEMU_DOCKER_SSH_KEY=probe bash -c \
+env QEMU_DOCKER_SSH_PORT=probe QEMU_DOCKER_SSH_KEY=probe bash -c \
     '[ "${QEMU_DOCKER_SSH_PORT:-}" = probe ] && [ "${QEMU_DOCKER_SSH_KEY:-}" = probe ]'
 echo 'PASS: fallback paths preserve command choices and child Bash environment; initialization is idempotent'
 for cmd in qemu-system-x86_64 qemu-img xorriso; do

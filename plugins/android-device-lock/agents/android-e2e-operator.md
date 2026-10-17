@@ -26,3 +26,5 @@ emulator or alter unrelated apps.
 For a status-only request, use the read-only Device Leases panel or JSON collector. Do not acquire,
 renew, or release a lease merely to inspect it. Report unknown/offline ownership conservatively,
 keep owner tokens out of displayed results, and do not infer a waiting queue from an active lock.
+
+For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/android-device-lock/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.
