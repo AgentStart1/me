@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "general-coding-practices",
-  "version": "0.5.5-20261016225904",
-  "description": "Coding collaboration, debugging, verification, logging, and project documentation rules.",
+  "version": "0.6.0-20261017115329",
+  "description": "Coding collaboration, control flow, state modeling, concurrency, verification, and documentation rules.",
   "author": {
     "name": "Local Coding Practices"
   },
@@ -20,7 +20,10 @@
     "project-rules",
     "readme",
     "root-cause",
-    "subagents"
+    "subagents",
+    "state-machines",
+    "immutability",
+    "structured-concurrency"
   ],
   "extensions": {
     "com.openai.codex": {
@@ -28,7 +31,7 @@
       "interface": {
         "displayName": "General Coding Practices",
         "shortDescription": "Follow project collaboration and coding rules.",
-        "longDescription": "Guides Codex to follow the existing plan autonomously and ask for user input only when a blocker prevents further progress, keep commits focused, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, add necessary structured and privacy-safe diagnostic logs, proactively maintain README, project rules, and colocated agent prompts, run formatting and static checks, use appropriate dependencies, and identify root causes before adding fallbacks or workarounds.",
+        "longDescription": "Guides Codex to follow the existing plan autonomously and ask for user input only when a blocker prevents further progress, keep commits focused, protect private information, avoid duplicated code, keep names aligned with evolving responsibilities, split large code files by feature or responsibility, add necessary structured and privacy-safe diagnostic logs, proactively maintain README, project rules, and colocated agent prompts, run formatting and static checks, use appropriate dependencies, and identify root causes before adding fallbacks or workarounds. Includes cross-platform code design rules with language-specific references for Kotlin/Android, Swift, TypeScript/JavaScript, Python, Rust, and C#/.NET: sequential async control flow, callback/listener adapters, owned async work, cancellation, immutable state variants, explicit transitions, and stale-result rejection.",
         "developerName": "Local Coding Practices",
         "category": "Developer Tools",
         "capabilities": [
@@ -38,7 +41,8 @@
         ],
         "defaultPrompt": [
           "Carry out this coding change and ask me only if you cannot continue under the existing plan.",
-          "Fix this bug by finding the root cause first."
+          "Fix this bug by finding the root cause first.",
+          "Review control flow, state invariants, and asynchronous task ownership using this platform's native abstractions."
         ],
         "brandColor": "#2563EB"
       }

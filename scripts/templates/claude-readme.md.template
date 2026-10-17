@@ -17,7 +17,6 @@ Install plugins from the marketplace:
 /plugin install android-device-lock@me
 /plugin install recyclerview-best-practice@me
 /plugin install general-coding-practices@me
-/plugin install kotlin-coding-practices@me
 /plugin install client-ui-best-practices@me
 /plugin install test-report-sharing@me
 /plugin install diff-sharing@me
@@ -37,3 +36,10 @@ Remove the old marketplace:
 ```
 
 Then follow the installation steps above to add `storytellerF/me.claude` and reinstall the plugins you use. The marketplace name remains `me`.
+
+## Migration from Kotlin Coding Practices
+
+`kotlin-coding-practices` has been merged into `general-coding-practices`.
+Install or update that plugin and remove the retired Kotlin plugin using your
+client's plugin manager. Replace explicit `kotlin-project-rules` references with
+`code-design-rules`; Kotlin guidance remains in its platform reference.

@@ -9,10 +9,26 @@ This plugin provides project collaboration rules plus focused README and project
 - Comments that explain intent and constraints, document useful API contracts, and keep workarounds and TODOs actionable.
 - Focused test, formatter, lint, static-analysis, and build verification.
 - Audience-specific documentation maintenance: user guidance in `README.md`, developer guidance in `DEVELOPMENT.md`, and AI guidance in `AGENTS.md`.
+- Cross-platform code design rules: sequential async control flow and callback/listener adaptation, plus owned asynchronous work, cancellation, immutable variants, explicit transitions, and rejection of superseded results.
 - Portable Claude documentation-agent delegation.
 
 When a skill delegates to a bundled Claude agent, the parent waits for its required final report
 before dependent work or its final response.
+
+## Code design guidance
+
+The `code-design-rules` skill covers readable control flow, callback/listener adaptation, state modeling, and
+concurrency. It provides shared principles and loads only
+relevant platform references: Kotlin/Android, Swift, TypeScript/JavaScript,
+Python/asyncio, Rust, and C#/.NET. Each reference maps the principles to native
+APIs, state types, documentation conventions, and verification practices.
+
+This replaces `kotlin-coding-practices` and its `kotlin-project-rules` skill.
+After updating the marketplace, install or update `general-coding-practices` and
+remove the retired Kotlin plugin using your client's plugin manager. Update any
+explicit skill references to `code-design-rules`. Kotlin-specific
+coroutine, sealed-state, and KDoc guidance remains in its Kotlin reference.
+Start a new Codex thread after installing the synchronized update.
 
 ## Plugin packaging
 

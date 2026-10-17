@@ -17,7 +17,6 @@ codex plugin add android-emulator-profile@me
 codex plugin add android-device-lock@me
 codex plugin add recyclerview-best-practice@me
 codex plugin add general-coding-practices@me
-codex plugin add kotlin-coding-practices@me
 codex plugin add client-ui-best-practices@me
 codex plugin add test-report-sharing@me
 codex plugin add diff-sharing@me
@@ -37,3 +36,10 @@ codex plugin marketplace remove me
 ```
 
 Then follow the installation steps above to add `storytellerF/me.codex` and reinstall the plugins you use. The marketplace name remains `me`.
+
+## Migration from Kotlin Coding Practices
+
+`kotlin-coding-practices` has been merged into `general-coding-practices`.
+Install or update that plugin and remove the retired Kotlin plugin using your
+client's plugin manager. Replace explicit `kotlin-project-rules` references with
+`code-design-rules`; Kotlin guidance remains in its platform reference.
