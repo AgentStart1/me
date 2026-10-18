@@ -18,7 +18,7 @@ PLUGIN = sys.argv.pop(1) if len(sys.argv) > 1 and sys.argv[1] in ('diff-sharing'
 
 def published(output):
     pointer = output / 'current.json'
-    return output / 'generations' / json.loads(pointer.read_text())['generation'] if pointer.exists() else output
+    return output / 'generations' / json.loads(pointer.read_text(encoding='utf-8'))['generation'] if pointer.exists() else output
 
 
 class ReportTests(unittest.TestCase):
@@ -57,7 +57,7 @@ class ReportTests(unittest.TestCase):
         output = self.project / 'output space & results'
         self.command('test-report-sharing', 'collect-test-results.py', '--test-dir', root,
                      '--test-dir', root / 'nested', '--test-dir', other, '--output-dir', output)
-        summary = json.loads((published(output) / 'reports/summary.json').read_text())
+        summary = json.loads((published(output) / 'reports/summary.json').read_text(encoding='utf-8'))
         self.assertEqual((summary['total_reports'], summary['xml_files']), (1, 2))
         self.command('test-report-sharing', 'generate-report-site.py', '--output-dir', output)
         self.assertEqual((published(output) / 'index.html').read_text(encoding='utf-8').count('(JUnit XML)'), 2)
@@ -103,7 +103,7 @@ class ReportTests(unittest.TestCase):
         output = self.project / 'output with spaces'
         self.command('diff-sharing', 'generate-diff-report.py', '--output-dir', output, '--base-ref', 'base',
                      env={'GIT_INCLUDE_UNCOMMITTED': 'false', 'DIFFTASTIC_COMMAND': 'missing-fixture-tool'})
-        stats = json.loads((published(output) / 'diff/stats.json').read_text())
+        stats = json.loads((published(output) / 'diff/stats.json').read_text(encoding='utf-8'))
         self.assertEqual((stats['files_changed'], stats['insertions'], stats['deletions']), (2, 1, 1))
         self.assertIn('&lt;tag&gt; &amp; value', (published(output) / 'diff/index.html').read_text(encoding='utf-8'))
         self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'base', '--compare-ref', 'missing',
@@ -129,8 +129,8 @@ class ReportTests(unittest.TestCase):
         fake.write_text('#!/usr/bin/env bash\nexit 41\n', newline='\n')
         self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output, env=environment)
         current = published(output)
-        self.assertEqual(json.loads((current / 'diff/stats.json').read_text())['difftastic_status'], 'failed')
-        self.assertIn('<option value="git" selected>', (current / 'diff/index.html').read_text())
+        self.assertEqual(json.loads((current / 'diff/stats.json').read_text(encoding='utf-8'))['difftastic_status'], 'failed')
+        self.assertIn('<option value="git" selected>', (current / 'diff/index.html').read_text(encoding='utf-8'))
         self.assertFalse((current / 'diff/difftastic.jsonl').exists())
 
     def test_argument_validation(self):
@@ -160,13 +160,13 @@ class ReportTests(unittest.TestCase):
         output = self.project / 'output'
         self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD~1', '--output-dir', output,
                      env={'GIT_INCLUDE_UNCOMMITTED': 'false', 'DIFFTASTIC_COMMAND': str(fake)})
-        records = (published(output) / 'diff/difftastic.jsonl').read_text().splitlines()
+        records = (published(output) / 'diff/difftastic.jsonl').read_text(encoding='utf-8').splitlines()
         self.assertEqual(len(records), 1)
         old, new, payload = map(base64.b64decode, records[0].split('\t'))
         self.assertEqual(old.decode().replace('\r\n', '\n'), before)
         self.assertEqual(new.decode().replace('\r\n', '\n'), before.replace('1', '2'))
         self.assertEqual(json.loads(payload)['status'], 'changed')
-        self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text())['files_changed'], 1)
+        self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text(encoding='utf-8'))['files_changed'], 1)
 
     def init_structural_fixture(self):
         if not shutil.which('bash'):
@@ -200,10 +200,10 @@ class ReportTests(unittest.TestCase):
                 output = self.project / ('output-' + relative)
                 self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output,
                              cwd=directory, env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
-                records = (published(output) / 'diff/difftastic.jsonl').read_text().splitlines()
+                records = (published(output) / 'diff/difftastic.jsonl').read_text(encoding='utf-8').splitlines()
                 pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
                 self.assertEqual(pairs, {(b'value = 1\n', b'value = 2\n'), (b'outside = 1\n', b'outside = 2\n')})
-                self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text())['files_changed'], 2)
+                self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text(encoding='utf-8'))['files_changed'], 2)
                 patch = (published(output) / 'diff/git-diff-content.html').read_text(encoding='utf-8')
                 self.assertIn('outside.py', patch)
                 self.assertIn('nested space/example.py', patch)
@@ -241,7 +241,7 @@ class ReportTests(unittest.TestCase):
         (custom / 'TEST-custom.xml').write_text('<testsuite/>')
         self.command('test-report-sharing', 'collect-test-results.py', '--project-dir', 'target project',
                      '--test-dir', 'custom', '--output-dir', 'caller-output')
-        summary = json.loads((published(self.project / 'caller-output') / 'reports/summary.json').read_text())
+        summary = json.loads((published(self.project / 'caller-output') / 'reports/summary.json').read_text(encoding='utf-8'))
         self.assertEqual(summary['xml_files'], 2)
         self.assertFalse((project / 'caller-output').exists())
         home = self.project / 'home'
@@ -276,7 +276,7 @@ class ReportTests(unittest.TestCase):
         output = self.project / 'output'
         self.command('test-report-sharing', 'collect-test-results.py', '--project-dir', project, '--test-dir', '.',
                      '--test-dir', 'vendor', '--test-dir', 'removed-module', '--output-dir', output)
-        summary = json.loads((published(output) / 'reports/summary.json').read_text())
+        summary = json.loads((published(output) / 'reports/summary.json').read_text(encoding='utf-8'))
         self.assertEqual((summary['total_reports'], summary['xml_files']), (1, 1))
         copied = published(output) / summary['report_directories'][0]
         self.assertFalse((copied / 'vendor').exists())
@@ -300,7 +300,7 @@ class ReportTests(unittest.TestCase):
                 output = self.project / ('output-' + mode)
                 self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'base', '--compare-ref', 'HEAD',
                              '--output-dir', output, env={'GIT_INCLUDE_UNCOMMITTED': mode, 'DIFFTASTIC_COMMAND': str(fake)})
-                records = (published(output) / 'diff/difftastic.jsonl').read_text().splitlines()
+                records = (published(output) / 'diff/difftastic.jsonl').read_text(encoding='utf-8').splitlines()
                 self.assertEqual(len(records), 1)
                 old, new, _ = map(base64.b64decode, records[0].split('\t'))
                 self.assertEqual(old, b'value = 1\n')
@@ -329,10 +329,10 @@ class ReportTests(unittest.TestCase):
                 output = self.project / ('output-' + compare)
                 self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', base, '--compare-ref', compare,
                              '--output-dir', output, env={'GIT_INCLUDE_UNCOMMITTED': 'false', 'DIFFTASTIC_COMMAND': str(fake)})
-                records = (published(output) / 'diff/difftastic.jsonl').read_text().splitlines()
+                records = (published(output) / 'diff/difftastic.jsonl').read_text(encoding='utf-8').splitlines()
                 pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
                 self.assertEqual(pairs, {(f'value = {value - 1}\n'.encode(), f'value = {value}\n'.encode())})
-                self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text())['files_changed'], 1)
+                self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text(encoding='utf-8'))['files_changed'], 1)
                 self.assertNotIn('module', (published(output) / 'diff/git-diff-content.html').read_text(encoding='utf-8'))
 
                 self.assertNotIn('Difftastic failed to generate', (published(output) / 'diff/index.html').read_text(encoding='utf-8'))
@@ -357,9 +357,9 @@ class ReportTests(unittest.TestCase):
                 output = self.project / ('output-' + compare)
                 self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', base, '--compare-ref', compare,
                              '--output-dir', output, env={'GIT_INCLUDE_UNCOMMITTED': 'false', 'DIFFTASTIC_COMMAND': str(fake)})
-                records = (published(output) / 'diff/difftastic.jsonl').read_text().splitlines()
+                records = (published(output) / 'diff/difftastic.jsonl').read_text(encoding='utf-8').splitlines()
                 self.assertEqual(len(records), 1)
-                self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text())['files_changed'], 1)
+                self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text(encoding='utf-8'))['files_changed'], 1)
                 self.assertNotIn('module', (published(output) / 'diff/git-diff-content.html').read_text(encoding='utf-8'))
 
     @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
@@ -393,16 +393,16 @@ class ReportTests(unittest.TestCase):
                 self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output,
                              cwd=nested if location == 'nested' else self.project,
                              env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
-                records = (published(output) / 'diff/difftastic.jsonl').read_text().splitlines()
+                records = (published(output) / 'diff/difftastic.jsonl').read_text(encoding='utf-8').splitlines()
                 pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
                 self.assertEqual(pairs, {(b'value = 1\n', b'value = 2\n')})
-                self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text())['files_changed'], 1)
+                self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text(encoding='utf-8'))['files_changed'], 1)
                 self.assertNotIn('module', (published(output) / 'diff/git-diff-content.html').read_text(encoding='utf-8'))
         source.write_bytes(b'value = 1\n')
         output = self.project / 'only-submodule'
         self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output,
                      cwd=nested, env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
-        self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text())['files_changed'], 0)
+        self.assertEqual(json.loads((published(output) / 'diff/stats.json').read_text(encoding='utf-8'))['files_changed'], 0)
         self.assertEqual((published(output) / 'diff/difftastic.jsonl').read_bytes(), b'')
 
 

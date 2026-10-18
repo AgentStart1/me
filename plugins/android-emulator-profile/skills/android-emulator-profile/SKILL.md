@@ -121,3 +121,6 @@ On Windows, the shared tool environment boundary converts inherited and profile
 `ANDROID_HOME`, `ANDROID_AVD_HOME`, and `ANDROID_USER_HOME` paths from Git Bash
 notation before launching native tools, so tools and configuration lookup use
 the same directories. Empty values remain empty.
+
+Read Git Bash path-conversion output as UTF-8, independent of the Windows ANSI
+code page, so Unicode SDK and AVD directory names remain intact.

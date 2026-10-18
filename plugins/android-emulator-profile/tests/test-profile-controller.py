@@ -40,7 +40,7 @@ class ProfileTests(unittest.TestCase):
             paths = {key: root / key for key in profiles.ANDROID_PATHS}
             for path in paths.values():
                 path.mkdir()
-            unix = {key: subprocess.check_output(['cygpath', '-u', str(path)], text=True).strip()
+            unix = {key: subprocess.check_output(['cygpath', '-u', str(path)], encoding='utf-8').strip()
                     for key, path in paths.items()}
             for overrides in ({}, unix):
                 with self.subTest(overrides=bool(overrides)):
@@ -57,6 +57,13 @@ class ProfileTests(unittest.TestCase):
             native = {key: str(path) for key, path in paths.items()}
             self.assertEqual(profiles.tool_environment(native, {}), native)
             self.assertEqual(profiles.tool_environment({'ANDROID_HOME': ''}, {}), {'ANDROID_HOME': ''})
+
+    @unittest.skipUnless(os.name == 'nt' and shutil.which('cygpath'), 'requires Windows Git Bash cygpath')
+    def test_native_path_under_ansi_locale(self):
+        with tempfile.TemporaryDirectory(prefix='Android 名称 ') as directory:
+            unix = subprocess.check_output(['cygpath', '-u', directory], encoding='utf-8').strip()
+            with patch('subprocess.locale.getencoding', return_value='cp1252'):
+                self.assertEqual(profiles.native_path(unix), Path(directory))
 
     def test_literal_profiles_and_crlf(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -32,7 +32,7 @@ def tool_environment(profile, inherited=None):
 
 def native_path(value):
     if os.name == 'nt' and value.startswith('/') and shutil.which('cygpath'):
-        return Path(subprocess.check_output(['cygpath', '-w', value], text=True).strip())
+        return Path(subprocess.check_output(['cygpath', '-w', value], encoding='utf-8').strip())
     return Path(value)
 
 

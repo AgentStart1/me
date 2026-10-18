@@ -397,3 +397,8 @@ persistent root filesystem. Register the supervised Docker wrapper with `lbu inc
 before `setup-alpine`; an executable merely present under the live ISO's
 `/usr/local` is otherwise absent after reboot. Real fresh-disk verification must
 check both the persisted OpenRC configuration and the referenced executable.
+
+Windows CI also exercises ANSI-default Python text IO. Git Bash path conversion
+and generated UTF-8 report artifacts must specify their encoding explicitly; do
+not rely on the host locale or enable UTF-8 mode merely to hide missing boundaries.
+The native path regression simulates CP1252 while converting a real Unicode path.
