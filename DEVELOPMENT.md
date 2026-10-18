@@ -176,3 +176,7 @@ private state, mocked guest IO and an untouched synthetic disk; Windows launches
 native Python in a new process group and tests Ctrl+Break cleanup. It does not
 provision a real guest or inspect/stop another VM. Existing gvproxy controller
 and lifecycle tests remain applicable.
+
+VM client fixtures keep QEMU probes mocked while setting `QEMU_STATE_PYTHON`
+to a real interpreter before installing fake commands on PATH. This exercises
+operation lease acquisition/release rather than mocking away the state controller.

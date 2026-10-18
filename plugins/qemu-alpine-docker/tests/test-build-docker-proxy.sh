@@ -38,6 +38,8 @@ exit 0
 MOCK
 chmod +x "$TEST_DIR/bin/python"
 chmod +x "$TEST_DIR/bin/ssh" "$TEST_DIR/bin/go"
+# Mock only QEMU probing; state leases must run the real Python controller.
+export QEMU_STATE_PYTHON="$(command -v python || command -v python3)"
 export HOME="$TEST_DIR/user"
 if command -v cygpath >/dev/null 2>&1; then export USERPROFILE="$(cygpath -w "$TEST_DIR/user")"; fi
 export PATH="$TEST_DIR/bin:$PATH" QEMU_ALPINE_SKIP_MSYS2_PATH=1
