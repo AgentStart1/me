@@ -96,10 +96,15 @@ interpreter (`ANDROID_PROFILE_PYTHON` overrides lookup) and forwards arguments.
 SDK installation remains Bash orchestration; its compatibility utilities use
 the same Python profile parser, tool resolver, argument mapper and INI updater.
 Profiles remain literal data. Native Windows batch tools reject command
-metacharacters that cannot be safely quoted; executable tools receive argument
+metacharacters and arguments ending in a backslash that cannot be safely forwarded; executable tools receive argument
 lists. Use Ctrl+C or native Windows Ctrl+Break for graceful cancellation. Git
 Bash `kill -TERM` forcibly terminates native Windows programs and cannot run
 Python cleanup; inspect any remaining guard before recovery.
 
-Windows environment option names retain their original case, including inherited
-`EMULATOR_FLAG_` and `EMULATOR_VALUE_` suffixes.
+Profile configuration is read directly from the file, preserving key and option
+case. AVD names, custom paths, emulator options, INI overrides and wipe permission
+are not inherited from environment variables. Put these settings in the profile.
+The shell creation entry keeps profile values in a separate map rather than
+exporting them. Only `ANDROID_HOME`, `ANDROID_AVD_HOME`, `ANDROID_USER_HOME` and
+the `EMULATOR_DISPLAY` to `DISPLAY` mapping are forwarded explicitly for Android
+tools. Host PATH, HOME and profile/interpreter selection still use the environment.

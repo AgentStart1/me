@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -16,6 +17,21 @@ import profile_controller as profiles
 
 
 class ProfileTests(unittest.TestCase):
+    def test_batch_trailing_backslash_rejected(self):
+        # Exercise the boundary on every platform; no external tool is launched.
+        concrete_path = type(Path())
+        with patch.object(profiles.os, 'name', 'nt'), patch.object(profiles, 'Path', concrete_path):
+            for suffix in ('.bat', '.cmd'):
+                with self.assertRaisesRegex(ValueError, 'trailing backslash'):
+                    profiles.tool_command('emulator' + suffix, ['C:\\data\\', '-verbose'])
+
+    def test_tool_environment_does_not_export_profile(self):
+        profile = {'AVD_NAME': 'profile-name', 'EMULATOR_VALUE_gpu': 'auto',
+                   'AVDMANAGER_VALUE_path': 'custom.avd', 'ANDROID_HOME': 'sdk',
+                   'EMULATOR_DISPLAY': ':42'}
+        environment = profiles.tool_environment(profile, {'PATH': 'tools'})
+        self.assertEqual(environment, {'PATH': 'tools', 'ANDROID_HOME': 'sdk', 'DISPLAY': ':42'})
+
     def test_literal_profiles_and_crlf(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "quoted.profile"
@@ -46,6 +62,7 @@ class ProfileTests(unittest.TestCase):
             script = root / 'fixture.py'
             script.write_text('import json,os,sys,time\nfrom pathlib import Path\n'
                               'Path(os.environ["FIXTURE_LOG"]).write_text(json.dumps(sys.argv[1:]))\n'
+                              'assert "EMULATOR_VALUE_Custom_Value" not in os.environ\n'
                               'time.sleep(60) if os.environ.get("FIXTURE_HOLD") else None\n'
                               'sys.exit(int(os.environ.get("FIXTURE_STATUS", "0")))\n')
             executable = root / ('emulator.cmd' if os.name == 'nt' else 'emulator')
@@ -57,11 +74,12 @@ class ProfileTests(unittest.TestCase):
             profile = root / 'test.profile'
             profile.write_text(f'AVD_NAME=名称\nAVDMANAGER_VALUE_path="{avd}"\nEMULATOR_VALUE_Custom_Value="space value"\n', encoding='utf-8')
             log = root / 'args.json'
-            env = {**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'], 'FIXTURE_LOG': str(log), 'EMULATOR_VALUE_Inherited_Case': 'inherited value'}
+            env = {**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'], 'FIXTURE_LOG': str(log),
+                   'EMULATOR_VALUE_Inherited_Case': 'ignored', 'AVDMANAGER_VALUE_path': str(root / 'wrong.avd'), 'AVD_NAME': 'wrong'}
             command = [sys.executable, str(SCRIPTS / 'start-avd.py'), str(profile)]
             result = subprocess.run(command, env={**env, 'FIXTURE_STATUS': '23'}, capture_output=True)
             self.assertEqual(result.returncode, 23, result.stderr)
-            self.assertEqual(json.loads(log.read_text()), ['-avd', '名称', '-Custom-Value', 'space value', '-Inherited-Case', 'inherited value'])
+            self.assertEqual(json.loads(log.read_text()), ['-avd', '名称', '-Custom-Value', 'space value'])
             guard = avd / 'config.ini.profile-start.guard'
             self.assertFalse(guard.exists())
             native_lock = avd / 'hardware-qemu.ini.lock'
@@ -69,6 +87,21 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(subprocess.run(command, env=env, capture_output=True).returncode, 1)
             self.assertTrue(native_lock.exists())
             native_lock.rmdir()
+            # Inherited wipe permission must not authorize destructive profile changes.
+            userdata = avd / 'userdata-qemu.img'
+            userdata.touch()
+            original_profile = profile.read_text(encoding='utf-8')
+            profile.write_text(original_profile + 'EMULATOR_CONFIG_disk__dataPartition__size=4G\n', encoding='utf-8')
+            refused = subprocess.run(command, env={**env, 'EMULATOR_ALLOW_DATA_WIPE': 'true'}, capture_output=True)
+            self.assertEqual(refused.returncode, 1)
+            self.assertIn(b'EMULATOR_ALLOW_DATA_WIPE', refused.stderr)
+            self.assertEqual(config.read_text(), 'disk.dataPartition.size=2G\n')
+            profile.write_text('AVDMANAGER_VALUE_path="' + str(avd) + '"\n', encoding='utf-8')
+            missing = subprocess.run(command, env=env, capture_output=True)
+            self.assertEqual(missing.returncode, 1)
+            self.assertIn(b'AVD_NAME', missing.stderr)
+            profile.write_text(original_profile, encoding='utf-8')
+            userdata.unlink()
             log.unlink()
             process = subprocess.Popen(command, env={**env, 'FIXTURE_HOLD': '1'}, stdout=subprocess.DEVNULL,
                                        stderr=subprocess.PIPE, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)

@@ -275,11 +275,15 @@ normal/custom traps, rollback/retry and preservation of existing unknown owners.
 ## Emulator profile controller
 
 `profile_controller.py` owns literal profile decoding, tool lookup, argument
-mapping and atomic INI replacement. `start-avd.py` owns the per-AVD guard and
+mapping and atomic INI replacement. Profile configuration stays in a dictionary
+(or a shell associative map), separate from inherited process environment.
+Only explicit Android path/display contracts are forwarded to tools. `start-avd.py` owns the per-AVD guard and
 emulator process. Shell installation orchestration calls that shared parser
 without eval. Native Windows waits are bounded so Ctrl+Break reaches cleanup;
 only the owned process tree is terminated. Run the existing fake SDK/emulator
 shell suites and `python plugins/android-emulator-profile/tests/test-profile-controller.py`.
 The native test covers spaces/Unicode paths, CRLF, expansion rejection,
-arguments, duplicate keys, native locks, competition, failure and cancellation.
+arguments, duplicate keys, native locks, competition, failure and cancellation,
+plus ignored inherited configuration/wipe permission and batch trailing-backslash
+rejection. Run the native suite on both Windows and Unix.
 The Git Bash smoke suite delegates Windows signal coverage to that native test.

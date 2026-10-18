@@ -10,15 +10,13 @@ source "${PLUGIN_DIR}/scripts/profile-utils.sh"
 
 assert_profile_arg_case() {
     local emulator_output avdmanager_output
-    local EMULATOR_FLAG_Mixed_Case=true
-    local EMULATOR_VALUE_Custom_Value=preserved
-    local AVDMANAGER_FLAG_verbose=true
-    local AVDMANAGER_VALUE_Custom_Path=/tmp/avd
+    local -A PROFILE_VALUES=([EMULATOR_FLAG_Mixed_Case]=true [EMULATOR_VALUE_Custom_Value]=preserved
+        [AVDMANAGER_FLAG_verbose]=true [AVDMANAGER_VALUE_Custom_Path]=/tmp/avd)
     local -a emulator_args=()
     local -a avdmanager_args=()
 
-    append_args_from_env emulator_args EMULATOR -
-    append_args_from_env avdmanager_args AVDMANAGER --
+    append_args_from_profile emulator_args EMULATOR -
+    append_args_from_profile avdmanager_args AVDMANAGER --
 
     emulator_output="$(printf '%s\n' "${emulator_args[@]}")"
     avdmanager_output="$(printf '%s\n' "${avdmanager_args[@]}")"
@@ -137,7 +135,8 @@ PROFILE
 printf 'TEST_LITERAL=value; touch %s/should-not-exist\n' "$TMP_DIR" > "$TMP_DIR/literal.profile"
 load_profile "$TMP_DIR/literal.profile"
 [ ! -e "$TMP_DIR/should-not-exist" ]
-[[ "$TEST_LITERAL" == 'value; touch '* ]]
+[ -z "${TEST_LITERAL+x}" ]
+[[ "${PROFILE_VALUES[TEST_LITERAL]}" == 'value; touch '* ]]
 
 # Refusing an unapproved wipe must leave existing config and locks unchanged.
 cp "${AVD_HOME}/docker-test-avd.avd/config.ini" "$TMP_DIR/config-before"

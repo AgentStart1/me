@@ -18,6 +18,7 @@ profile_python() {
 }
 
 declare -gA PROFILE_LOADED_KEYS=()
+declare -gA PROFILE_VALUES=()
 
 trim_whitespace() {
     local value="$1"
@@ -30,11 +31,11 @@ trim_whitespace() {
 
 load_profile() {
     local profile_path="$1" temporary key value
+    PROFILE_VALUES=()
     temporary="$(mktemp)"
     if ! profile_python profile "$profile_path" > "$temporary"; then rm -f "$temporary"; return 1; fi
     while IFS= read -r -d '' key && IFS= read -r -d '' value; do
-        printf -v "$key" '%s' "$value"
-        export "$key"
+        PROFILE_VALUES["$key"]="$value"
         PROFILE_LOADED_KEYS["$profile_path:$key"]=1
     done < "$temporary"
     rm -f "$temporary"
@@ -49,7 +50,7 @@ profile_has_key() {
 
 require_profile_value() {
     local key="$1"
-    local value="${!key-}"
+    local value="${PROFILE_VALUES[$key]-}"
 
     if [ -z "$value" ]; then
         echo "Error: required profile key $key is missing or empty." >&2
@@ -97,7 +98,7 @@ resolve_executable_in_dir() {
 }
 
 resolve_android_tool() {
-    profile_python tool "$1"
+    profile_python tool "$1" "${PROFILE_VALUES[ANDROID_HOME]:-${ANDROID_HOME:-}}"
 }
 
 resolve_android_avd_home() {
@@ -114,13 +115,14 @@ has_any_var_with_prefix() {
     [ "${#vars[@]}" -gt 0 ]
 }
 
-append_args_from_env() {
+append_args_from_profile() {
     local -n target_ref="$1"
     local prefix="$2" dash="$3" var temporary
     shift 3
     local -a assignments=()
-    while IFS= read -r var; do assignments+=("$var=${!var}"); done < <(compgen -A variable "${prefix}_FLAG_")
-    while IFS= read -r var; do assignments+=("$var=${!var}"); done < <(compgen -A variable "${prefix}_VALUE_")
+    for var in "${!PROFILE_VALUES[@]}"; do
+        case "$var" in "${prefix}_FLAG_"*|"${prefix}_VALUE_"*) assignments+=("$var=${PROFILE_VALUES[$var]}");; esac
+    done
     temporary="$(mktemp)"
     if ! profile_python args "$prefix" -- "$dash" "$@" @@ "${assignments[@]}" > "$temporary"; then
         rm -f "$temporary"; return 1
@@ -130,7 +132,7 @@ append_args_from_env() {
 }
 
 resolve_avd_config_path() {
-    profile_python config-path "$1" "${AVDMANAGER_VALUE_path:-}"
+    profile_python config-path "$1" "${PROFILE_VALUES[AVDMANAGER_VALUE_path]:-}"
 }
 
 read_emulator_config_value() {
@@ -140,7 +142,9 @@ read_emulator_config_value() {
 apply_emulator_config() {
     local var
     local -a values=()
-    while IFS= read -r var; do values+=("$var=${!var}"); done < <(compgen -A variable EMULATOR_CONFIG_)
+    for var in "${!PROFILE_VALUES[@]}"; do
+        case "$var" in EMULATOR_CONFIG_*) values+=("$var=${PROFILE_VALUES[$var]}");; esac
+    done
     profile_python apply "$1" "${values[@]}"
 }
 

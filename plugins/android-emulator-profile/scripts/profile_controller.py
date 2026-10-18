@@ -13,36 +13,18 @@ import tempfile
 FORBIDDEN_ARCH = ('ARCH', 'ABI', 'AVD_ARCH', 'AVD_ABI', 'AVDMANAGER_ABI', 'AVDMANAGER_ARCH', 'EMULATOR_ABI', 'EMULATOR_ARCH')
 
 
-def environment_values():
-    """Preserve case-sensitive emulator option suffixes in Windows environment names."""
-    values = dict(os.environ)
-    if os.name != 'nt':
-        return values
-    import ctypes
-    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
-    kernel.GetEnvironmentStringsW.restype = ctypes.c_void_p
-    kernel.FreeEnvironmentStringsW.argtypes = [ctypes.c_void_p]
-    pointer = kernel.GetEnvironmentStringsW()
-    if not pointer:
-        raise OSError('Cannot read Windows environment')
-    try:
-        entries = []
-        offset = 0
-        while True:
-            entry = ctypes.wstring_at(pointer + offset * ctypes.sizeof(ctypes.c_wchar))
-            if not entry:
-                break
-            entries.append(entry)
-            offset += len(entry.encode('utf-16-le')) // 2 + 1
-        prefixes = ('EMULATOR_FLAG_', 'EMULATOR_VALUE_', 'EMULATOR_CONFIG_')
-        values = {key: value for key, value in values.items() if not key.startswith(prefixes)}
-        for entry in entries:
-            key, separator, value = entry.partition('=')
-            if separator and key.startswith(prefixes):
-                values[key] = value
-    finally:
-        kernel.FreeEnvironmentStringsW(pointer)
-    return values
+# Only these profile paths are also part of the Android tools' environment contract.
+ANDROID_PATHS = ('ANDROID_HOME', 'ANDROID_AVD_HOME', 'ANDROID_USER_HOME')
+
+
+def tool_environment(profile, inherited=None):
+    environment = dict(os.environ if inherited is None else inherited)
+    for key in ANDROID_PATHS:
+        if key in profile:
+            environment[key] = profile[key]
+    if profile.get('EMULATOR_DISPLAY'):
+        environment['DISPLAY'] = profile['EMULATOR_DISPLAY']
+    return environment
 
 
 def native_path(value):
@@ -119,8 +101,8 @@ def tool_command(executable, args):
         # cmd reparses its command string; reject values whose quoting cannot
         # be represented safely rather than silently executing profile data.
         tokens = [str(path), *args]
-        if any(any(char in value for char in '\r\n"%!^&|<>') for value in tokens):
-            raise ValueError('Unsupported metacharacter in Windows batch tool argument')
+        if any(any(char in value for char in '\r\n"%!^&|<>') or value.endswith('\\') for value in tokens):
+            raise ValueError('Unsupported metacharacter or trailing backslash in Windows batch tool argument')
         return subprocess.list2cmdline([os.environ.get('COMSPEC', 'cmd.exe')]) + ' /d /s /c "' + ' '.join('"' + value + '"' for value in tokens) + '"'
     if os.name == 'nt' and not path.suffix:
         with path.open('rb') as source:
@@ -185,7 +167,7 @@ def main():
             for key, value in load_profile(args.items[0]).items():
                 sys.stdout.buffer.write(key.encode() + b'\0' + value.encode('utf-8') + b'\0')
         elif args.mode == 'tool':
-            print(resolve_tool(args.items[0], os.environ))
+            print(resolve_tool(args.items[0], {**os.environ, **({'ANDROID_HOME': args.items[1]} if len(args.items) > 1 and args.items[1] else {})}))
         elif args.mode == 'config-path':
             print(avd_config({**os.environ, 'AVD_NAME': args.items[0], 'AVDMANAGER_VALUE_path': args.items[1] if len(args.items) > 1 else ''}))
         elif args.mode == 'apply':

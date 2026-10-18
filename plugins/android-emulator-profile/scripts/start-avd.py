@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 from profile_controller import (FORBIDDEN_ARCH, apply_config, arguments, avd_config,
-                                environment_values, is_true, load_profile, native_path, read_config, resolve_tool, tool_command)
+                                tool_environment, is_true, load_profile, native_path, read_config, resolve_tool, tool_command)
 
 
 class Cancelled(Exception):
@@ -35,11 +35,12 @@ def main():
         loaded = load_profile(profile)
         if set(loaded).intersection(FORBIDDEN_ARCH):
             raise ValueError('profile must not define architecture; architecture is detected dynamically')
-        values = {**environment_values(), **loaded}
+        values = loaded
+        environment = tool_environment(values)
         if not values.get('AVD_NAME'):
             raise ValueError('required profile key AVD_NAME is missing or empty')
-        executable = resolve_tool('emulator', values)
-        config = avd_config(values)
+        executable = resolve_tool('emulator', environment)
+        config = avd_config({**{key: environment[key] for key in ('HOME', 'ANDROID_AVD_HOME', 'ANDROID_USER_HOME') if key in environment}, **values})
         guard = config.with_name(config.name + '.profile-start.guard')
         try:
             guard.mkdir()
@@ -60,10 +61,8 @@ def main():
                     wipe = True
         apply_config(config, values)
         command = ['-avd', values['AVD_NAME']] + (['-wipe-data'] if wipe else []) + arguments(values, 'EMULATOR', '-')
-        if values.get('EMULATOR_DISPLAY'):
-            values['DISPLAY'] = values['EMULATOR_DISPLAY']
         print('Starting emulator...', flush=True)
-        child = subprocess.Popen(tool_command(executable, command), env=values, start_new_session=os.name != 'nt',
+        child = subprocess.Popen(tool_command(executable, command), env=environment, start_new_session=os.name != 'nt',
                                  creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
         while True:
             try:
