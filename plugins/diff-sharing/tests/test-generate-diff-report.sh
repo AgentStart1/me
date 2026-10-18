@@ -8,8 +8,23 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 
 pass_count=0
 
+
+snapshot_path() {
+    python3 - "$1" <<'PY'
+import json,sys
+from pathlib import Path
+path=Path(sys.argv[1])
+for root in (path,*path.parents):
+    pointer=root/'current.json'
+    if pointer.is_file():
+        path=root/'generations'/json.loads(pointer.read_text())['generation']/path.relative_to(root)
+        break
+print(path.as_posix())
+PY
+}
+
 assert_contains() {
-    local file="$1"
+    local file; file="$(snapshot_path "$1")"
     local expected="$2"
     local label="$3"
     if grep -Fq "$expected" "$file"; then
@@ -23,7 +38,7 @@ assert_contains() {
 }
 
 assert_not_contains() {
-    local file="$1"
+    local file; file="$(snapshot_path "$1")"
     local unexpected="$2"
     local label="$3"
     if grep -Fq "$unexpected" "$file"; then

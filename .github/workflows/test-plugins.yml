@@ -47,6 +47,7 @@ jobs:
           done
       - run: python3 tests/test-report-launchers.py "${{ matrix.plugin }}"
       - run: python3 tests/test-report-python.py "${{ matrix.plugin }}"
+      - run: python3 tests/test-report-snapshots.py
 
   android-status:
     runs-on: ubuntu-latest
@@ -80,6 +81,7 @@ jobs:
       - run: bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
       - run: bash plugins/android-emulator-profile/tests/test-install-sdk.sh
       - run: python3 plugins/android-emulator-profile/tests/test-profile-controller.py
+      - run: python3 plugins/android-emulator-profile/tests/test-command-tree.py
       - run: bash plugins/android-device-lock/tests/test-device-lock.sh
 
   qemu-status:
@@ -161,6 +163,20 @@ jobs:
           BASH_TEST_BINARY: C:\Program Files\Git\bin\bash.exe
           PYTHONDONTWRITEBYTECODE: '1'
         run: python plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py
+
+  windows-runtime:
+    name: Windows native ownership and reports
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python plugins/android-emulator-profile/tests/test-command-tree.py
+      - run: python plugins/qemu-alpine-docker/tests/test-vm-state.py
+      - run: python tests/test-report-python.py
+      - run: python tests/test-report-snapshots.py
+      - run: python tests/test-report-launchers.py
 
   docker-proxy:
     name: QEMU Docker proxy Go tests

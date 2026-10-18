@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 
+from command_tree import script_command
+
 FORBIDDEN_ARCH = ('ARCH', 'ABI', 'AVD_ARCH', 'AVD_ABI', 'AVDMANAGER_ABI', 'AVDMANAGER_ARCH', 'EMULATOR_ABI', 'EMULATOR_ARCH')
 
 
@@ -79,8 +81,8 @@ def resolve_tool(name, values):
     sdk = native_path(values.get('ANDROID_HOME') or str(native_path(values.get('HOME') or str(Path.home())) / 'android-sdk'))
     suffixes = ('', '.bat', '.cmd', '.exe')
     # Preserve PATH before SDK fallback and extension ordering within each directory.
-    for suffix in suffixes:
-        for directory in os.get_exec_path(values):
+    for directory in os.get_exec_path(values):
+        for suffix in suffixes:
             candidate = Path(directory) / (name + suffix)
             if candidate.is_file() and (os.name == 'nt' or os.access(candidate, os.X_OK)):
                 return candidate
@@ -103,11 +105,7 @@ def tool_command(executable, args):
         if any(any(char in value for char in '\r\n"%!^&|<>') or value.endswith('\\') for value in tokens):
             raise ValueError('Unsupported metacharacter or trailing backslash in Windows batch tool argument')
         return subprocess.list2cmdline([os.environ.get('COMSPEC', 'cmd.exe')]) + ' /d /s /c "' + ' '.join('"' + value + '"' for value in tokens) + '"'
-    if os.name == 'nt' and not path.suffix:
-        with path.open('rb') as source:
-            if source.read(2) == b'#!':
-                return [shutil.which('bash') or 'bash', str(path), *args]
-    return [str(path), *args]
+    return script_command(path, *args)
 
 
 def avd_config(values):

@@ -69,3 +69,14 @@ This plugin is part of the me plugin collection.
 ## Improvement feedback
 
 Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+
+
+Each collection publishes a complete replacement snapshot, including its site.
+Repeating collection does not duplicate reports in the current view; removed
+source reports disappear from the next snapshot. Failed collection leaves the
+previous version available. Use the launcher URL for the latest snapshot; open
+pages keep their original assets. Older generations are retained, so remove the
+dedicated report cache only after its servers and readers have finished.
+
+Linked assets are copied into each snapshot, so later source changes do not alter
+open reports. Cyclic directory links fail collection and preserve the previous version.

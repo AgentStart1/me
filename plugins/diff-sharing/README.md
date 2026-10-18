@@ -10,7 +10,7 @@ plugins/diff-sharing/scripts/generate-diff-site.sh
 plugins/diff-sharing/scripts/start-ngrok.sh
 ```
 
-When `difft` is on `PATH`, the generated page opens with Difftastic selected. Otherwise it defaults to Git diff and marks Difftastic unavailable.
+When `difft` successfully renders the comparison, the page opens with Difftastic selected. Otherwise it selects Git diff and explains the missing or failed renderer.
 
 For an installed plugin, resolve scripts by absolute path and invoke them from
 any directory inside the Git repository. All commands automatically use its root. `start-ngrok.sh --local-only` serves the report on loopback. The
@@ -29,7 +29,7 @@ only the selected Git history; deleted files remain empty on the deleted side,
 even when a same-named file exists in the current working tree.
 
 Explicit relative `--output-dir` and `REPORT_OUTPUT_DIR` paths are resolved from
-the original calling directory before entering the repository root.
+the original calling directory without changing the caller working directory.
 
 ## Configuration
 
@@ -40,7 +40,7 @@ the original calling directory before entering the repository root.
 | `NGROK_PORT` | Local port to expose | `8080` |
 | `PYTHON_COMMAND` | Python 3.10+ executable used by all commands | `python3`, then `python` |
 | `GIT_BASE_REF` | Base Git ref | `main` |
-| `GIT_COMPARE_REF` | Compare Git ref | `HEAD` |
+| `GIT_COMPARE_REF` | Compare Git ref when uncommitted changes are excluded | `HEAD` |
 | `GIT_INCLUDE_UNCOMMITTED` | Include uncommitted changes | `true` |
 | `DIFFTASTIC_COMMAND` | Difftastic executable name or path | `difft` |
 | `DIFFTASTIC_WIDTH` | Captured Difftastic output width | `160` |
@@ -66,3 +66,11 @@ This plugin is part of the me plugin collection.
 ## Improvement feedback
 
 Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+
+
+Each successful generation publishes a complete snapshot. Failed builds leave the
+previous report available, and open pages keep their original assets. Use the
+launcher URL to open the latest snapshot. Older generations are retained; remove
+the dedicated report cache only after its servers and readers have finished.
+Invalid comparison refs fail explicitly without substituting another history.
+When Difftastic exists but rendering fails, the page selects the usable Git diff.

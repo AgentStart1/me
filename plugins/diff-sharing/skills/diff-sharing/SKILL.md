@@ -12,7 +12,7 @@ Use `test-report-sharing` instead when the task is to collect, preview, or share
 - Generate an HTML diff report for the current branch against `main`, or a user-specified base ref.
 - Prefer Difftastic (`difft`) as the initial renderer when it is available. Offer Git diff as an alternate renderer.
 - When Difftastic is unavailable, make the Git renderer the only usable default and clearly report the missing executable; do not install it automatically.
-- Execute generation, site assembly and serving from the detected Git repository root, regardless of the invocation subdirectory. Use that root for the default cache and all comparison queries. Keep committed comparisons isolated from working-tree content; a deleted side must remain empty.
+- Resolve Git operations and cache identity against the detected repository root, regardless of the invocation subdirectory. Use that root for the default cache and all comparison queries. Keep committed comparisons isolated from working-tree content; a deleted side must remain empty.
 - Exclude submodule changes from statistics, Git patches and Difftastic output.
 - Preserve Difftastic's inline and side-by-side layout controls, old/new source context, and changed structural-fragment emphasis.
 - Assemble the generated diff into the static report site, then expose it through ngrok when configured; otherwise return the local server URL.
@@ -22,7 +22,7 @@ Use `test-report-sharing` instead when the task is to collect, preview, or share
 
 ## Runtime
 
-All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. All commands use the Git root as their working directory and cache identity. Resolve explicit relative output paths from the original calling directory before changing directories. GNU text utilities and jq are not runtime requirements.
+All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. All Git operations explicitly use the repository root; cache identity also uses that root. Resolve explicit relative output paths from the original calling directory without changing the caller working directory. GNU text utilities and jq are not runtime requirements.
 
 ## Quick Start
 
@@ -40,7 +40,7 @@ plugins/diff-sharing/scripts/start-ngrok.sh
 - `PYTHON_COMMAND`: Python 3.10+ executable used by all shell launchers (default: first working candidate among `python3` and `python`)
 - `start-ngrok.sh --local-only`: keep the report on loopback without attempting a tunnel
 - `GIT_BASE_REF`: Base ref for diff comparison (default: `main`)
-- `GIT_COMPARE_REF`: Compare ref (default: `HEAD`)
+- `GIT_COMPARE_REF`: Compare ref when `GIT_INCLUDE_UNCOMMITTED=false` (default: `HEAD`)
 - `GIT_INCLUDE_UNCOMMITTED`: Include uncommitted changes (default: `true`)
 - `DIFFTASTIC_COMMAND`: Difftastic executable name or path (default: `difft`)
 - `DIFFTASTIC_WIDTH`: Captured Difftastic output width (default: `160`)
@@ -72,3 +72,11 @@ plugins/diff-sharing/scripts/start-ngrok.sh
 - Submit a new issue when no duplicate exists and the user has authorized upstream reporting in the current session or standing instructions. This rule alone does not authorize external posting. Honor existing authorization without asking again; otherwise prepare a sanitized draft for approval.
 - Include the plugin/skill and version, observed and expected behavior, a minimal synthetic reproduction or concrete improvement proposal, and relevant duplicate-search results. Use a concise title prefixed with the plugin name.
 - If search, authentication, or submission fails, retain the sanitized draft and explain the blocker; do not post without completing duplicate checks. After an uncertain submission result, check for the created issue before retrying. Return the existing or created issue URL, or clearly mark the report as an unsubmitted draft.
+
+
+Each successful generation publishes a complete snapshot. Failed builds leave the
+previous report available, and open pages keep their original assets. Use the
+launcher URL to open the latest snapshot. Older generations are retained; remove
+the dedicated report cache only after its servers and readers have finished.
+Invalid comparison refs fail explicitly without substituting another history.
+When Difftastic exists but rendering fails, the page selects the usable Git diff.

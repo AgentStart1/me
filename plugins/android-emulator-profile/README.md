@@ -74,3 +74,10 @@ The shell creation entry keeps profile values in a separate map rather than
 exporting them. Only `ANDROID_HOME`, `ANDROID_AVD_HOME`, `ANDROID_USER_HOME` and
 the `EMULATOR_DISPLAY` to `DISPLAY` mapping are forwarded explicitly for Android
 tools. Host PATH, HOME and profile/interpreter selection still use the environment.
+
+
+Startup keeps its configuration guard until the whole owned command tree stops,
+even if the command root exits first. If cleanup fails, leave the guard in place
+and inspect the owning processes before recovery. Windows script tools use their
+shebang interpreter through Git Bash. Device workers on Unix must stay in the
+original process group; detached sessions are outside the launcher's ownership.

@@ -16,10 +16,9 @@ Run the existing shell suites in both plugins, `python tests/test-report-python.
 `python tests/test-report-launchers.py`, and `python tests/test-validation-workflow.py`.
 Native tests cover bounded scans, custom project directories, overlapping roots,
 recursive output rejection, URL/HTML escaping, binary Git statistics, committed
-comparisons, and invalid input. Diff commands enter the Git root once during
-argument parsing, aligning statistics, both renderers and cache identity. Test
-report commands enter `--project-dir` (default: caller cwd). Explicit output paths
-are made absolute before entering the project. Cache identity uses that project.
+comparisons, and invalid input. Argument parsing returns explicit project/output paths without changing global cwd.
+Git queries use an explicit repository cwd, and report scans resolve their roots
+against `--project-dir` (default: caller cwd). Cache identity uses that project.
 
 Submodule changes are excluded from all Git diff queries via one shared command
 boundary. Collection excludes registered gitlinks and `.gitmodules` paths from
@@ -164,8 +163,9 @@ provisioning and clients. Generic shell callbacks use token-checked Python guard
 acquisition/release; shell callback failure and signals still release that guard.
 `vm_phase.py` defines immutable lifecycle snapshots, process-evidence variants and
 legal transitions. `vm_lifecycle.py` owns start/stop, readiness and failure cleanup;
-`vm-lifecycle-step.sh` retains platform/guest planning and launching Bash PID
-mapping. Python directly owns and joins native gvproxy controller subprocesses;
+`vm-lifecycle-step.sh` retains platform/guest planning and guest probes. Native
+QEMU creation and handle publication belong to Python; only legacy provisioning
+paths still require Bash PID mapping. Python directly owns and joins native gvproxy controller subprocesses;
 the helper still verifies executable/creation time. Provisioning remains staged
 shell orchestration, marking creation uncertain before each QEMU launch and using
 the same Python registration/termination paths. Native Windows launcher PIDs carry an explicit marker so they
@@ -207,7 +207,7 @@ remains. An existing helper/controller blocks acquisition even without a VM lock
 | `reserved` | This generation owns the global reservation; no new QEMU | Clean only this operation's resources, then release the reservation. |
 | `network-starting`, `network-ready` | No QEMU; native network controller must exit before cleanup can proceed | Join/cancel the controller, stop its owned helper, then release. If controller exit cannot be confirmed, retain the operation lease to prevent late publication. Logs/preflight IO happen before process creation. |
 | `spawning` | Creation outcome may be unknown | Defer handled signals through handle assignment or definitive `Popen` failure rollback. A known creation failure returns to `network-ready`; a forced/interrupted unknown launch remains reserved. |
-| `launched` | Launching Bash PID persisted before identity inspection | Verify the native executable and creation time. Failure/unknown identity retains helper and reservation; a verified process may be stopped. |
+| `launched` | Native or legacy shell PID persisted before identity inspection | Verify the native executable and creation time. Failure/unknown identity retains helper and reservation; a verified process may be stopped. |
 | `registered` | Immutable native identity is durable; compatibility pointers may be incomplete | Stop the verified QEMU, join this command's adapter, then stop networking and clear ownership. |
 | `ready` | Readiness committed; background VM owns its reservation | This is the start completion boundary. A later cancellation does not undo the committed VM. |
 | `stopping` | Preserve the same process evidence during shutdown | Graceful/forced stop cancellation retains ownership for a later stop; release only after QEMU exit and helper/controller cleanup are confirmed. |
@@ -302,3 +302,51 @@ continue to receive only explicit command contracts.
 `test-vm-state.py` checks ignored inherited lifecycle settings, missing required
 values, child-environment isolation, successive loads and protected host settings.
 The synthetic lifecycle fixture sets readiness timeouts in its profile.
+
+
+## Scoped command ownership and report publication
+
+The canonical scoped command runtime lives in `scripts/process-runtime/`.
+Run `python scripts/sync-process-runtime.py` after changes; `--check` verifies
+bundled copies in emulator and both report plugins. CLI main-thread creation
+handoffs defer cancellation until handles are owned. Windows uses a gated worker
+assigned to a kill-on-close Job Object before user code runs; stop waits for zero
+active job processes. Unix cleanup targets the process group after root exit too;
+commands must not daemonize or detach workers. Persistent QEMU services use their
+existing phase/generation/identity owner, not the scoped kill-on-exit abstraction.
+
+`AvdSession` owns configuration serialization and its command scope. Cleanup
+failure retains its guard. QEMU normal startup directly creates native argv from
+the shell plan, persists typed native launch evidence and registers the
+verified process before readiness. Native launch variants and structured pending-PID
+records distinguish native PIDs from legacy shell PIDs without a sidecar flag. Old
+shell PIDs keep their translation path;
+unknown launch or identity failures still block takeover and preserve recovery.
+
+Both report plugins build a complete site in a private sibling staging directory,
+rename it into `generations/<id>`, then atomically replace `current.json`. The
+pointer is the publication boundary. Failure before pointer replacement leaves
+the previous site intact; interrupted publication can leave an unreferenced
+complete generation or a sibling `.building-*` directory. Confirm its generator
+has stopped before manual removal. Site assembly reuses complete immutable sites;
+legacy flat caches are materialized and published once. Linked asset files and
+directories are materialized into the snapshot; directory cycles
+abort the build without replacing the previous version. No published generation
+is edited or automatically deleted. The HTTP root redirects to the
+current generation's URL, so each page's relative assets remain pinned even while
+another build publishes. Flat caches without a pointer remain readable during
+migration. Automated consumers resolve `current.json` before reading report files;
+summary report paths are relative to their generation. Clear a dedicated cache
+only after servers/readers have stopped; there is no automatic retention policy.
+
+Run `python tests/test-report-snapshots.py`, `python tests/test-report-python.py`,
+`python tests/test-report-launchers.py`, emulator `test-command-tree.py` and
+`test-profile-controller.py`, and QEMU `test-vm-state.py`/`test-vm-transitions.py`.
+Tests cover failed publication, overlapping builds, idempotent collections,
+old-asset URLs, invalid refs, failed renderers, cancellation handoffs and native
+PID recovery. The native suites also run on Windows CI. QEMU's lifecycle fixture
+uses real native QEMU/gvproxy with private state, mocked guest IO and no guest disk.
+
+General code guidance now prioritizes structural ownership, lifecycle, state and
+interface fixes over compensating patches, while retaining evidence and explicit
+recovery for crashes, uncertain effects and partial publication.
