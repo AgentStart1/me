@@ -121,6 +121,7 @@ jobs:
       - run: python3 plugins/qemu-alpine-docker/tests/test-gvproxy-control.py
       - run: python3 plugins/qemu-alpine-docker/tests/test-vm-state.py
       - run: python3 plugins/qemu-alpine-docker/tests/test-vm-transitions.py
+      - run: python3 plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py
       - run: bash plugins/qemu-alpine-docker/tests/test-vm-utils.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-linux-testcontainers.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-apk-mirror-selection.sh
@@ -145,6 +146,15 @@ jobs:
           test -x /c/msys64/usr/bin/bash.exe
           test -x /c/msys64/usr/bin/xorriso.exe
           bash plugins/qemu-alpine-docker/tests/test-msys2-path.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify native Python to Git Bash ownership handoffs
+        shell: pwsh
+        env:
+          BASH_TEST_BINARY: C:\Program Files\Git\bin\bash.exe
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py
 
   docker-proxy:
     name: QEMU Docker proxy Go tests

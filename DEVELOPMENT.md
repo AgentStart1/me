@@ -246,3 +246,29 @@ repeated cancellation during cleanup, failed kill/join and existing guard protec
 The state suite injects failures before and after each initial guard metadata write,
 checks rollback and retry, and preserves pre-existing unknown guards. The original
 guard leak and creation-window orphan both fail these tests on the earlier code.
+
+Shell claims use caller-generated tokens and preinstalled token-checked cleanup.
+The internal `vm-state.py begin` and `guard-acquire` CLI actions require `--token`;
+`new-token` performs no resource acquisition. `publish_claim` defers cancellation
+through creation and local ownership assignment and rolls back its own claim if
+metadata publication or flushed output fails. Before creation the Shell already
+knows the token, so unsuccessful delivery or a later nonzero creator exit cannot
+lose the cleanup capability. Guard rollback is idempotent and checks owner/token;
+it never removes another caller's or an unknown guard.
+
+`claim_vm_state` temporarily records handled Shell signals while waiting for its
+exec'd native creator, joins that process even if `wait` is interrupted, restores
+the caller's traps, then reports cancellation. Rollback cannot run ahead of a
+creator that may still publish. `begin_vm_operation keep-traps` preserves existing
+build cleanup, while failed acquisition also rolls back before returning to an
+error-handling caller. This protocol covers handled cancellation and known errors;
+forced termination and unconfirmed cleanup still require inspection.
+Nested acquisition by an already-owning Shell is rejected before changing its
+token or traps; other failed requests restore the caller's previous context.
+
+Run `python plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py` for actual
+CLI-to-Bash tests with private state. The fixture interpreter injects cancellation
+at metadata/output boundaries, output failure and a nonzero exit after publication.
+Separate barriers hold creation before/after publication; a Shell trap marker proves
+signal delivery before allowing the creator to finish. Tests cover both resources,
+normal/custom traps, rollback/retry and preservation of existing unknown owners.

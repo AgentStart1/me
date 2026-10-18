@@ -325,6 +325,9 @@ Failures before QEMU creation, such as an unwritable log or a definite process
 creation failure, clean up this launch's helper and reservation automatically.
 Initial guard metadata failures also roll back a guard created by that operation,
 allowing a retry; pre-existing interrupted guards still require inspection.
+Shell clients also retain cleanup responsibility while requesting their lease or
+guard. Cancellation waits for the creator to finish, then releases only that
+request's resources; failed token delivery can be retried without manual lock removal.
 Cancelling helper creation waits for its owned process to exit before removing
 its reservation. If exit cannot be confirmed, its recovery evidence remains.
 Cancellation before readiness follows the same cleanup when process ownership can

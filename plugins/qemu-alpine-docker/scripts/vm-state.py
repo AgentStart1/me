@@ -95,7 +95,7 @@ class State:
             write_record(self.snapshot_path, updated.data())
             return updated
 
-    def acquire_guard(self, owner=None):
+    def acquire_guard(self, owner=None, token=None):
         self.run_dir.mkdir(parents=True, exist_ok=True)
         deadline = time.monotonic() + 5
         owned = False
@@ -113,7 +113,7 @@ class State:
                         if time.monotonic() >= deadline:
                             raise StateError('timed out waiting for the VM state guard')
                         time.sleep(.05)
-                token = uuid.uuid4().hex
+                token = token or uuid.uuid4().hex
                 atomic_text(self.guard_dir / 'owner.pid', owner or os.getpid())
                 if owner is None:
                     atomic_text(self.guard_dir / 'native-owner', 'true')
@@ -131,6 +131,14 @@ class State:
         if read(self.guard_dir / 'token') != token:
             raise StateError('VM state guard ownership changed; refusing cleanup')
         self.remove_guard()
+
+    def end_guard(self, token):
+        """Idempotent rollback for a caller's known token, including failed claims."""
+        with defer_cancellation():
+            if (not token or read(self.guard_dir / 'token') != token or
+                    read(self.guard_dir / 'owner.pid') != str(self.owner)):
+                return
+            self.release_guard(token)
 
     def remove_guard(self):
         for name in ('owner.pid', 'token', 'native-owner'):
@@ -362,9 +370,34 @@ class State:
                     write_record(self.snapshot_path, current.transition(Phase.RESERVED, NoProcess()).data())
 
 
+def publish_claim(state, action, token):
+    """Creator owns rollback until output succeeds; the caller already knows token.
+
+    Shell callers must install token-checked cleanup before requesting creation,
+    and join the creator before rollback, so cancellation cannot publish late state.
+    """
+    owned = False
+    try:
+        with defer_cancellation():
+            if action == 'begin':
+                state.begin(token)
+            else:
+                state.acquire_guard(state.owner, token)
+            owned = True
+        print(token, flush=True)
+    except BaseException:
+        if owned:
+            with defer_cancellation():
+                if action == 'begin':
+                    state.end(token)
+                else:
+                    state.end_guard(token)
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('begin', 'end', 'acquire', 'release', 'register', 'clear', 'prepare_launch', 'stop_qemu', 'guard-acquire', 'guard-release'))
+    parser.add_argument('action', choices=('new-token', 'begin', 'end', 'acquire', 'release', 'register', 'clear', 'prepare_launch', 'stop_qemu', 'guard-acquire', 'guard-release'))
     for name in ('vm-dir', 'run-dir', 'active-lock', 'state-guard', 'name'):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--owner', type=int, required=True)
@@ -372,22 +405,22 @@ def main():
     parser.add_argument('--token', default='')
     parser.add_argument('--keep-lock', action='store_true')
     args = parser.parse_args()
+    if args.action in ('begin', 'guard-acquire') and not args.token:
+        parser.error('claim requires a caller-generated --token and preinstalled cleanup')
     def cancel(number, _frame):
         raise Cancelled(number)
     for number in signals():
         signal.signal(number, cancel)
     try:
         state = State(args)
-        if args.action == 'begin':
-            token = args.token or uuid.uuid4().hex
-            state.begin(token)
-            print(token)
+        if args.action == 'new-token':
+            print(uuid.uuid4().hex, flush=True)
+        elif args.action in ('begin', 'guard-acquire'):
+            publish_claim(state, args.action, args.token)
         elif args.action == 'end':
             state.end(args.token)
-        elif args.action == 'guard-acquire':
-            print(state.acquire_guard(args.owner))
         elif args.action == 'guard-release':
-            state.release_guard(args.token)
+            state.end_guard(args.token)
         elif args.action == 'register':
             if not args.pid or args.pid <= 0:
                 parser.error('register requires a positive --pid')
