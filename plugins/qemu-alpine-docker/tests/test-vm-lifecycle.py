@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -112,8 +113,9 @@ printf '{}'
         def launch(script, **overrides):
             log = open(fixture / f"{len(logs)}-{script}.log", "wb")
             logs.append(log)
-            child = subprocess.Popen([bash, (plugin / "scripts" / (script + ".sh")).as_posix(), profile.as_posix()], env=dict(env, **overrides),
-                                     stdout=log, stderr=log)
+            entry = [sys.executable, str(plugin / "scripts" / (script + ".py"))] if os.name == "nt" and script in ("start-vm", "stop-vm") else [bash, (plugin / "scripts" / (script + ".sh")).as_posix()]
+            child = subprocess.Popen([*entry, profile.as_posix()], env=dict(env, QEMU_BASH_BINARY=bash, **overrides),
+                                     stdout=log, stderr=log, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
             children.append(child)
             return child
         operation = base / "run/vm-operation.lock"
@@ -142,8 +144,11 @@ printf '{}'
             wait_for(qstate.exists, owner)
             qrecord, hrecord = json.loads(qstate.read_text()), json.loads(hstate.read_text())
             shell_pid = int((operation / "owner.pid").read_text())
-            subprocess.run([bash, "-lc", f"kill -TERM {shell_pid}"], check=True)
-            assert owner.wait(timeout=30) == 143
+            if os.name == "nt":
+                owner.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                os.kill(shell_pid, signal.SIGTERM)
+            assert owner.wait(timeout=30) == 128 + (signal.SIGBREAK if os.name == "nt" else signal.SIGTERM)
             assert identity(qrecord["pid"]) is None and identity(hrecord["pid"]) is None
             assert not operation.exists() and not qstate.exists() and not hstate.exists()
             # Startup timeout follows the same cleanup; no retries of failed protocol IO.

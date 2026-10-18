@@ -292,3 +292,22 @@ If gvproxy exits, stop the VM and start it again. Upstream v0.9.0 accepts one QE
 ## Improvement feedback
 
 Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+
+## Python lifecycle and state controller
+
+Use Python 3.10+ to run `scripts/start-vm.py` or `scripts/stop-vm.py` with the same
+optional profile argument. The `.sh` commands select an interpreter and retain
+the launching Bash runtime through `QEMU_BASH_BINARY`; native callers may set
+that variable explicitly. Set `QEMU_STATE_PYTHON` for an explicit interpreter.
+Start/stop own readiness, cancellation and failure cleanup in Python. Process
+signalling still verifies native executable and creation time through the
+shared process identity implementation. The platform/guest adapter invokes
+existing acceleration, networking and SSH commands without owning lifecycle locks.
+
+Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
+state controller for operation leases, global reservations, process registration
+and state cleanup. Guest templates and simple command forwarding remain shell.
+Unknown process probes, interrupted guards and failed cleanup retain ownership
+for inspection. On Windows use Ctrl+C or native Ctrl+Break for graceful
+cancellation; Git Bash `kill -TERM` forcibly terminates native Python and cannot
+run cleanup. Inspect any remaining operation lease before manual recovery.

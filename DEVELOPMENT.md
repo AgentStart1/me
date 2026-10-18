@@ -155,3 +155,24 @@ and browser/backend suites with `uv run --script <test.py>`. Run proxy tests
 with `go test -race ./...` in `plugins/qemu-alpine-docker/scripts/docker-proxy`.
 The container job requires Docker and a Linux runtime; see its workflow steps
 for the build and execution commands.
+
+## VM lifecycle and state controllers
+
+`vm-state.py` owns state guards, operation tokens, singleton reservations and
+atomic identity/PID publication. `lib/vm-state.sh` is a compatibility facade for
+provisioning and clients. Generic shell callbacks use token-checked Python guard
+acquisition/release; shell callback failure and signals still release that guard.
+`vm_lifecycle.py` owns start/stop transitions, readiness and failure cleanup;
+`vm-lifecycle-step.sh` retains platform/guest command boundaries and the launching
+Bash PID mapping. Provisioning remains staged shell orchestration using Python
+state mutations. Native Windows launcher PIDs carry an explicit marker so they
+are not interpreted as MSYS PIDs. Unknown identity inspection returns a distinct
+failure status from a confirmed absent/unrelated QEMU process.
+
+Run `python plugins/qemu-alpine-docker/tests/test-vm-state.py`, the existing
+`test-vm-utils.sh` shell suite, and `test-vm-lifecycle.py` with real QEMU and
+`GVPROXY_BINARY` set to an existing verified helper. The lifecycle fixture uses
+private state, mocked guest IO and an untouched synthetic disk; Windows launches
+native Python in a new process group and tests Ctrl+Break cleanup. It does not
+provision a real guest or inspect/stop another VM. Existing gvproxy controller
+and lifecycle tests remain applicable.

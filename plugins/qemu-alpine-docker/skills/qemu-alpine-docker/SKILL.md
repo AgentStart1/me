@@ -180,3 +180,22 @@ For network recovery, coordinate `stop-vm.sh` then `start-vm.sh` after confirmin
 - Submit a new issue when no duplicate exists and the user has authorized upstream reporting in the current session or standing instructions. This rule alone does not authorize external posting. Honor existing authorization without asking again; otherwise prepare a sanitized draft for approval.
 - Include the plugin/skill and version, observed and expected behavior, a minimal synthetic reproduction or concrete improvement proposal, and relevant duplicate-search results. Use a concise title prefixed with the plugin name.
 - If search, authentication, or submission fails, retain the sanitized draft and explain the blocker; do not post without completing duplicate checks. After an uncertain submission result, check for the created issue before retrying. Return the existing or created issue URL, or clearly mark the report as an unsubmitted draft.
+
+## Python lifecycle and state controller
+
+Use Python 3.10+ to run `scripts/start-vm.py` or `scripts/stop-vm.py` with the same
+optional profile argument. The `.sh` commands select an interpreter and retain
+the launching Bash runtime through `QEMU_BASH_BINARY`; native callers may set
+that variable explicitly. Set `QEMU_STATE_PYTHON` for an explicit interpreter.
+Start/stop own readiness, cancellation and failure cleanup in Python. Process
+signalling still verifies native executable and creation time through the
+shared process identity implementation. The platform/guest adapter invokes
+existing acceleration, networking and SSH commands without owning lifecycle locks.
+
+Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
+state controller for operation leases, global reservations, process registration
+and state cleanup. Guest templates and simple command forwarding remain shell.
+Unknown process probes, interrupted guards and failed cleanup retain ownership
+for inspection. On Windows use Ctrl+C or native Ctrl+Break for graceful
+cancellation; Git Bash `kill -TERM` forcibly terminates native Python and cannot
+run cleanup. Inspect any remaining operation lease before manual recovery.
