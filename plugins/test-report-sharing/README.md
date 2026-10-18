@@ -12,8 +12,9 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 
 `test-report-operator` coordinates the same workflow when Claude agent routing is available.
 
-For an installed plugin, use absolute script paths from its root while staying in
-the tested project's directory. Collection discovers HTML roots and nested JUnit XML
+For an installed plugin, use absolute script paths. Every command accepts
+`--project-dir DIR`, defaulting to the current directory. It is the base for report
+searches, relative custom report directories and the default cache. Collection discovers HTML roots and nested JUnit XML
 up to four directory levels below each search root. Overlapping HTML roots are
 deduplicated; same-named XML from different paths are retained separately and linked
 from the site. Keep the output outside a report being copied.
@@ -23,22 +24,39 @@ also stays local if ngrok is absent or authentication fails. Credentials may com
 from saved configuration or `NGROK_AUTHTOKEN`. Keep the launcher running while using
 its URL; Ctrl+C stops only that launcher's server and tunnel.
 
+The `.sh` files are thin compatibility launchers. Every command also has a same-named `.py` entrypoint, for example `python /path/to/plugin/scripts/start-ngrok.py --local-only`. Use the same `--project-dir` for collection, site assembly and serving to share the default cache.
+
+Default cache keys now use the native Python project path. Regenerate reports
+after upgrading, or pass the same explicit `--output-dir` to reuse an older cache.
+
+```bash
+python /path/to/plugin/scripts/collect-test-results.py --project-dir /path/to/project
+python /path/to/plugin/scripts/generate-report-site.py --project-dir /path/to/project
+python /path/to/plugin/scripts/start-ngrok.py --project-dir /path/to/project --local-only
+```
+
+Explicit relative `--output-dir` and `REPORT_OUTPUT_DIR` paths are resolved from
+the original calling directory. Registered submodule directories are excluded
+from scans and copied report trees, including explicitly supplied search roots.
+Git is required when collecting from Git repositories so registered submodules
+can be identified. Non-Git projects do not require Git. Use a fresh output directory for reports collected by older
+versions that did not exclude submodules.
+
 ## Configuration
 
 | Variable | Description | Default |
 |---|---|---|
 | `REPORT_OUTPUT_DIR` | Output directory for collected reports | `~/.cache/test-reports/<project-hash>` |
-| `TEST_RESULT_DIRS` | Colon-separated report directories; `REPORT_DIRS` is an alias | Auto-detect HTML/JUnit locations |
+| `TEST_RESULT_DIRS` | Legacy colon-separated report directories; `REPORT_DIRS` is an alias. Use repeated `--test-dir DIR` for Windows drive paths | Auto-detect HTML/JUnit locations |
 | `NGROK_AUTHTOKEN` | ngrok token override | Saved credentials when unset |
 | `NGROK_PORT` | Local port to expose | `8080` |
-| `PYTHON_COMMAND` | Working Python 3 executable | `python3`, then `python` |
+| `PYTHON_COMMAND` | Python 3.10+ executable used by all commands | `python3`, then `python` |
 
 ## Requirements
 
-- **Bash 4.0+** for the scripts.
+- **Bash** for the compatibility `.sh` launchers; native Python entrypoints also work without Bash.
 - **ngrok** for public sharing; otherwise use the local server URL.
-- **Python 3** for the local HTTP-server fallback.
-- **jq** for collection summaries and GNU-compatible `find`, `sort`, `sed` and core utilities.
+- **Python 3.10+** for all report and preview commands; no third-party Python packages are required.
 
 ## License
 

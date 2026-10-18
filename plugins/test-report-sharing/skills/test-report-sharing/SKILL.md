@@ -7,12 +7,18 @@ description: Use when collecting, previewing, or sharing test reports such as JU
 
 ## Required Behavior
 
+- Accept `--project-dir DIR` on collection, site assembly and serving, defaulting to the calling directory. Resolve report searches and relative custom report directories from that project; use it for cache identity.
+- Exclude registered submodule directories from searches and copied report trees, including explicitly supplied roots.
 - Collect reports from standard project locations (build/reports, test output folders).
 - Assemble the collected artifacts into a static HTML report site.
 - Expose the report site via ngrok if available, otherwise provide a local server URL.
 - Return a summary with the public URL and report count.
 - Resolve scripts from the installed plugin root and run them by absolute path
   from the target project; relative Quick Start paths are for the source checkout.
+
+## Runtime
+
+All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Use the same `--project-dir` throughout the workflow. Resolve explicit relative output paths from the original calling directory before entering the project directory. GNU text utilities and jq are not runtime requirements.
 
 ## Quick Start
 
@@ -31,11 +37,13 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 
 ## Configuration
 
+- `--project-dir DIR`: Project directory for every command (default: current directory)
+
 - `REPORT_OUTPUT_DIR`: Directory for generated reports (default: `~/.cache/test-reports/<project-hash>`)
-- `TEST_RESULT_DIRS`: Colon-separated directories to scan; `REPORT_DIRS` remains an alias
+- `TEST_RESULT_DIRS`: Legacy colon-separated directories to scan; `REPORT_DIRS` remains an alias. Prefer repeated `--test-dir DIR` for Windows drive paths
 - `NGROK_AUTHTOKEN`: token override; authenticated saved configuration is also supported
 - `NGROK_PORT`: Local port to expose (default: 8080)
-- `PYTHON_COMMAND`: explicit working Python 3 executable; otherwise try `python3`, then `python`
+- `PYTHON_COMMAND`: explicit working Python 3.10+ executable for every command; otherwise try `python3`, then `python`
 - `start-ngrok.sh --local-only`: loopback preview without attempting a public tunnel
 
 ## Supported Input Formats

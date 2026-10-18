@@ -46,6 +46,7 @@ jobs:
             bash "$test"
           done
       - run: python3 tests/test-report-launchers.py "${{ matrix.plugin }}"
+      - run: python3 tests/test-report-python.py "${{ matrix.plugin }}"
 
   android-status:
     runs-on: ubuntu-latest
