@@ -44,6 +44,7 @@ description: Use for every coding project task to follow the existing plan auton
 
 - For implementation or debugging work, read [`references/logging.md`](references/logging.md) and apply its diagnostic logging rules.
 - After code or CI changes, read [`references/testing-and-verification.md`](references/testing-and-verification.md) and verify the changed surface.
+- When adding, modifying, refactoring, or reviewing tests (including code reviews involving tests and test-quality reviews), read the same testing reference and check test names, assertions, and overloaded scenarios. Focus ordinary changes on new and affected tests; expand to a repository-wide audit only when requested.
 
 ## Upstream improvement feedback
 
