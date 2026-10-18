@@ -15,6 +15,7 @@ import time
 import uuid
 
 from process_identity import identity, windows_pid, write_record, terminate
+from resource_ownership import Cancelled, defer_cancellation, signals
 from vm_phase import Phase, Snapshot, NoProcess, UnknownProcess, LaunchedProcess, OwnedProcess
 
 spec = importlib.util.spec_from_file_location('qemu_control', Path(__file__).with_name('qemu-control.py'))
@@ -24,34 +25,6 @@ spec.loader.exec_module(qemu)
 
 class StateError(Exception):
     pass
-
-
-class Cancelled(Exception):
-    def __init__(self, number):
-        self.status = 128 + number
-
-
-@contextmanager
-def defer_cancellation():
-    """Deliver handled signals after a bounded ownership publication boundary.
-
-    Nested boundaries hand the signal back to the outer handler; they must not
-    interrupt a spawning transaction before its handle/known failure is recorded.
-    """
-    pending = []
-    previous = {number: signal.signal(number, lambda n, _f: pending.append(n)) for number in signals()}
-    try:
-        yield
-    finally:
-        for number, handler in previous.items():
-            signal.signal(number, handler)
-        if pending:
-            number = pending[0]
-            handler = previous[number]
-            if callable(handler):
-                handler(number, None)
-            elif handler != signal.SIG_IGN:
-                raise Cancelled(number)
 
 
 def atomic_text(path, value):
@@ -125,31 +98,41 @@ class State:
     def acquire_guard(self, owner=None):
         self.run_dir.mkdir(parents=True, exist_ok=True)
         deadline = time.monotonic() + 5
-        while True:
-            try:
-                self.guard_dir.mkdir()
-                break
-            except FileExistsError:
-                existing = read(self.guard_dir / 'owner.pid')
-                if existing and not (identity(int(existing)) is not None if (self.guard_dir / 'native-owner').exists() else running(existing)):
-                    raise StateError('stale VM state guard; inspect before manual recovery')
-                if time.monotonic() >= deadline:
-                    raise StateError('timed out waiting for the VM state guard')
-                time.sleep(.05)
-        token = uuid.uuid4().hex
+        owned = False
         try:
-            atomic_text(self.guard_dir / 'owner.pid', owner or os.getpid())
-            if owner is None:
-                atomic_text(self.guard_dir / 'native-owner', 'true')
-            atomic_text(self.guard_dir / 'token', token)
-        except (OSError, Cancelled):
-            # An incomplete guard remains unknown; never recover it by age.
+            with defer_cancellation():
+                while True:
+                    try:
+                        self.guard_dir.mkdir()
+                        owned = True
+                        break
+                    except FileExistsError:
+                        existing = read(self.guard_dir / 'owner.pid')
+                        if existing and not (identity(int(existing)) is not None if (self.guard_dir / 'native-owner').exists() else running(existing)):
+                            raise StateError('stale VM state guard; inspect before manual recovery')
+                        if time.monotonic() >= deadline:
+                            raise StateError('timed out waiting for the VM state guard')
+                        time.sleep(.05)
+                token = uuid.uuid4().hex
+                atomic_text(self.guard_dir / 'owner.pid', owner or os.getpid())
+                if owner is None:
+                    atomic_text(self.guard_dir / 'native-owner', 'true')
+                atomic_text(self.guard_dir / 'token', token)
+        except BaseException:
+            # mkdir succeeded in this call, and no guarded side effect ran.
+            # Roll back only our new guard; pre-existing guards remain unknown.
+            if owned:
+                with defer_cancellation():
+                    self.remove_guard()
             raise
         return token
 
     def release_guard(self, token):
         if read(self.guard_dir / 'token') != token:
             raise StateError('VM state guard ownership changed; refusing cleanup')
+        self.remove_guard()
+
+    def remove_guard(self):
         for name in ('owner.pid', 'token', 'native-owner'):
             (self.guard_dir / name).unlink(missing_ok=True)
         self.guard_dir.rmdir()
@@ -377,10 +360,6 @@ class State:
                     if current.phase != Phase.STOPPING:
                         current = current.transition(Phase.STOPPING)
                     write_record(self.snapshot_path, current.transition(Phase.RESERVED, NoProcess()).data())
-
-
-def signals():
-    return [signal.SIGINT, signal.SIGTERM] + ([signal.SIGBREAK] if hasattr(signal, 'SIGBREAK') else [])
 
 
 def main():

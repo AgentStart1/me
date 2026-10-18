@@ -70,6 +70,7 @@ def main():
         assert control_text.count(barrier) == 1
         control.write_text(control_text.replace(barrier, barrier +
             '        if os.environ.get("FIXTURE_HOLD_NETWORK") == "1":\n'
+            '            Path(os.environ["FIXTURE_NETWORK_READY"]).touch()\n'
             '            while True:\n'
             '                time.sleep(0.05)\n'))
         bin_dir = fixture / "bin"
@@ -116,6 +117,7 @@ printf '{}'
                    QEMU_TEST_BINARY=str(Path(qemu).resolve()), GVPROXY_BINARY=helper,
                    QEMU_ALPINE_BASE_DIR=str(base), QEMU_ALPINE_SKIP_MSYS2_PATH="1",
                    FIXTURE_READY=str(ready), FIXTURE_PYTHON=sys.executable,
+                   FIXTURE_NETWORK_READY=str(fixture / 'network-published'),
                    FIXTURE_PLUGIN=str(plugin), FIXTURE_CURL=shutil.which("curl"), BOOT_TIMEOUT="30")
         env.pop("VM_OPERATION_TOKEN", None)
         logs = []
@@ -142,12 +144,9 @@ printf '{}'
             # Cancel while the native gvproxy controller owns a real helper,
             # before QEMU creation. The controller must exit before lease release.
             owner = launch('start-vm', FIXTURE_HOLD_NETWORK='1')
-            def network_identity_published():
-                try:
-                    return bool(json.loads(hstate.read_text()).get('identity'))
-                except (FileNotFoundError, json.JSONDecodeError):
-                    return False
-            wait_for(network_identity_published, owner)
+            # Poll a separate completion marker: opening hstate while the native
+            # controller replaces it can deny Windows' atomic rename.
+            wait_for((fixture / 'network-published').exists, owner)
             helper_record = json.loads(hstate.read_text())
             assert not qstate.exists()
             if os.name == 'nt':

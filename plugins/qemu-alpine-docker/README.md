@@ -323,6 +323,10 @@ state and processes before manual recovery; missing PID files alone do not prove
 
 Failures before QEMU creation, such as an unwritable log or a definite process
 creation failure, clean up this launch's helper and reservation automatically.
+Initial guard metadata failures also roll back a guard created by that operation,
+allowing a retry; pre-existing interrupted guards still require inspection.
+Cancelling helper creation waits for its owned process to exit before removing
+its reservation. If exit cannot be confirmed, its recovery evidence remains.
 Cancellation before readiness follows the same cleanup when process ownership can
 be verified. Once readiness is committed, the VM remains running in the background.
 Cancelling a stop preserves remaining ownership so a later stop can finish.

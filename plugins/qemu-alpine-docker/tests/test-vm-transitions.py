@@ -321,6 +321,71 @@ class LifecycleTests(unittest.TestCase):
                     self.assertEqual(self.execute(), 1)
                 self.assert_clean()
 
+    def test_new_guard_metadata_failure_rolls_back_and_allows_retry(self):
+        for name in ('owner.pid', 'native-owner', 'token'):
+            for after_write in (False, True):
+                with self.subTest(name=name, after_write=after_write):
+                    atomic = state_module.atomic_text
+                    def write(path, value):
+                        if path == self.state.guard_dir / name:
+                            if after_write:
+                                atomic(path, value)
+                            raise OSError('synthetic guard publication failure')
+                        return atomic(path, value)
+                    with patch.object(state_module, 'atomic_text', side_effect=write):
+                        self.assertEqual(self.execute(), 1)
+                    self.assert_clean()
+                    self.state.begin('retry')
+                    self.state.end('retry')
+                    self.assert_clean()
+
+    def test_guard_write_failure_with_pending_cancel_completes_rollback(self):
+        atomic = state_module.atomic_text
+        def write(path, value):
+            if path == self.state.guard_dir / 'token':
+                cancel()
+                raise OSError('synthetic guard publication failure')
+            return atomic(path, value)
+        with patch.object(state_module, 'atomic_text', side_effect=write):
+            self.assertEqual(self.execute(), 128 + signal.SIGTERM)
+        self.assert_clean()
+        self.state.begin('retry')
+        self.state.end('retry')
+        self.assert_clean()
+
+    def test_existing_unknown_guard_is_never_removed_by_acquisition(self):
+        self.state.guard_dir.mkdir(parents=True)
+        marker = self.state.guard_dir / 'retain'
+        marker.write_text('preexisting ownership')
+        with patch.object(state_module.time, 'monotonic', side_effect=[0, 10]):
+            with self.assertRaises(state_module.StateError):
+                self.state.begin('contender')
+        self.assertEqual(marker.read_text(), 'preexisting ownership')
+        self.assertFalse(self.state.operation.exists())
+
+    def test_standalone_guard_creation_cancel_rolls_back_before_handoff(self):
+        original_mkdir = Path.mkdir
+        atomic = state_module.atomic_text
+        for boundary in ('mkdir', 'owner.pid', 'native-owner', 'token'):
+            with self.subTest(boundary=boundary):
+                def mkdir(path, *args, **kwargs):
+                    value = original_mkdir(path, *args, **kwargs)
+                    if path == self.state.guard_dir and boundary == 'mkdir':
+                        cancel()
+                    return value
+                def write(path, value):
+                    atomic(path, value)
+                    if path == self.state.guard_dir / boundary:
+                        cancel()
+                with patch.object(Path, 'mkdir', mkdir), \
+                     patch.object(state_module, 'atomic_text', side_effect=write):
+                    with self.assertRaises(state_module.Cancelled):
+                        self.state.acquire_guard()
+                self.assert_clean()
+                token = self.state.acquire_guard()
+                self.state.release_guard(token)
+                self.assert_clean()
+
     def test_readiness_failure_and_cancel_stop_verified_process_first(self):
         for error in (OSError('synthetic readiness failure'), state_module.Cancelled(signal.SIGTERM)):
             with self.subTest(error=error):

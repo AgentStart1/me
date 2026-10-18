@@ -220,6 +220,17 @@ acquisition and creation finish bounded ownership publication before delivering
 cancellation. Readiness and helper network IO never run inside the state guard.
 Additional signals are ignored only during final cleanup and handlers are restored.
 
+`resource_ownership.py` supplies the same nested cancellation boundary to VM state,
+QEMU launch and gvproxy controllers. Establish the cleanup scope before acquisition;
+finish handle assignment or definitive creation-failure rollback before delivering
+a handled signal. A failed metadata write to a guard created by the current call
+removes that new guard, so a later operation can retry. A pre-existing guard is
+never reclaimed this way. The helper controller owns its exclusive reservation
+through creation, identity publication and readiness; cancellation before identity
+publication still kills and joins its process handle before removing the pending
+record. Failed termination or a bounded join timeout retains the pending/published
+evidence for inspection. Network readiness stays cancellable outside the boundary.
+
 `test-vm-transitions.py` checks the complete legal/illegal phase matrix, evidence
 validation, generation replacement, cancellation at lease/guard/acquire/spawn/READY
 boundaries, log-open and definite creation failures, every atomic publication
@@ -228,3 +239,10 @@ It uses synthetic processes and private state. The real lifecycle fixture also
 fails log opening after starting an isolated real helper and cancels its native
 controller at a private fixture barrier before QEMU creation. It checks full cleanup
 then exercises normal start/stop/cancellation without opening its synthetic disk.
+`test-gvproxy-control.py` deterministically delivers each supported handled signal
+after creating a real private child and before returning its handle. It asserts
+the child has exited before ownership disappears, and covers failed creation,
+repeated cancellation during cleanup, failed kill/join and existing guard protection.
+The state suite injects failures before and after each initial guard metadata write,
+checks rollback and retry, and preserves pre-existing unknown guards. The original
+guard leak and creation-window orphan both fail these tests on the earlier code.
