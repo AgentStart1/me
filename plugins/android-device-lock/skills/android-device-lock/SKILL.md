@@ -64,7 +64,7 @@ The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain
 - If metadata is malformed or missing, ownership is unknown. The helper does not
   infer expiry from directory mtime; inspect before recovery. Interrupted `.guard`
   directories are also preserved until all mutation operations are confirmed stopped.
-- Metadata requires working Python 3 for strict JSON/type checks; set
+- The lease controller requires Python 3.10+ for strict JSON/type checks; set
   `ANDROID_DEVICE_LOCK_PYTHON` when automatic interpreter lookup is unavailable.
 - If release fails because the token does not match, do not delete the lock; another run owns it.
 - Do not clear app data, install APKs, start device test sessions, or reset the emulator before acquiring the lock.
@@ -72,6 +72,13 @@ The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain
   Bound the command within that lease; use manual renewal for longer operations and
   stop device work before expiry if renewal cannot be confirmed. Custom paths must
   stay below `/data/local/tmp` without parent traversal.
+
+## Native Python entry
+
+Use `python /absolute/plugin/scripts/adb-device-lock.py` with the same commands
+and options on Windows or Unix. The `.sh` entry only selects a Python 3.10+
+interpreter and forwards arguments. The controller retains the device guard and
+token protocol; it owns command cancellation, child cleanup and lease release.
 
 ## Bundled Resource
 
@@ -100,3 +107,16 @@ with the retained token after checking device connectivity and ownership.
 - Submit a new issue when no duplicate exists and the user has authorized upstream reporting in the current session or standing instructions. This rule alone does not authorize external posting. Honor existing authorization without asking again; otherwise prepare a sanitized draft for approval.
 - Include the plugin/skill and version, observed and expected behavior, a minimal synthetic reproduction or concrete improvement proposal, and relevant duplicate-search results. Use a concise title prefixed with the plugin name.
 - If search, authentication, or submission fails, retain the sanitized draft and explain the blocker; do not post without completing duplicate checks. After an uncertain submission result, check for the created issue before retrying. Return the existing or created issue URL, or clearly mark the report as an unsubmitted draft.
+
+On Windows, use Ctrl+C or native Ctrl+Break for graceful cancellation. Git Bash
+`kill -TERM` forcibly terminates native Python and cannot run cleanup; inspect
+retained tokens and device guards before recovery. Native waits dispatch signals
+while the command is running, then stop the owned command tree before release.
+
+The `run` command stops remaining descendants before releasing the lease, even
+when the command's root process has already exited. Windows uses a Job Object;
+Unix commands must keep device workers in the owned process group (do not daemonize
+or create detached sessions). If tree cleanup cannot be confirmed, the lease and
+owner token remain for recovery. Windows shebang entrypoints run through Git Bash
+with their declared interpreter and original arguments; that interpreter must be
+available in the Git Bash environment.

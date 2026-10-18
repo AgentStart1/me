@@ -13,10 +13,10 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import vm_lifecycle as lifecycle
-from vm_phase import Phase, Snapshot, TRANSITIONS, NoProcess, UnknownProcess, LaunchedProcess, OwnedProcess
+from vm_phase import Phase, Snapshot, TRANSITIONS, NoProcess, UnknownProcess, LaunchedProcess, OwnedProcess, NativeUnknownProcess, NativeLaunchedProcess
 
 state_module = lifecycle.state_module
-RECORD = {'pid': 456, 'shell_pid': 123, 'identity': ['synthetic-qemu', 1]}
+RECORD = {'pid': 123, 'shell_pid': 123, 'identity': ['synthetic-qemu', 1]}
 
 
 def evidence(phase):
@@ -50,6 +50,15 @@ class TransitionTests(unittest.TestCase):
                     else:
                         with self.assertRaises(ValueError):
                             snapshot.transition(target, evidence(target))
+
+    def test_native_launch_variants_roundtrip_without_sidecar_flags(self):
+        for phase, process in ((Phase.SPAWNING, NativeUnknownProcess()),
+                               (Phase.LAUNCHED, NativeLaunchedProcess(123))):
+            snapshot = Snapshot('reservation', phase, process)
+            self.assertEqual(Snapshot.from_data(snapshot.data()), snapshot)
+        with self.assertRaises(ValueError):
+            Snapshot.from_data({'generation': 'reservation', 'phase': 'launched',
+                                'process': {'kind': 'unsupported-native', 'pid': 123}})
 
     def test_phase_requires_its_process_evidence(self):
         for phase in (Phase.RESERVED, Phase.NETWORK_STARTING, Phase.NETWORK_READY):
@@ -98,7 +107,7 @@ class LifecycleTests(unittest.TestCase):
         self.phases = []
         self.x = self.controller()
         stack = self.enterContext(contextlib.ExitStack())
-        stack.enter_context(patch.object(state_module.qemu, 'probe', side_effect=lambda *_: RECORD if self.alive else None))
+        stack.enter_context(patch.object(state_module.qemu, 'probe', side_effect=lambda *_, **__: RECORD if self.alive else None))
         stack.enter_context(patch.object(state_module, 'identity', side_effect=lambda p: RECORD['identity'] if p == RECORD['pid'] and self.alive else None))
         stack.enter_context(patch.object(state_module, 'running', side_effect=lambda p: str(p) == '123' and self.alive))
         stack.enter_context(patch.object(lifecycle, 'terminate', side_effect=self.terminate))
@@ -146,10 +155,10 @@ class LifecycleTests(unittest.TestCase):
     def spawn(self, *_args, **_kwargs):
         self.events.append('spawn')
         self.alive = True
-        (self.state.active / 'launch.pid').write_text('123')
         child = Mock()
+        child.pid = 123
         child.poll.side_effect = lambda: None if self.alive else 0
-        child.wait.side_effect = lambda **_: self.events.append('join-adapter')
+        child.wait.side_effect = lambda **_: self.events.append('join-qemu')
         return child
 
     def terminate(self, record):
@@ -270,7 +279,7 @@ class LifecycleTests(unittest.TestCase):
             return child
         with patch.object(lifecycle.subprocess, 'Popen', side_effect=spawn):
             self.assertEqual(self.execute(), 128 + signal.SIGTERM)
-        self.assertEqual(self.events[-3:], ['terminate-qemu', 'join-adapter', 'network-stop'])
+        self.assertEqual(self.events[-3:], ['terminate-qemu', 'join-qemu', 'network-stop'])
         self.assert_clean()
 
     def test_definitive_spawn_failure_with_pending_signal_still_rolls_back(self):
@@ -283,7 +292,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_publication_failure_at_every_boundary_is_recoverable(self):
         boundaries = ('reserved', 'network-starting', 'network-ready', 'spawning',
-                      'launched', 'registered', 'identity', 'vm-pid', 'global-pid', 'ready')
+                      'launch-pid', 'launched', 'registered', 'identity', 'vm-pid', 'global-pid', 'ready')
         for boundary in boundaries:
             with self.subTest(boundary=boundary):
                 self.x = self.controller()
@@ -295,7 +304,8 @@ class LifecycleTests(unittest.TestCase):
                     target = ((path == self.state.snapshot_path and phase == boundary) or
                         (boundary == 'identity' and path == self.state.identity_path) or
                         (boundary == 'vm-pid' and path == self.state.pid_path) or
-                        (boundary == 'global-pid' and path == self.state.active / 'qemu.pid'))
+                        (boundary == 'global-pid' and path == self.state.active / 'qemu.pid') or
+                        (boundary == 'launch-pid' and path == self.state.active / 'launch.pid'))
                     if target and not failed:
                         failed = True
                         raise OSError('synthetic publication failure')
@@ -392,7 +402,7 @@ class LifecycleTests(unittest.TestCase):
                 self.x = self.controller()
                 self.x.wait_ready.side_effect = error
                 self.assertEqual(self.execute(), 1 if isinstance(error, OSError) else 128 + signal.SIGTERM)
-                self.assertEqual(self.events[-3:], ['terminate-qemu', 'join-adapter', 'network-stop'])
+                self.assertEqual(self.events[-3:], ['terminate-qemu', 'join-qemu', 'network-stop'])
                 self.assert_clean()
 
     def test_cancel_after_ready_commit_keeps_the_completed_vm(self):

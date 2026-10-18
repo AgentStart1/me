@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import uuid
 
 from process_identity import terminate
-from vm_phase import Phase, NoProcess, UnknownProcess
+from vm_phase import Phase, NoProcess, UnknownProcess, NativeUnknownProcess
 
 spec = importlib.util.spec_from_file_location('vm_state', Path(__file__).with_name('vm-state.py'))
 state_module = importlib.util.module_from_spec(spec)
@@ -143,7 +143,8 @@ class Lifecycle:
         if self.owned is not None and (snapshot is None or snapshot.generation != self.owned.generation):
             raise state_module.StateError('VM reservation changed; refusing obsolete cleanup')
         if snapshot is not None and isinstance(snapshot.process, UnknownProcess) and self.child is not None:
-            self.await_launch_pid()
+            # This controller owns the native Popen handle; no shell handoff is needed.
+            state_module.write_record(self.state.active / 'launch.pid', {'kind': 'native', 'pid': self.child.pid})
         record = self.record()
         self.begin_stop(record)
         if record is not None:
@@ -154,18 +155,6 @@ class Lifecycle:
             self.child.wait(timeout=5)
         self.network('stop')
         self.state.clear()
-
-    def await_launch_pid(self):
-        pid_file = self.state.active / 'launch.pid'
-        deadline = time.monotonic() + 10
-        while not pid_file.exists():
-            if self.child.poll() is not None or time.monotonic() >= deadline:
-                raise state_module.StateError('QEMU launch adapter failed before PID publication; retaining unknown launch')
-            time.sleep(.05)
-        number = state_module.pid(pid_file.read_text().strip())
-        if number is None:
-            raise state_module.StateError('Invalid launched QEMU PID')
-        return number
 
     def start(self):
         if not (self.home / 'disk.qcow2').is_file():
@@ -183,24 +172,19 @@ class Lifecycle:
         self.transition(Phase.NETWORK_STARTING)
         self.network('start')
         self.transition(Phase.NETWORK_READY)
-        pid_file = self.state.active / 'launch.pid'
-        # All fallible preflight IO precedes SPAWNING. A signal before this
-        # creation block leaves NoProcess evidence and permits ordinary cleanup.
+        # Plans contain native executable paths and argv, never shell commands.
         with (self.home / 'qemu.log').open('ab') as log:
             with defer_cancellation():
-                self.transition(Phase.SPAWNING, UnknownProcess())
+                self.transition(Phase.SPAWNING, NativeUnknownProcess())
                 try:
-                    self.child = subprocess.Popen([self.bash, str(self.adapter), self.profile, 'launch', str(pid_file), *plan],
-                        stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=os.name != 'nt')
+                    self.child = subprocess.Popen(plan, stdin=subprocess.DEVNULL,
+                        stdout=log, stderr=log, start_new_session=os.name != 'nt',
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
                 except OSError:
-                    # Popen guarantees creation failed. An asynchronous signal
-                    # is deferred until this rollback (or handle assignment) completes.
                     self.transition(Phase.NETWORK_READY, NoProcess())
                     raise
-        number = self.await_launch_pid()
-        # Register before readiness. Windows records the shell/native PID
-        # mapping through the original launching Bash runtime.
-        self.owned = self.state.register(number)
+                state_module.write_record(self.state.active / 'launch.pid', {'kind': 'native', 'pid': self.child.pid})
+        self.owned = self.state.register(self.child.pid, native=True)
         self.wait_ready()
         with defer_cancellation():
             self.transition(Phase.READY)

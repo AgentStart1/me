@@ -37,7 +37,7 @@ description: Use for every coding project task to follow the existing plan auton
 - Reproduce or localize bugs, regressions, flaky behavior, unexpected output, build errors, test failures, crashes, and performance anomalies when practical.
 - Identify the first broken assumption or invalid state before choosing a fix.
 - Add fallbacks, guards, retries, defaults, or workarounds only after the root cause shows they are justified.
-- Prefer removing the bad state or broken assumption over hiding its symptoms.
+- Prefer removing the bad state or broken assumption over hiding its symptoms. For ownership, lifecycle, or boundary problems, follow the structural-fix guidance in [code-design-rules](../code-design-rules/SKILL.md) before adding compensating patches.
 - Keep necessary workarounds narrow and document the condition that requires them.
 
 ## Conditional guidance

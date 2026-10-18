@@ -27,6 +27,22 @@ For other languages, map the same principles to their existing task, cancellatio
 synchronization, and data-model facilities. Do not assume every runtime provides
 structured concurrency or exhaustive tagged unions.
 
+## Structural fixes before compensating logic
+
+- Prefer correcting ownership, lifecycle, state representation, or an interface
+  boundary at the root cause before adding another retry, flag, fallback, special
+  case, or cleanup patch. Choose the smallest structural change that removes the
+  invalid state; do not introduce a general framework without a concrete need.
+- Give resources and state transitions one clear owner. Distinguish scoped work
+  that must stop on exit from persistent work whose ownership must be explicitly
+  transferred. Keep platform behavior behind a narrow adapter with the same contract.
+- Preserve recovery for failures that structure cannot eliminate: crashes, partial
+  publication, uncertain external effects, and lost connectivity. Keep ownership
+  evidence until cleanup is confirmed; do not mistake fewer branches for safety.
+- Verify the ownership and publication invariants at failure and cancellation
+  boundaries, including late completion and interrupted handoff. When a workaround
+  remains necessary, record its cause, scope, and removal condition near the boundary.
+
 ## Sequential asynchronous control flow
 
 - Express dependent asynchronous operations as a readable sequence using native

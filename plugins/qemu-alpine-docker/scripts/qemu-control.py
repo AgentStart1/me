@@ -11,8 +11,8 @@ from process_identity import identity, terminate, write_record
 from process_identity import windows_pid
 
 
-def probe(pid, name):
-    native = windows_pid(pid, strict=True) if os.name == "nt" else pid
+def probe(pid, name, *, native_pid=False):
+    native = windows_pid(pid, strict=True) if os.name == "nt" and not native_pid else pid
     current = identity(native)
     if current is None or Path(current[0]).name.lower() not in ("qemu-system-x86_64", "qemu-system-x86_64.exe"):
         return None

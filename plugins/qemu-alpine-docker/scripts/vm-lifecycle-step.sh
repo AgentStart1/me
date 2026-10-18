@@ -25,13 +25,6 @@ case "$action" in
             -display none -serial "file:$(qemu_native_path "${VM_HOME}/console.log")" -monitor none
             -netdev "$(build_netdev_value)" -device virtio-net-pci,netdev=net0,mac=5a:94:ef:e4:0c:ee)
         "$python_bin" -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$(qemu_native_path "$QEMU_BIN")" "${args[@]}";;
-    launch)
-        pid_file="$1"; shift
-        "$@" </dev/null &
-        launched=$!
-        printf '%s\n' "$launched" > "${pid_file}.tmp"
-        mv "${pid_file}.tmp" "$pid_file"
-        wait "$launched";;
     network-plan)
         mappings=""
         if [ "$1" != stop ]; then mappings="$(build_forward_mappings)"; fi

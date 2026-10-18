@@ -15,10 +15,17 @@ inspection; directory age alone is not proof that device work stopped. Custom lo
 paths stay below `/data/local/tmp`. The fixed-duration `run` lease must exceed the
 whole command; longer operations need manual renewal and cancellation on lost ownership.
 
-The helper uses Python 3's JSON library for typed ownership checks and escaping.
+The host lease controller uses Python 3.10+ for device operations, typed ownership checks and escaping.
 It tries working `python3` and `python` commands; set `ANDROID_DEVICE_LOCK_PYTHON`
 to an explicit interpreter when needed. Invalid JSON or field types leave ownership
 unknown rather than extracting expiry/tokens from text patterns.
+
+## Native Python entry
+
+Use `python /absolute/plugin/scripts/adb-device-lock.py` with the same commands
+and options on Windows or Unix. The `.sh` entry only selects a Python 3.10+
+interpreter and forwards arguments. The controller retains the device guard and
+token protocol; it owns command cancellation, child cleanup and lease release.
 
 ## Device Leases status panel
 
@@ -69,3 +76,16 @@ with the retained token after checking device connectivity and ownership.
 ## Improvement feedback
 
 Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+
+On Windows, use Ctrl+C or native Ctrl+Break for graceful cancellation. Git Bash
+`kill -TERM` forcibly terminates native Python and cannot run cleanup; inspect
+retained tokens and device guards before recovery. Native waits dispatch signals
+while the command is running, then stop the owned command tree before release.
+
+The `run` command stops remaining descendants before releasing the lease, even
+when the command's root process has already exited. Windows uses a Job Object;
+Unix commands must keep device workers in the owned process group (do not daemonize
+or create detached sessions). If tree cleanup cannot be confirmed, the lease and
+owner token remain for recovery. Windows shebang entrypoints run through Git Bash
+with their declared interpreter and original arguments; that interpreter must be
+available in the Git Bash environment.

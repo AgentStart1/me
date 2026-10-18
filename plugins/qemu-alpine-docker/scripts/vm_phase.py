@@ -34,6 +34,16 @@ class LaunchedProcess:
 
 
 @dataclass(frozen=True)
+class NativeUnknownProcess(UnknownProcess):
+    """Native creation may have occurred before its PID was published."""
+
+
+@dataclass(frozen=True)
+class NativeLaunchedProcess(LaunchedProcess):
+    """The inherited PID slot carries a native PID, never an MSYS PID."""
+
+
+@dataclass(frozen=True)
 class OwnedProcess:
     shell_pid: int
     native_pid: int
@@ -113,8 +123,12 @@ class Snapshot:
         process = self.process
         if isinstance(process, OwnedProcess):
             evidence = {'kind': 'owned', 'record': process.record()}
+        elif isinstance(process, NativeLaunchedProcess):
+            evidence = {'kind': 'native-launched', 'pid': process.shell_pid}
         elif isinstance(process, LaunchedProcess):
             evidence = {'kind': 'launched', 'shell_pid': process.shell_pid}
+        elif isinstance(process, NativeUnknownProcess):
+            evidence = {'kind': 'native-unknown'}
         else:
             evidence = {'kind': 'none' if isinstance(process, NoProcess) else 'unknown'}
         return {'generation': self.generation, 'phase': self.phase.value, 'process': evidence}
@@ -125,6 +139,10 @@ class Snapshot:
         kind = value['kind']
         if kind == 'owned':
             evidence = OwnedProcess.from_record(value['record'])
+        elif kind == 'native-launched':
+            evidence = NativeLaunchedProcess(value['pid'])
+        elif kind == 'native-unknown':
+            evidence = NativeUnknownProcess()
         elif kind == 'launched':
             evidence = LaunchedProcess(value['shell_pid'])
         elif kind == 'none':

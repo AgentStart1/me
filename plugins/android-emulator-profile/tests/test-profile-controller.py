@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,38 @@ class ProfileTests(unittest.TestCase):
         environment = profiles.tool_environment(profile, {'PATH': 'tools'})
         self.assertEqual(environment, {'PATH': 'tools', 'ANDROID_HOME': 'sdk', 'DISPLAY': ':42'})
 
+    @unittest.skipUnless(os.name == 'nt' and shutil.which('cygpath'), 'requires Windows Git Bash cygpath')
+    def test_windows_android_environment_paths(self):
+        with tempfile.TemporaryDirectory(prefix='Android paths 名称 ') as directory:
+            root = Path(directory)
+            paths = {key: root / key for key in profiles.ANDROID_PATHS}
+            for path in paths.values():
+                path.mkdir()
+            unix = {key: subprocess.check_output(['cygpath', '-u', str(path)], encoding='utf-8').strip()
+                    for key, path in paths.items()}
+            for overrides in ({}, unix):
+                with self.subTest(overrides=bool(overrides)):
+                    environment = profiles.tool_environment(overrides, {**os.environ, **unix})
+                    # Launch native Python directly: Bash must not convert the environment for us.
+                    result = subprocess.run([sys.executable, '-c',
+                        'import json,os; print(json.dumps({k: os.environ[k] for k in '
+                        + repr(profiles.ANDROID_PATHS) + '}))'],
+                        env=environment, text=True, capture_output=True, check=True)
+                    received = json.loads(result.stdout)
+                    for key, expected in paths.items():
+                        self.assertEqual(Path(received[key]), expected)
+                        self.assertEqual(profiles.native_path(unix[key]), Path(received[key]))
+            native = {key: str(path) for key, path in paths.items()}
+            self.assertEqual(profiles.tool_environment(native, {}), native)
+            self.assertEqual(profiles.tool_environment({'ANDROID_HOME': ''}, {}), {'ANDROID_HOME': ''})
+
+    @unittest.skipUnless(os.name == 'nt' and shutil.which('cygpath'), 'requires Windows Git Bash cygpath')
+    def test_native_path_under_ansi_locale(self):
+        with tempfile.TemporaryDirectory(prefix='Android 名称 ') as directory:
+            unix = subprocess.check_output(['cygpath', '-u', directory], encoding='utf-8').strip()
+            with patch('subprocess.locale.getencoding', return_value='cp1252'):
+                self.assertEqual(profiles.native_path(unix), Path(directory))
+
     def test_literal_profiles_and_crlf(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "quoted.profile"
@@ -52,6 +85,37 @@ class ProfileTests(unittest.TestCase):
             profiles.apply_config(path, {'EMULATOR_CONFIG_duplicate__key': 'new'})
             self.assertEqual(path.read_text(), 'duplicate.key=new\nkeep=yes\n')
 
+    def test_session_retains_guard_when_tree_cleanup_fails(self):
+        spec = importlib.util.spec_from_file_location('start_avd', SCRIPTS / 'start-avd.py')
+        start = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(start)
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / 'config.ini'
+            session = start.AvdSession(config)
+            with patch.object(session.tree, 'stop', side_effect=OSError('fixture stop failure')):
+                with self.assertRaises(OSError):
+                    with session:
+                        pass
+            self.assertTrue(session.guard.exists())
+
+    def test_tool_lookup_preserves_path_directory_precedence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first, second = Path(directory) / 'first', Path(directory) / 'second'
+            first.mkdir(); second.mkdir()
+            preferred = first / 'emulator.exe'
+            preferred.touch(); preferred.chmod(0o755)
+            later = second / 'emulator'
+            later.touch(); later.chmod(0o755)
+            environment = {'PATH': str(first) + os.pathsep + str(second)}
+            self.assertEqual(profiles.resolve_tool('emulator', environment), preferred)
+
+    def test_python_tool_shebang(self):
+        with tempfile.TemporaryDirectory(prefix='tool fixture ') as directory:
+            path = Path(directory) / 'python-tool'
+            path.write_text('#!/usr/bin/env python\nimport sys\nassert sys.argv[1:] == ["space $value", ""]\nsys.exit(17)\n', newline='\n')
+            path.chmod(0o755)
+            self.assertEqual(subprocess.run(profiles.tool_command(path, ['space $value', ''])).returncode, 17)
+
     def test_native_lifecycle(self):
         with tempfile.TemporaryDirectory(prefix='avd fixture ') as directory:
             root = Path(directory)
@@ -60,7 +124,15 @@ class ProfileTests(unittest.TestCase):
             config = avd / 'config.ini'
             config.write_text('disk.dataPartition.size=2G\n')
             script = root / 'fixture.py'
-            script.write_text('import json,os,sys,time\nfrom pathlib import Path\n'
+            heartbeat = root / 'worker-heartbeat'
+            worker = root / 'worker.py'
+            worker.write_text('import signal,sys,time\nfrom pathlib import Path\n'
+                              'signal.signal(signal.SIGBREAK if sys.platform == "win32" else signal.SIGTERM, signal.SIG_IGN)\n'
+                              'while True:\n Path(sys.argv[1]).write_text(str(time.monotonic()))\n time.sleep(.02)\n')
+            script.write_text('import json,os,sys,time,subprocess\nfrom pathlib import Path\n'
+                              'if os.environ.get("FIXTURE_HOLD"):\n'
+                              ' subprocess.Popen([sys.executable,os.environ["FIXTURE_WORKER"],os.environ["FIXTURE_HEARTBEAT"]])\n'
+                              ' while not Path(os.environ["FIXTURE_HEARTBEAT"]).exists(): time.sleep(.01)\n'
                               'Path(os.environ["FIXTURE_LOG"]).write_text(json.dumps(sys.argv[1:]))\n'
                               'assert "EMULATOR_VALUE_Custom_Value" not in os.environ\n'
                               'time.sleep(60) if os.environ.get("FIXTURE_HOLD") else None\n'
@@ -74,7 +146,7 @@ class ProfileTests(unittest.TestCase):
             profile = root / 'test.profile'
             profile.write_text(f'AVD_NAME=名称\nAVDMANAGER_VALUE_path="{avd}"\nEMULATOR_VALUE_Custom_Value="space value"\n', encoding='utf-8')
             log = root / 'args.json'
-            env = {**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'], 'FIXTURE_LOG': str(log),
+            env = {**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'], 'FIXTURE_LOG': str(log), 'FIXTURE_WORKER': str(worker), 'FIXTURE_HEARTBEAT': str(heartbeat),
                    'EMULATOR_VALUE_Inherited_Case': 'ignored', 'AVDMANAGER_VALUE_path': str(root / 'wrong.avd'), 'AVD_NAME': 'wrong'}
             command = [sys.executable, str(SCRIPTS / 'start-avd.py'), str(profile)]
             result = subprocess.run(command, env={**env, 'FIXTURE_STATUS': '23'}, capture_output=True)
@@ -116,6 +188,9 @@ class ProfileTests(unittest.TestCase):
                 process.send_signal(signal.CTRL_BREAK_EVENT if os.name == 'nt' else signal.SIGTERM)
                 self.assertEqual(process.wait(timeout=10), 128 + (signal.SIGBREAK if os.name == 'nt' else signal.SIGTERM))
                 self.assertFalse(guard.exists())
+                before = heartbeat.read_text()
+                time.sleep(.2)
+                self.assertEqual(heartbeat.read_text(), before, 'worker survived guard release')
             finally:
                 if process.poll() is None:
                     process.kill()

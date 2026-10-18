@@ -16,7 +16,7 @@ import uuid
 
 from process_identity import identity, windows_pid, write_record, terminate
 from resource_ownership import Cancelled, defer_cancellation, signals
-from vm_phase import Phase, Snapshot, NoProcess, UnknownProcess, LaunchedProcess, OwnedProcess
+from vm_phase import Phase, Snapshot, NoProcess, UnknownProcess, LaunchedProcess, OwnedProcess, NativeUnknownProcess, NativeLaunchedProcess
 
 spec = importlib.util.spec_from_file_location('qemu_control', Path(__file__).with_name('qemu-control.py'))
 qemu = importlib.util.module_from_spec(spec)
@@ -230,6 +230,8 @@ class State:
         name = name or self.name
         pointers = [self.vms / (name + '.pid')]
         snapshot = None
+        pending = None
+        native = False
         if read(self.active / 'vm-name') == name:
             snapshot = self.snapshot()
             pending = self.active / 'launch.pid'
@@ -239,7 +241,17 @@ class State:
         numbers = set()
         for path in pointers:
             if path.exists():
-                number = pid(read(path))
+                content = read(path)
+                if path == pending and content.startswith('{'):
+                    launch = json.loads(content)
+                    if not isinstance(launch, dict) or launch.get('kind') != 'native':
+                        raise StateError('Invalid native launch evidence')
+                    if type(launch.get('pid')) is not int:
+                        raise StateError('Invalid native launch PID type')
+                    number = pid(launch['pid'])
+                    native = True
+                else:
+                    number = pid(content)
                 if number is None:
                     raise StateError('Invalid QEMU PID state; inspect before recovery')
                 numbers.add(number)
@@ -264,8 +276,9 @@ class State:
                 raise StateError('Launch PID publication incomplete; inspect before recovery')
             return None
         number = numbers.pop()
-        record = qemu.probe(number, name)
-        if record is None and running(number):
+        native = native or isinstance(evidence, (NativeUnknownProcess, NativeLaunchedProcess))
+        record = qemu.probe(number, name, native_pid=True) if native else qemu.probe(number, name)
+        if record is None and (identity(number) is not None if native else running(number)):
             raise StateError('Unknown launched process; retaining VM ownership')
         return record
 
@@ -300,22 +313,24 @@ class State:
                 raise StateError('Another launcher owns the VM reservation')
             self.remove_active()
 
-    def register(self, number):
+    def register(self, number, *, native=False):
         with self.guarded():
             if read(self.active / 'vm-name') != self.name or read(self.active / 'launcher.pid') != str(self.owner):
                 raise StateError('Cannot register QEMU without owning the VM reservation')
             current = self.snapshot()
+            native = native or (current is not None and isinstance(current.process, (NativeUnknownProcess, NativeLaunchedProcess)))
+            launched = NativeLaunchedProcess(number) if native else LaunchedProcess(number)
             if current is None:
-                current = Snapshot(uuid.uuid4().hex, Phase.LAUNCHED, LaunchedProcess(number))
+                current = Snapshot(uuid.uuid4().hex, Phase.LAUNCHED, launched)
             elif current.phase != Phase.LAUNCHED and not (
                     current.phase == Phase.REGISTERED and current.process.shell_pid == number):
-                current = current.transition(Phase.LAUNCHED, LaunchedProcess(number))
+                current = current.transition(Phase.LAUNCHED, launched)
             if current.process.shell_pid != number:
                 raise StateError('Registered PID differs from the launched process')
             # Persist launch evidence before inspection, then the native identity
             # before compatibility files. Each interrupted prefix remains recoverable.
             write_record(self.snapshot_path, current.data())
-            record = qemu.probe(number, self.name)
+            record = qemu.probe(number, self.name, native_pid=True) if native else qemu.probe(number, self.name)
             if record is None:
                 raise StateError('Cannot register a missing or unrelated QEMU process; retaining state for inspection')
             if current.phase != Phase.REGISTERED:

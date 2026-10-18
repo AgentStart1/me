@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "test-report-sharing",
-  "version": "0.4.4-20261018041116",
+  "version": "0.4.5-20261018125421",
   "description": "Collect test reports into a static site for local preview or ngrok sharing.",
   "author": {
     "name": "Test Report Sharing"
