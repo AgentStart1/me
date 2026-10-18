@@ -33,6 +33,14 @@ class ControllerTests(unittest.TestCase):
                           ("acquire", "--poll-seconds", "0")):
             self.assertEqual(subprocess.run([sys.executable, str(ENTRY), *arguments], capture_output=True).returncode, 2)
 
+    def test_explicit_shell_command_path(self):
+        with tempfile.TemporaryDirectory(prefix='lease command ') as directory:
+            entry = Path(directory) / 'gradlew'
+            entry.write_text('#!/usr/bin/env bash\nexit 17\n', encoding='utf-8', newline='\n')
+            entry.chmod(0o755)
+            command = module.host_command([str(entry)])
+            self.assertEqual(subprocess.run(command).returncode, 17)
+
     def test_publication_failure_retains_token_when_remote_delete_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             controller = self.controller(directory)

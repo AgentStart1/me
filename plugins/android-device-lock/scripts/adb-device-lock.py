@@ -44,8 +44,9 @@ def host_command(command):
     if os.name != "nt":
         return command
     executable = command[0]
-    for directory in os.get_exec_path():
-        candidate = Path(directory) / executable
+    explicit = any(separator in executable for separator in ('/', '\\'))
+    candidates = [Path(executable)] if explicit else [Path(directory) / executable for directory in os.get_exec_path()]
+    for candidate in candidates:
         if candidate.is_file():
             if candidate.suffix.lower() in (".exe", ".com"):
                 break
@@ -53,7 +54,7 @@ def host_command(command):
                 if source.read(2) == b"#!":
                     return [shutil.which("bash") or "bash", str(candidate), *command[1:]]
             break
-        if (Path(directory) / (executable + ".exe")).is_file():
+        if candidate.with_name(candidate.name + ".exe").is_file():
             break
     return command
 
