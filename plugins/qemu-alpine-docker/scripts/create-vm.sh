@@ -27,7 +27,7 @@
 #   - Verification step ensures the VM is actually usable before marking it ready
 #   - Atomic write for the ready marker to avoid partial updates
 #
-# Environment variables:
+# Optional profile settings:
 #   INSTALL_TIMEOUT — max seconds for the installation QEMU instance (default: 1800)
 #   BOOT_TIMEOUT    — max seconds for the verification QEMU instance (default: 300)
 #   PRELOAD_IMAGES  — comma-separated list of Docker images to pull after verification

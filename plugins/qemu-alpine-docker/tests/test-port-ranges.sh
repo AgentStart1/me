@@ -19,9 +19,10 @@ assert_equals 20127 "$TESTCONTAINERS_PORT_END" 'Linux profile default'
 printf 'TESTCONTAINERS_PORT_START=21000\nTESTCONTAINERS_PORT_END=auto\n' > "$MOCK_DIR/shifted.profile"
 load_profile "$MOCK_DIR/shifted.profile"
 assert_equals 21127 "$TESTCONTAINERS_PORT_END" 'auto follows custom pool start'
-assert_equals 133 "$(build_forward_mappings | wc -l | tr -d ' ')" 'custom start still selects 128 data ports'
+assert_equals 130 "$(build_forward_mappings | wc -l | tr -d ' ')" 'custom start selects 128 data ports without stale custom forwards'
 printf 'TESTCONTAINERS_PORT_START=65500\nTESTCONTAINERS_PORT_END=auto\n' > "$MOCK_DIR/overflow.profile"
 if load_profile "$MOCK_DIR/overflow.profile" >/dev/null 2>&1; then echo 'FAIL: overflowing automatic pool accepted'; exit 1; fi
+load_profile "${PLUGIN_DIR}/profiles/dev.profile"
 TESTCONTAINERS_PORT_START=20000
 TESTCONTAINERS_PORT_END=29999
 assert_equals 10005 "$(build_forward_mappings | wc -l | tr -d ' ')" 'explicit 10,000-port pool remains supported'

@@ -87,8 +87,10 @@ replacing Git Bash's tools.
 
 When the install log proves that disk installation completed and only post-boot verification failed, resume verification without reinstalling:
 
+Set `VERIFY_EXISTING=true` in a recovery profile, then run:
+
 ```bash
-VERIFY_EXISTING=true ./scripts/create-vm.sh ./profiles/dev.profile
+./scripts/create-vm.sh /absolute/path/to/recovery.profile
 ```
 
 Set `PRELOAD_IMAGES` in a profile to a comma-separated list if a few images should be pulled during initial verification. Image references may contain registry paths, tags, digests, dots, dashes, and underscores. Normal Testcontainers pulls are cached automatically on the persistent disk.
@@ -307,7 +309,7 @@ native helper controller subprocesses through cancellation and exit.
 
 `BOOT_TIMEOUT` (SSH readiness, default 300 seconds), `FORCE` (`true` skips graceful
 shutdown, default `false`) and `TIMEOUT` (graceful shutdown, default 30 seconds)
-can be set in the profile or environment. Profile values take precedence.
+are read only from the profile; inherited environment variables do not set them.
 
 Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
 state controller for operation leases, global reservations, process registration
@@ -338,3 +340,18 @@ also stays in place; inspect all remaining plugin processes before recovery.
 Existing helper ownership is never adopted by a new start; explicitly stop that
 VM first. See [developer lifecycle rules](https://github.com/storytellerF/me/blob/main/DEVELOPMENT.md#vm-lifecycle-and-state-controllers)
 for phase transitions and recovery evidence.
+
+## Profile configuration isolation
+
+Profile settings come only from the selected literal `KEY=value` file. Missing
+required settings fail validation; missing optional settings use built-in defaults.
+Each load replaces the previous file configuration. Profile settings are not
+exported to child processes; Testcontainers settings are passed explicitly to
+the test command where required. Unknown profile keys are rejected, so profiles
+cannot change PATH, HOME or controller/tool selection.
+
+Set VM resources, ports, acceleration, Alpine image/mirror settings, image
+preloading, lifecycle timeouts, `FORCE` and `VERIFY_EXISTING` in the profile.
+Host controls such as `QEMU_ALPINE_BASE_DIR`, `QEMU_STATUS_PROFILE`,
+`QEMU_STATE_PYTHON`, `QEMU_BASH_BINARY`, `GVPROXY_BINARY` and proxy helper paths
+remain environment settings. They are not profile keys.

@@ -9,7 +9,8 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 - `TESTCONTAINERS_PORT_START`
 - `TESTCONTAINERS_PORT_END`
 
-Lifecycle options may be set in the profile or environment; profile values win.
+Lifecycle options are read only from the selected profile, never inherited from
+the process environment. Missing optional values use the defaults below.
 `BOOT_TIMEOUT` is the SSH readiness timeout in seconds (default 300).
 `FORCE=true` skips graceful shutdown (default `false`), and `TIMEOUT` bounds the
 graceful shutdown wait in seconds (default 30).
@@ -68,4 +69,4 @@ records to bypass an unknown launch. Developer transition rules are in DEVELOPME
 
 Because Docker runs in a remote guest, Host or outer-container paths cannot be used as ordinary Docker bind mounts. Prefer Docker build contexts, named volumes, or test fixtures copied through the Docker API.
 
-If provisioning leaves a disk without a ready marker, inspect the install and verify console logs. When installation is known to be complete and only verification failed, run `VERIFY_EXISTING=true ./scripts/create-vm.sh <profile>` to resume verification. Do not remove the VM directory unless the user explicitly chooses to rebuild it.
+If provisioning leaves a disk without a ready marker, inspect the install and verify console logs. When installation is known to be complete and only verification failed, set `VERIFY_EXISTING=true` in a recovery profile and run `./scripts/create-vm.sh <recovery-profile>` to resume verification. Do not remove the VM directory unless the user explicitly chooses to rebuild it.

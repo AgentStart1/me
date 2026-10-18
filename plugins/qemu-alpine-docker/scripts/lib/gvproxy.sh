@@ -57,11 +57,3 @@ check_gvproxy() {
         --transport "${GVPROXY_QEMU_PORT:-19200}" \
         --state "$(qemu_native_path "$(gvproxy_pid_file)")" <<< "$mappings"
 }
-
-gvproxy_api() {
-    local action="$1" host_port="$2" guest_port="$3"
-    curl --noproxy 127.0.0.1 --fail --silent --show-error --max-time 5 -X POST \
-        -H 'Content-Type: application/json' \
-        -d "{\"local\":\"127.0.0.1:${host_port}\",\"remote\":\"192.168.127.2:${guest_port}\",\"protocol\":\"tcp\"}" \
-        "http://127.0.0.1:${GVPROXY_API_PORT:-19201}/services/forwarder/${action}"
-}

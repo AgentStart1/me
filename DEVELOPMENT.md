@@ -190,7 +190,7 @@ boundaries, fails cleanup, and exercises later stop recovery with synthetic
 process identities. It checks unknown/incomplete publication, cross-VM takeover
 refusal and PID reuse without signalling real processes. Profile regressions use
 the real Bash description adapter with private state, covering profile precedence,
-environment fallback, defaults, SSH readiness and graceful/forced stop behavior.
+environment isolation, defaults, SSH readiness and graceful/forced stop behavior.
 The state owner resolves durable process evidence and compatibility PID/identity
 files before mutation. `run/active-vm.lock/lifecycle.json` is one atomic snapshot
 containing a reservation generation, phase and tagged process evidence. Native
@@ -278,8 +278,9 @@ normal/custom traps, rollback/retry and preservation of existing unknown owners.
 mapping and atomic INI replacement. Profile configuration stays in a dictionary
 (or a shell associative map), separate from inherited process environment.
 Only explicit Android path/display contracts are forwarded to tools. `start-avd.py` owns the per-AVD guard and
-emulator process. Shell installation orchestration calls that shared parser
-without eval. Native Windows waits are bounded so Ctrl+Break reaches cleanup;
+emulator process. Shell installation orchestration uses only the internal `profile`, `tool` and
+`args` bridge modes, without eval. AVD path resolution and INI reads/updates are
+called directly by the native startup controller. Native Windows waits are bounded so Ctrl+Break reaches cleanup;
 only the owned process tree is terminated. Run the existing fake SDK/emulator
 shell suites and `python plugins/android-emulator-profile/tests/test-profile-controller.py`.
 The native test covers spaces/Unicode paths, CRLF, expansion rejection,
@@ -287,3 +288,17 @@ arguments, duplicate keys, native locks, competition, failure and cancellation,
 plus ignored inherited configuration/wipe permission and batch trailing-backslash
 rejection. Run the native suite on both Windows and Unix.
 The Git Bash smoke suite delegates Windows signal coverage to that native test.
+
+## QEMU profile configuration boundary
+
+The shared `lib/config.sh` parser stages literal values before publishing a fresh
+file configuration. Its fixed supported-key namespace clears inherited or stale
+VM settings and removes export attributes. Shell consumers read those ordinary
+configuration values; lifecycle adapters receive the profile path explicitly.
+Host tool/path/interpreter controls stay outside the profile namespace. Alpine
+ISO defaults resolve when used, after profile loading. Guest/test environments
+continue to receive only explicit command contracts.
+
+`test-vm-state.py` checks ignored inherited lifecycle settings, missing required
+values, child-environment isolation, successive loads and protected host settings.
+The synthetic lifecycle fixture sets readiness timeouts in its profile.
