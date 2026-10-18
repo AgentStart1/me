@@ -304,6 +304,9 @@ signalling still verifies native executable and creation time through the
 shared process identity implementation. The platform/guest adapter invokes
 existing acceleration, networking and SSH commands without owning lifecycle locks.
 
+`BOOT_TIMEOUT` (SSH readiness, default 300 seconds), `FORCE` (`true` skips graceful
+shutdown, default `false`) and `TIMEOUT` (graceful shutdown, default 30 seconds)
+can be set in the profile or environment. Profile values take precedence.
 
 Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
 state controller for operation leases, global reservations, process registration

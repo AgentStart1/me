@@ -9,6 +9,10 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 - `TESTCONTAINERS_PORT_START`
 - `TESTCONTAINERS_PORT_END`
 
+Lifecycle options may be set in the profile or environment; profile values win.
+`BOOT_TIMEOUT` is the SSH readiness timeout in seconds (default 300).
+`FORCE=true` skips graceful shutdown (default `false`), and `TIMEOUT` bounds the
+graceful shutdown wait in seconds (default 30).
 
 The end value `auto` selects 128 ports from the configured start on both platforms
 (20000–20127 by default). An automatic pool extending above 65535 is rejected;

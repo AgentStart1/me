@@ -72,7 +72,7 @@ class Lifecycle:
         return self.state.process_record()
 
     def wait_ready(self):
-        timeout = int(os.environ.get('BOOT_TIMEOUT', '300'))
+        timeout = int(self.args.boot_timeout)
         self.wait_probe('ssh-ready', timeout)
         self.wait_probe('docker-ready', 120)
         self.step('pool-ready')
@@ -142,9 +142,9 @@ class Lifecycle:
             self.step('network-stop')
             self.state.clear()
             return
-        if os.environ.get('FORCE', 'false') != 'true':
+        if self.args.force != 'true':
             self.step('poweroff', optional=True)
-            deadline = time.monotonic() + int(os.environ.get('TIMEOUT', '30'))
+            deadline = time.monotonic() + int(self.args.stop_timeout)
             while self.record() is not None and time.monotonic() < deadline:
                 time.sleep(.2)
         self.stop_owned()

@@ -184,6 +184,8 @@ operation lease acquisition/release rather than mocking away the state controlle
 `test-vm-state.py` also injects failures at identity and both PID publication
 boundaries, fails cleanup, and exercises later stop recovery with synthetic
 process identities. It checks unknown/incomplete publication, cross-VM takeover
-refusal and PID reuse without signalling real processes.
+refusal and PID reuse without signalling real processes. Profile regressions use
+the real Bash description adapter with private state, covering profile precedence,
+environment fallback, defaults, SSH readiness and graceful/forced stop behavior.
 The state owner resolves all PID pointers and identity records before mutation;
 the launch intent marker preserves an unknown launch before PID publication.

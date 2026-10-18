@@ -13,7 +13,8 @@ case "$action" in
         "$python_bin" -c 'import json,sys; print(json.dumps(dict(zip(sys.argv[1::2],sys.argv[2::2]))))' \
             name "$VM_NAME" vm_dir "$(qemu_native_path "$VM_DIR")" run_dir "$(qemu_native_path "$RUN_DIR")" \
             active_lock "$(qemu_native_path "$ACTIVE_LOCK_DIR")" state_guard "$(qemu_native_path "$STATE_GUARD_DIR")" \
-            msys_ps "$(qemu_native_path "${BASH%/*}/ps.exe")";;
+            msys_ps "$(qemu_native_path "${BASH%/*}/ps.exe")" \
+            boot_timeout "${BOOT_TIMEOUT:-300}" force "${FORCE:-false}" stop_timeout "${TIMEOUT:-30}";;
     plan)
         for key in VM_MEMORY VM_CPUS DOCKER_DAEMON_PORT TESTCONTAINERS_PORT_START TESTCONTAINERS_PORT_END; do require_profile_value "$key"; done
         QEMU_BIN="$(resolve_qemu)"

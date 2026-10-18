@@ -192,5 +192,54 @@ class StateTests(unittest.TestCase):
             self.assertTrue(state.active.exists())
 
 
+class ProfileTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture = tempfile.TemporaryDirectory()
+        self.addCleanup(self.fixture.cleanup)
+        root = Path(self.fixture.name)
+        self.profile = root / 'fixture.profile'
+        self.profile.write_text('VM_NAME=fixture\nSSH_PORT=2222\n')
+        env = dict(os.environ, QEMU_ALPINE_BASE_DIR=str(root / 'state'),
+                   QEMU_ALPINE_SKIP_MSYS2_PATH='1', QEMU_STATE_PYTHON=sys.executable)
+        for key in ('BOOT_TIMEOUT', 'FORCE', 'TIMEOUT', 'VM_NAME'):
+            env.pop(key, None)
+        self.environment = patch.dict(os.environ, env, clear=True)
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
+        self.assertTrue(os.environ.get('QEMU_BASH_BINARY') or shutil.which('bash'), 'Bash is required')
+
+    def test_profile_values_override_environment_and_control_lifecycle(self):
+        self.profile.write_text(self.profile.read_text() + 'BOOT_TIMEOUT=7\nFORCE=true\nTIMEOUT=0\n')
+        os.environ.update(BOOT_TIMEOUT='99', FORCE='false', TIMEOUT='60')
+        lifecycle = vm_lifecycle.Lifecycle(self.profile)
+        with patch.object(lifecycle, 'wait_probe') as probe, patch.object(lifecycle, 'step'):
+            lifecycle.wait_ready()
+        self.assertEqual(probe.call_args_list[0].args, ('ssh-ready', 7))
+        with patch.object(lifecycle, 'record', return_value={'owned': True}), \
+             patch.object(lifecycle, 'stop_owned') as stop, patch.object(lifecycle, 'step') as step:
+            lifecycle.stop()
+        stop.assert_called_once()
+        step.assert_not_called()
+        # The profile also overrides an inherited force flag in the other direction.
+        self.profile.write_text(self.profile.read_text().replace('FORCE=true', 'FORCE=false'))
+        os.environ['FORCE'] = 'true'
+        lifecycle = vm_lifecycle.Lifecycle(self.profile)
+        with patch.object(lifecycle, 'record', return_value={'owned': True}), \
+             patch.object(lifecycle, 'stop_owned') as stop, patch.object(lifecycle, 'step') as step, \
+             patch.object(vm_lifecycle.time, 'monotonic', side_effect=[100, 101]), \
+             patch.object(vm_lifecycle.time, 'sleep') as sleep:
+            lifecycle.stop()
+        step.assert_called_once_with('poweroff', optional=True)
+        sleep.assert_not_called()
+        stop.assert_called_once()
+
+    def test_environment_fallback_and_defaults(self):
+        for values, expected in (({}, ('300', 'false', '30')),
+                                 ({'BOOT_TIMEOUT': '11', 'FORCE': 'true', 'TIMEOUT': '2'}, ('11', 'true', '2'))):
+            with self.subTest(values=values), patch.dict(os.environ, values):
+                lifecycle = vm_lifecycle.Lifecycle(self.profile)
+                self.assertEqual((lifecycle.args.boot_timeout, lifecycle.args.force, lifecycle.args.stop_timeout), expected)
+
+
 if __name__ == '__main__':
     unittest.main()
