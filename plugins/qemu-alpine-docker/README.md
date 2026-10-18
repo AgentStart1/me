@@ -17,7 +17,7 @@ For now, these are the intended environments. On Linux hosts running outside con
 - Docker automatically allocates published ports from `20000–20127` on both platforms; gvproxy forwards every TCP port in the selected range to the same guest port before QEMU starts.
 - A global lock permits only one VM from this plugin to run at a time, which also reserves the forwarded range. Lock-state changes are serialized with an atomic guard directory so concurrent launchers cannot overwrite each other.
 - A separate operation lease spans setup, provisioning, start/stop and client commands (tests, Docker, SSH/SFTP, workspace sync and proxy builds). Competing operations fail before changing VM state. Normal exits and handled signals release the lease; after a forced kill, inspect all plugin processes before manually removing an interrupted `run/vm-operation.lock` or `vm-state.guard`.
-- QEMU and gvproxy ownership records verify the native executable and creation time before termination. An already-running VM is accepted only after its forwarding rules and guest readiness match the profile. Windows path/PID translation uses the launching Bash runtime's tools.
+- QEMU and gvproxy ownership records verify the native executable and creation time before termination. An already-running VM is accepted only after its forwarding rules and guest readiness match the profile. Windows provisioning and legacy shell PID translation use the launching Bash runtime's tools; normal starts retain native PIDs directly.
 - Docker images remain on the qcow2 disk and are reused by later test runs. Do not recreate the VM or run `docker image prune -a` if cache reuse matters.
 - Testcontainers Ryuk stays enabled and uses the guest Docker socket.
 
@@ -355,3 +355,10 @@ preloading, lifecycle timeouts, `FORCE` and `VERIFY_EXISTING` in the profile.
 Host controls such as `QEMU_ALPINE_BASE_DIR`, `QEMU_STATUS_PROFILE`,
 `QEMU_STATE_PYTHON`, `QEMU_BASH_BINARY`, `GVPROXY_BINARY` and proxy helper paths
 remain environment settings. They are not profile keys.
+
+
+Normal startup creates QEMU directly from Python and records its native process
+identity before readiness. A completed start transfers ownership to the persisted
+VM state so the VM continues running. Interrupted or unverified publication keeps
+the reservation and networking for inspection; older shell-launched records remain
+recoverable. Do not remove retained state merely because a PID file is absent.

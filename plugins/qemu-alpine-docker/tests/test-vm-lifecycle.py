@@ -75,14 +75,12 @@ def main():
             '                time.sleep(0.05)\n'))
         bin_dir = fixture / "bin"
         bin_dir.mkdir()
-        (bin_dir / "qemu-system-x86_64").write_text('''#!/bin/bash
-name=
-while [ $# -gt 0 ]; do
-    case "$1" in -name) name="$2"; shift;; esac
-    shift
-done
-exec "$QEMU_TEST_BINARY" -name "$name" -accel tcg -m 64 -smp 1 -nodefaults -display none -S
-''')
+        lifecycle = plugin / 'scripts/vm_lifecycle.py'
+        source = lifecycle.read_text()
+        source = source.replace("plan = json.loads(self.step('plan', capture=True))",
+            "plan = [os.environ['QEMU_TEST_BINARY'], '-name', self.state.name, '-accel', 'tcg', "
+            "'-m', '64', '-smp', '1', '-nodefaults', '-display', 'none', '-S']")
+        lifecycle.write_text(source)
         (bin_dir / "ssh").write_text('''#!/bin/bash
 if [[ "$*" == *"echo ready"* ]]; then [ -f "$FIXTURE_READY" ]; exit; fi
 if [[ "$*" == *poweroff* ]]; then
@@ -159,6 +157,7 @@ printf '{}'
             owner = launch("start-vm")
             wait_for(qstate.exists, owner)
             qrecord, hrecord = json.loads(qstate.read_text()), json.loads(hstate.read_text())
+            assert qrecord["shell_pid"] == qrecord["pid"], "normal startup must record the native PID directly"
             for contender in ["start-vm", "stop-vm", "create-vm"]:
                 assert launch(contender).wait(timeout=15) != 0, contender
                 assert identity(qrecord["pid"]) == qrecord["identity"]

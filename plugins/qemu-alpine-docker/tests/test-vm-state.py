@@ -68,6 +68,45 @@ class StateTests(unittest.TestCase):
             self.assertFalse(state.pid_path.exists())
             self.assertFalse(state.guard_dir.exists())
 
+    def test_native_launch_recovery_never_uses_shell_pid_translation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(Path(directory))
+            state.acquire()
+            state.prepare_launch()
+            module.write_record(state.active / 'launch.pid', {'kind': 'native', 'pid': 123})
+            record = {'pid': 123, 'shell_pid': 123, 'identity': ['fixture-qemu', 1]}
+            snapshot = state.snapshot_path.read_bytes()
+            for present in (True, False):
+                if not present:
+                    state.snapshot_path.unlink()
+                with patch.object(module.qemu, 'probe', return_value=record) as probe:
+                    self.assertEqual(state.process_record(), record)
+                    probe.assert_called_once_with(123, 'fixture', native_pid=True)
+            state.snapshot_path.write_bytes(snapshot)
+            with patch.object(module.qemu, 'probe', return_value=record) as probe:
+                state.register(123, native=True)
+                probe.assert_called_once_with(123, 'fixture', native_pid=True)
+            with patch.object(module, 'identity', return_value=None):
+                state.clear()
+            self.assertFalse(state.active.exists())
+
+    def test_failed_native_creation_rolls_back_unknown_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = self.state(Path(directory))
+            lifecycle = self.lifecycle(state)
+            lifecycle.home = state.vms / state.name
+            lifecycle.home.mkdir()
+            (lifecycle.home / 'disk.qcow2').touch()
+            (lifecycle.home / 'ready').touch()
+            lifecycle.step.return_value = json.dumps(['missing-fixture-qemu'])
+            with patch.object(vm_lifecycle.subprocess, 'Popen', side_effect=OSError('creation failed')):
+                with self.assertRaises(OSError):
+                    lifecycle.start()
+            self.assertEqual(state.snapshot().phase, module.Phase.NETWORK_READY)
+            self.assertIsInstance(state.snapshot().process, module.NoProcess)
+            lifecycle.stop_owned()
+            self.assertFalse(state.active.exists())
+
     def test_unknown_active_metadata_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
             state = self.state(Path(directory))
