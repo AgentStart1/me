@@ -107,3 +107,8 @@ with the retained token after checking device connectivity and ownership.
 - Submit a new issue when no duplicate exists and the user has authorized upstream reporting in the current session or standing instructions. This rule alone does not authorize external posting. Honor existing authorization without asking again; otherwise prepare a sanitized draft for approval.
 - Include the plugin/skill and version, observed and expected behavior, a minimal synthetic reproduction or concrete improvement proposal, and relevant duplicate-search results. Use a concise title prefixed with the plugin name.
 - If search, authentication, or submission fails, retain the sanitized draft and explain the blocker; do not post without completing duplicate checks. After an uncertain submission result, check for the created issue before retrying. Return the existing or created issue URL, or clearly mark the report as an unsubmitted draft.
+
+On Windows, use Ctrl+C or native Ctrl+Break for graceful cancellation. Git Bash
+`kill -TERM` forcibly terminates native Python and cannot run cleanup; inspect
+retained tokens and device guards before recovery. Native waits dispatch signals
+while the command is running, then stop the owned command tree before release.

@@ -76,3 +76,8 @@ with the retained token after checking device connectivity and ownership.
 ## Improvement feedback
 
 Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+
+On Windows, use Ctrl+C or native Ctrl+Break for graceful cancellation. Git Bash
+`kill -TERM` forcibly terminates native Python and cannot run cleanup; inspect
+retained tokens and device guards before recovery. Native waits dispatch signals
+while the command is running, then stop the owned command tree before release.

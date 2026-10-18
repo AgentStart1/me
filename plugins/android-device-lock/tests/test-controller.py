@@ -2,10 +2,12 @@
 import argparse
 import importlib.util
 from pathlib import Path
+import os
 import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -71,6 +73,38 @@ class ControllerTests(unittest.TestCase):
                 if child.poll() is None:
                     child.kill()
                     original_wait()
+
+    def test_native_signal_dispatch_during_real_child_wait(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            token = root / 'owner.token'
+            ready = root / 'ready'
+            harness = root / 'harness.py'
+            harness.write_text(
+                'import importlib.util,sys\nfrom pathlib import Path\n'
+                f'spec=importlib.util.spec_from_file_location("lease", {str(ENTRY)!r})\n'
+                'lease=importlib.util.module_from_spec(spec); spec.loader.exec_module(lease)\n'
+                'class Fixture(lease.Controller):\n'
+                ' def acquire(self): self.token_file.write_text("fixture")\n'
+                ' def mutate(self): self.token_file.unlink()\n'
+                'lease.Controller=Fixture\n'
+                'sys.exit(lease.main())\n', encoding='utf-8')
+            child_command = f'from pathlib import Path; import time; Path({str(ready)!r}).touch(); time.sleep(60)'
+            command = [sys.executable, str(harness), 'run', '--token-file', str(token), '--', sys.executable, '-c', child_command]
+            process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
+            try:
+                deadline = time.monotonic() + 10
+                while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.05)
+                self.assertTrue(ready.exists())
+                process.send_signal(signal.CTRL_BREAK_EVENT if os.name == 'nt' else signal.SIGTERM)
+                self.assertEqual(process.wait(timeout=10), 128 + (signal.SIGBREAK if os.name == 'nt' else signal.SIGTERM))
+                self.assertFalse(token.exists())
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
 
 
 if __name__ == "__main__":
