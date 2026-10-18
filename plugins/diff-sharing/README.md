@@ -18,6 +18,11 @@ normal launcher also stays local if ngrok is absent or fails to authenticate, us
 saved ngrok credentials or `NGROK_AUTHTOKEN` when available. Keep the launcher running
 while using the URL; Ctrl+C stops only its own server and tunnel.
 
+The `.sh` files are thin compatibility launchers. Every command also has a same-named `.py` entrypoint, for example `python /path/to/plugin/scripts/start-ngrok.py --local-only`. Run generation and serving from the same project directory to share the default cache.
+
+Default cache keys now use the native Python project path. Regenerate reports
+after upgrading, or pass the same explicit `--output-dir` to reuse an older cache.
+
 ## Configuration
 
 | Variable | Description | Default |
@@ -25,7 +30,7 @@ while using the URL; Ctrl+C stops only its own server and tunnel.
 | `REPORT_OUTPUT_DIR` | Output directory for generated artifacts | `~/.cache/diff-reports/<project-hash>` |
 | `NGROK_AUTHTOKEN` | ngrok token override | Saved credentials when unset |
 | `NGROK_PORT` | Local port to expose | `8080` |
-| `PYTHON_COMMAND` | Python 3 executable used by the local server | `python3`, then `python` |
+| `PYTHON_COMMAND` | Python 3.10+ executable used by all commands | `python3`, then `python` |
 | `GIT_BASE_REF` | Base Git ref | `main` |
 | `GIT_COMPARE_REF` | Compare Git ref | `HEAD` |
 | `GIT_INCLUDE_UNCOMMITTED` | Include uncommitted changes | `true` |
@@ -36,11 +41,11 @@ while using the URL; Ctrl+C stops only its own server and tunnel.
 
 ## Requirements
 
-- **Bash 4.0+** for the scripts.
+- **Bash** for the compatibility `.sh` launchers; native Python entrypoints also work without Bash.
 - **Git** for code-diff sharing.
 - **Difftastic (`difft`)** for the preferred structural renderer.
 - **ngrok** for public sharing; otherwise use the local server URL.
-- **Python 3** for the local HTTP-server fallback. The launcher asks `python3` and then `python` to execute a Python 3 version check, skipping Python 2 and non-functional command aliases such as the Windows Store placeholder.
+- **Python 3.10+** for all report and preview commands. Shell launchers check `python3`, then `python`; `PYTHON_COMMAND` overrides interpreter selection.
 
 ## License
 

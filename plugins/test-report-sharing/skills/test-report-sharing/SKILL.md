@@ -14,6 +14,10 @@ description: Use when collecting, previewing, or sharing test reports such as JU
 - Resolve scripts from the installed plugin root and run them by absolute path
   from the target project; relative Quick Start paths are for the source checkout.
 
+## Runtime
+
+All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Keep generation and serving in the target project directory, or pass the same explicit `--output-dir` throughout. GNU text utilities and jq are not runtime requirements.
+
 ## Quick Start
 
 Use the bundled scripts for manual execution:
@@ -32,10 +36,10 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 ## Configuration
 
 - `REPORT_OUTPUT_DIR`: Directory for generated reports (default: `~/.cache/test-reports/<project-hash>`)
-- `TEST_RESULT_DIRS`: Colon-separated directories to scan; `REPORT_DIRS` remains an alias
+- `TEST_RESULT_DIRS`: Legacy colon-separated directories to scan; `REPORT_DIRS` remains an alias. Prefer repeated `--test-dir DIR` for Windows drive paths
 - `NGROK_AUTHTOKEN`: token override; authenticated saved configuration is also supported
 - `NGROK_PORT`: Local port to expose (default: 8080)
-- `PYTHON_COMMAND`: explicit working Python 3 executable; otherwise try `python3`, then `python`
+- `PYTHON_COMMAND`: explicit working Python 3.10+ executable for every command; otherwise try `python3`, then `python`
 - `start-ngrok.sh --local-only`: loopback preview without attempting a public tunnel
 
 ## Supported Input Formats

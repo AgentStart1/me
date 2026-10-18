@@ -18,6 +18,10 @@ Use `test-report-sharing` instead when the task is to collect, preview, or share
 - Resolve scripts from the installed plugin root and invoke them by absolute path
   from the target project. The relative Quick Start below is for this source checkout.
 
+## Runtime
+
+All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Keep generation and serving in the target project directory, or pass the same explicit `--output-dir` throughout. GNU text utilities and jq are not runtime requirements.
+
 ## Quick Start
 
 ```bash
@@ -31,7 +35,7 @@ plugins/diff-sharing/scripts/start-ngrok.sh
 - `REPORT_OUTPUT_DIR`: Directory for generated artifacts (default: `~/.cache/diff-reports/<project-hash>`)
 - `NGROK_AUTHTOKEN`: token override; authenticated saved configuration is also supported
 - `NGROK_PORT`: Local port to expose (default: `8080`)
-- `PYTHON_COMMAND`: Python 3 executable used by the local server (default: first candidate among `python3` and `python` that passes a Python 3 version check)
+- `PYTHON_COMMAND`: Python 3.10+ executable used by all shell launchers (default: first working candidate among `python3` and `python`)
 - `start-ngrok.sh --local-only`: keep the report on loopback without attempting a tunnel
 - `GIT_BASE_REF`: Base ref for diff comparison (default: `main`)
 - `GIT_COMPARE_REF`: Compare ref (default: `HEAD`)
@@ -56,7 +60,7 @@ plugins/diff-sharing/scripts/start-ngrok.sh
 - Public tunnels need working ngrok credentials, supplied by environment or saved
   configuration. Do not claim anonymous free-tier access. Serve locally on
   `127.0.0.1` until the caller stops the launcher; stop only this launcher's children.
-- If `python3` is not Python 3 or cannot run, use a `python` command that passes the Python 3 version check; honor `PYTHON_COMMAND` when the interpreter needs an explicit path.
+- If `python3` is older than Python 3.10 or cannot run, use a `python` command that passes the version check; honor `PYTHON_COMMAND` when the interpreter needs an explicit path.
 
 ## Upstream improvement feedback
 

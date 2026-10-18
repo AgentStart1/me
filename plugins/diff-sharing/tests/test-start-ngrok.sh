@@ -27,9 +27,7 @@ if [[ "${1:-}" == "-c" ]]; then
     exit 0
 fi
 printf '%s\n' "$*" > "$PYTHON_LOG"
-while true; do
-    sleep 1
-done
+exit 0
 EOF
 
 cat > "$BIN_DIR/ngrok" <<'EOF'
@@ -42,8 +40,8 @@ chmod +x "$BIN_DIR/python3" "$BIN_DIR/python" "$BIN_DIR/ngrok"
 PATH="$BIN_DIR:$PATH" PYTHON_LOG="$PYTHON_LOG" \
     "$PLUGIN_DIR/scripts/start-ngrok.sh" --output-dir "$OUTPUT_DIR" --port 18080
 
-if [[ "$(cat "$PYTHON_LOG")" != "-m http.server 18080 --bind 127.0.0.1 --directory $OUTPUT_DIR" ]]; then
-    echo "FAIL: expected start-ngrok.sh to fall back to the working python command" >&2
+if [[ "$(cat "$PYTHON_LOG")" != "$PLUGIN_DIR/scripts/start-ngrok.py --output-dir $OUTPUT_DIR --port 18080" ]]; then
+    echo "FAIL: expected the thin launcher to select Python and forward arguments" >&2
     exit 1
 fi
 

@@ -1,5 +1,32 @@
 # Development
 
+## Report sharing controllers
+
+`diff-sharing` and `test-report-sharing` use Python 3.10+ standard-library
+controllers. Same-named `.py` entrypoints own argument parsing, report generation,
+collection, and loopback/tunnel lifetime; `.sh` files only select an interpreter
+and forward arguments. Public tunnels still require ngrok and credentials.
+
+The canonical shared runtime is `scripts/report-sharing/report_runtime.py`.
+After changing it, run `python scripts/sync-report-runtime.py` to bundle identical
+copies in both independently installed plugins. `--check` verifies those copies.
+Keep maintained page bodies under each plugin's `templates/` directory.
+
+Run the existing shell suites in both plugins, `python tests/test-report-python.py`,
+`python tests/test-report-launchers.py`, and `python tests/test-validation-workflow.py`.
+Native tests cover bounded scans, repeated directory arguments, overlapping roots,
+recursive output rejection, URL/HTML escaping, binary Git statistics, committed
+comparisons and invalid input. Loopback tests exercise cancellation, failed ngrok
+and a simulated running tunnel. Windows uses a new process group and Ctrl+Break
+to exercise graceful cancellation; forceful OS termination cannot run cleanup.
+No live ngrok authentication is exercised by these tests.
+
+Reports can be run directly with `python /path/to/plugin/scripts/<command>.py`.
+Use repeated `--test-dir DIR` for platform-independent custom report roots;
+`--test-dirs`, `TEST_RESULT_DIRS`, and `REPORT_DIRS` retain legacy colon separation.
+Default output cache keys use the native Python working-directory path, so
+regenerate an old shell-created cache or provide the same explicit output path.
+
 ## Plugin rule audit
 
 The audit compares rules, agent prompts, examples and README claims with their
