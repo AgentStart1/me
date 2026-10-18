@@ -80,6 +80,7 @@ jobs:
       - run: bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
       - run: bash plugins/android-emulator-profile/tests/test-install-sdk.sh
       - run: bash plugins/android-device-lock/tests/test-device-lock.sh
+      - run: python3 plugins/android-device-lock/tests/test-controller.py
 
   qemu-status:
     runs-on: ubuntu-latest
