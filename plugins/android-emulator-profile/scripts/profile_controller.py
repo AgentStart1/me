@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Literal Android profiles, tool boundaries, arguments and atomic AVD configuration."""
 import argparse
-import json
 import os
 from pathlib import Path
 import re
@@ -159,7 +158,7 @@ def apply_config(path, values):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('profile', 'tool', 'config-path', 'apply', 'read', 'args'))
+    parser.add_argument('mode', choices=('profile', 'tool', 'args'))
     parser.add_argument('items', nargs='*')
     args = parser.parse_args()
     try:
@@ -168,15 +167,6 @@ def main():
                 sys.stdout.buffer.write(key.encode() + b'\0' + value.encode('utf-8') + b'\0')
         elif args.mode == 'tool':
             print(resolve_tool(args.items[0], {**os.environ, **({'ANDROID_HOME': args.items[1]} if len(args.items) > 1 and args.items[1] else {})}))
-        elif args.mode == 'config-path':
-            print(avd_config({**os.environ, 'AVD_NAME': args.items[0], 'AVDMANAGER_VALUE_path': args.items[1] if len(args.items) > 1 else ''}))
-        elif args.mode == 'apply':
-            apply_config(native_path(args.items[0]), dict(item.split('=', 1) for item in args.items[1:]))
-        elif args.mode == 'read':
-            value = read_config(native_path(args.items[0])).get(args.items[1])
-            if value is None:
-                return 1
-            print(value)
         else:
             prefix, dash, *remaining = args.items
             marker = remaining.index('@@')

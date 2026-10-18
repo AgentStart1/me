@@ -94,7 +94,8 @@ Run `python /absolute/plugin/scripts/start-avd.py /absolute/profile` directly
 with Python 3.10+ on Windows or Unix. The shell startup entry only selects the
 interpreter (`ANDROID_PROFILE_PYTHON` overrides lookup) and forwards arguments.
 SDK installation remains Bash orchestration; its compatibility utilities use
-the same Python profile parser, tool resolver, argument mapper and INI updater.
+the same Python profile parser, tool resolver and argument mapper. The native
+startup controller owns AVD configuration updates.
 Profiles remain literal data. Native Windows batch tools reject command
 metacharacters and arguments ending in a backslash that cannot be safely forwarded; executable tools receive argument
 lists. Use Ctrl+C or native Windows Ctrl+Break for graceful cancellation. Git

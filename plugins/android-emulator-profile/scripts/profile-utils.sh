@@ -17,17 +17,7 @@ profile_python() {
     return 1
 }
 
-declare -gA PROFILE_LOADED_KEYS=()
 declare -gA PROFILE_VALUES=()
-
-trim_whitespace() {
-    local value="$1"
-
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
-
-    printf '%s' "$value"
-}
 
 load_profile() {
     local profile_path="$1" temporary key value
@@ -36,16 +26,8 @@ load_profile() {
     if ! profile_python profile "$profile_path" > "$temporary"; then rm -f "$temporary"; return 1; fi
     while IFS= read -r -d '' key && IFS= read -r -d '' value; do
         PROFILE_VALUES["$key"]="$value"
-        PROFILE_LOADED_KEYS["$profile_path:$key"]=1
     done < "$temporary"
     rm -f "$temporary"
-}
-
-profile_has_key() {
-    local profile_path="$1"
-    local key="$2"
-
-    [ -n "${PROFILE_LOADED_KEYS["$profile_path:$key"]+x}" ]
 }
 
 require_profile_value() {
@@ -56,28 +38,6 @@ require_profile_value() {
         echo "Error: required profile key $key is missing or empty." >&2
         return 1
     fi
-}
-
-is_true() {
-    case "${1:-}" in
-        true|TRUE|yes|YES|1|on|ON)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-is_windows_shell() {
-    case "$(uname -s 2>/dev/null)" in
-        MINGW*|MSYS*|CYGWIN*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
 }
 
 resolve_executable_in_dir() {
@@ -101,20 +61,6 @@ resolve_android_tool() {
     profile_python tool "$1" "${PROFILE_VALUES[ANDROID_HOME]:-${ANDROID_HOME:-}}"
 }
 
-resolve_android_avd_home() {
-    local home_dir="${HOME:-/home/$(id -un)}"
-
-    printf '%s\n' "${ANDROID_AVD_HOME:-${ANDROID_USER_HOME:-${home_dir}/.android}/avd}"
-}
-
-has_any_var_with_prefix() {
-    local var_prefix="$1"
-    local -a vars
-
-    mapfile -t vars < <(compgen -A variable "$var_prefix")
-    [ "${#vars[@]}" -gt 0 ]
-}
-
 append_args_from_profile() {
     local -n target_ref="$1"
     local prefix="$2" dash="$3" var temporary
@@ -131,30 +77,13 @@ append_args_from_profile() {
     rm -f "$temporary"
 }
 
-resolve_avd_config_path() {
-    profile_python config-path "$1" "${PROFILE_VALUES[AVDMANAGER_VALUE_path]:-}"
-}
-
-read_emulator_config_value() {
-    profile_python read "$1" "$2"
-}
-
-apply_emulator_config() {
-    local var
-    local -a values=()
-    for var in "${!PROFILE_VALUES[@]}"; do
-        case "$var" in EMULATOR_CONFIG_*) values+=("$var=${PROFILE_VALUES[$var]}");; esac
-    done
-    profile_python apply "$1" "${values[@]}"
-}
-
 assert_profile_keys_absent() {
     local profile_path="$1"
     shift
 
     local key
     for key in "$@"; do
-        if profile_has_key "$profile_path" "$key"; then
+        if [ -n "${PROFILE_VALUES[$key]+x}" ]; then
             echo "Error: profile ${profile_path} must not define ${key}; architecture is detected dynamically." >&2
             return 1
         fi
