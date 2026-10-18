@@ -185,7 +185,12 @@ class Controller:
         child = None
         try:
             child = subprocess.Popen(host_command(command), start_new_session=os.name != "nt")
-            status = child.wait()
+            while True:
+                try:
+                    status = child.wait(timeout=.2)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
             if status < 0:
                 status = 128 - status
         except Cancelled as error:
