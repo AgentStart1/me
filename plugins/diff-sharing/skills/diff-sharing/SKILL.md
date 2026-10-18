@@ -13,7 +13,7 @@ Use `test-report-sharing` instead when the task is to collect, preview, or share
 - Prefer Difftastic (`difft`) as the initial renderer when it is available. Offer Git diff as an alternate renderer.
 - When Difftastic is unavailable, make the Git renderer the only usable default and clearly report the missing executable; do not install it automatically.
 - Resolve raw Git paths from the repository root, including when invoked from a subdirectory. Keep committed comparisons isolated from working-tree content; a deleted side must remain empty.
-- Render submodule gitlinks as commit ID differences with Git's short submodule representation; never read gitlink OIDs as parent-repository blobs or fail unrelated file diffs because submodule objects are unavailable.
+- Render submodule gitlinks as commit ID differences with Git's short submodule representation using root-anchored, literal path queries; never read gitlink OIDs as parent-repository blobs or fail unrelated file diffs because submodule objects are unavailable.
 - Preserve Difftastic's inline and side-by-side layout controls, old/new source context, and changed structural-fragment emphasis.
 - Assemble the generated diff into the static report site, then expose it through ngrok when configured; otherwise return the local server URL.
 - Return the public or local URL, compared refs, renderer used by default, and diff statistics.

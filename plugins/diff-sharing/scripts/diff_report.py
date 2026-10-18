@@ -40,8 +40,9 @@ def structural_payload(revisions, executable, env, *, include_worktree):
             if b'160000' in modes:
                 # Gitlinks reference commits in another repository, not blobs in
                 # this one. Git's short representation also preserves -dirty.
+                # Raw paths are root-relative data, not caller-relative pathspecs.
                 gitlink_patch = git('diff', '--no-ext-diff', '--no-color', '--no-relative', '--submodule=short',
-                                    *revisions, '--', os.fsdecode(name)).splitlines()
+                                    *revisions, '--', ':(top,literal)' + os.fsdecode(name)).splitlines()
             sources = []
             for side, oid in enumerate((old_oid, new_oid)):
                 if modes[side] == b'160000':

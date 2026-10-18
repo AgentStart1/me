@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 import shutil
+from itertools import product
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = Path(os.environ.get('REPORT_TEST_PLUGINS', ROOT / 'plugins'))
@@ -225,7 +226,7 @@ class ReportTests(unittest.TestCase):
     @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
     def test_gitlink_worktree_commit_and_dirty_state(self):
         git, fake = self.init_structural_fixture()
-        module = self.project / 'module space'
+        module = self.project / 'module [x] space'
         module.mkdir()
         git('-C', str(module), 'init', '-q')
         git('-C', str(module), 'config', 'user.name', 'Fixture')
@@ -237,19 +238,22 @@ class ReportTests(unittest.TestCase):
         source = self.project / 'example.py'
         source.write_bytes(b'value = 1\n')
         git('add', 'example.py')
-        git('update-index', '--add', '--cacheinfo', f'160000,{first.decode()},module space')
+        git('update-index', '--add', '--cacheinfo', f'160000,{first.decode()},{module.name}')
         git('commit', '-qm', 'base')
         git('config', 'diff.ignoreSubmodules', 'none')
         (module / 'code.py').write_bytes(b'value = 2\n')
         git('-C', str(module), 'add', 'code.py'); git('-C', str(module), 'commit', '-qm', 'second')
         second = git('-C', str(module), 'rev-parse', 'HEAD').strip()
         source.write_bytes(b'value = 2\n')
-        for dirty in (False, True):
-            with self.subTest(dirty=dirty):
-                if dirty:
-                    (module / 'code.py').write_bytes(b'value = 3\n')
-                output = self.project / ('output-' + str(dirty))
+        nested = self.project / 'nested'
+        nested.mkdir()
+        for dirty, location, relative in product((False, True), ('root', 'nested'), ('false', 'true')):
+            with self.subTest(dirty=dirty, location=location, diff_relative=relative):
+                (module / 'code.py').write_bytes(b'value = 3\n' if dirty else b'value = 2\n')
+                git('config', 'diff.relative', relative)
+                output = self.project / f'output-{dirty}-{location}-{relative}'
                 self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output,
+                             cwd=nested if location == 'nested' else self.project,
                              env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
                 records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
                 pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
