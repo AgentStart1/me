@@ -35,9 +35,20 @@ def structural_payload(revisions, executable, env, *, include_worktree):
             name = next(records)
             if status.startswith((b'R', b'C')):
                 name = next(records)
+            modes = (old_mode[1:], new_mode)
+            gitlink_patch = []
+            if b'160000' in modes:
+                # Gitlinks reference commits in another repository, not blobs in
+                # this one. Git's short representation also preserves -dirty.
+                gitlink_patch = git('diff', '--no-ext-diff', '--no-color', '--no-relative', '--submodule=short',
+                                    *revisions, '--', os.fsdecode(name)).splitlines()
             sources = []
             for side, oid in enumerate((old_oid, new_oid)):
-                if set(oid) == {48}:
+                if modes[side] == b'160000':
+                    content = b'Subproject commit ' + oid + b'\n' if set(oid) != {48} else b''
+                    prefix = (b'-', b'+')[side] + b'Subproject commit '
+                    content = next((line[1:] + b'\n' for line in gitlink_patch if line.startswith(prefix)), content)
+                elif set(oid) == {48}:
                     content = b''
                     # Zero OIDs also represent deleted sides, which must never read
                     # an unrelated, re-created file from the current working tree.

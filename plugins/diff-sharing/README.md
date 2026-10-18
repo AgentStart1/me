@@ -27,6 +27,10 @@ Reports can be generated from repository subdirectories. Committed comparisons
 use only the selected Git history; deleted files remain empty on the deleted side,
 even when a same-named file exists in the current working tree.
 
+Submodule changes are rendered as `Subproject commit` ID differences, including
+Git's `-dirty` marker for working-tree changes. Referenced submodule commits do
+not need to exist in the parent repository's object database.
+
 ## Configuration
 
 | Variable | Description | Default |

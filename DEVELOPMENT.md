@@ -18,7 +18,9 @@ Native tests cover bounded scans, repeated directory arguments, overlapping root
 recursive output rejection, URL/HTML escaping, binary Git statistics, committed
 comparisons and invalid input. Difftastic regressions also cover subdirectory
 invocation with either `diff.relative` setting and committed/worktree deletions
-whose paths were re-created locally. Set `REPORT_TEST_PLUGINS` to a generated
+whose paths were re-created locally. Gitlink tests cover additions, updates,
+deletions with objects absent from the parent repository, and checked-out
+submodules with changed commits or dirty files, alongside ordinary file diffs. Set `REPORT_TEST_PLUGINS` to a generated
 client's absolute `plugins/` directory to exercise its bundled entrypoints. Loopback tests exercise cancellation, failed ngrok
 and a simulated running tunnel. Windows uses a new process group and Ctrl+Break
 to exercise graceful cancellation; forceful OS termination cannot run cleanup.

@@ -193,6 +193,70 @@ class ReportTests(unittest.TestCase):
                 page = (output / 'diff/index.html').read_text(encoding='utf-8')
                 self.assertNotIn(base64.b64encode(source.read_bytes()).decode(), page)
 
+    @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
+    def test_gitlink_add_update_delete_preserve_regular_file_diffs(self):
+        git, fake = self.init_structural_fixture()
+        source = self.project / 'example.py'
+        source.write_bytes(b'value = 0\n')
+        git('add', 'example.py'); git('commit', '-qm', 'base')
+        git('tag', 'base')
+        # These gitlink commits deliberately do not exist in the parent object DB.
+        first, second = '1' * 40, '2' * 40
+        for tag, oid, value in (('added', first, 1), ('updated', second, 2), ('deleted', None, 3)):
+            if oid:
+                git('update-index', '--add', '--cacheinfo', f'160000,{oid},module')
+            else:
+                git('update-index', '--force-remove', 'module')
+            source.write_bytes(f'value = {value}\n'.encode())
+            git('add', 'example.py'); git('commit', '-qm', tag); git('tag', tag)
+        for base, compare, old, new, value in (
+                ('base', 'added', b'', f'Subproject commit {first}\n'.encode(), 1),
+                ('added', 'updated', f'Subproject commit {first}\n'.encode(), f'Subproject commit {second}\n'.encode(), 2),
+                ('updated', 'deleted', f'Subproject commit {second}\n'.encode(), b'', 3)):
+            with self.subTest(change=compare):
+                output = self.project / ('output-' + compare)
+                self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', base, '--compare-ref', compare,
+                             '--output-dir', output, env={'GIT_INCLUDE_UNCOMMITTED': 'false', 'DIFFTASTIC_COMMAND': str(fake)})
+                records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
+                pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
+                self.assertEqual(pairs, {(old, new), (f'value = {value - 1}\n'.encode(), f'value = {value}\n'.encode())})
+                self.assertNotIn('Difftastic failed to generate', (output / 'diff/index.html').read_text(encoding='utf-8'))
+
+    @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
+    def test_gitlink_worktree_commit_and_dirty_state(self):
+        git, fake = self.init_structural_fixture()
+        module = self.project / 'module space'
+        module.mkdir()
+        git('-C', str(module), 'init', '-q')
+        git('-C', str(module), 'config', 'user.name', 'Fixture')
+        git('-C', str(module), 'config', 'user.email', 'fixture@example.invalid')
+        git('-C', str(module), 'config', 'core.autocrlf', 'false')
+        (module / 'code.py').write_bytes(b'value = 1\n')
+        git('-C', str(module), 'add', 'code.py'); git('-C', str(module), 'commit', '-qm', 'first')
+        first = git('-C', str(module), 'rev-parse', 'HEAD').strip()
+        source = self.project / 'example.py'
+        source.write_bytes(b'value = 1\n')
+        git('add', 'example.py')
+        git('update-index', '--add', '--cacheinfo', f'160000,{first.decode()},module space')
+        git('commit', '-qm', 'base')
+        git('config', 'diff.ignoreSubmodules', 'none')
+        (module / 'code.py').write_bytes(b'value = 2\n')
+        git('-C', str(module), 'add', 'code.py'); git('-C', str(module), 'commit', '-qm', 'second')
+        second = git('-C', str(module), 'rev-parse', 'HEAD').strip()
+        source.write_bytes(b'value = 2\n')
+        for dirty in (False, True):
+            with self.subTest(dirty=dirty):
+                if dirty:
+                    (module / 'code.py').write_bytes(b'value = 3\n')
+                output = self.project / ('output-' + str(dirty))
+                self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output,
+                             env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
+                records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
+                pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
+                self.assertEqual(pairs, {(b'Subproject commit ' + first + b'\n',
+                                         b'Subproject commit ' + second + (b'-dirty' if dirty else b'') + b'\n'),
+                                        (b'value = 1\n', b'value = 2\n')})
+
 
 if __name__ == '__main__':
     unittest.main()
