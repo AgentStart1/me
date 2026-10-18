@@ -162,15 +162,19 @@ for the build and execution commands.
 atomic identity/PID publication. `lib/vm-state.sh` is a compatibility facade for
 provisioning and clients. Generic shell callbacks use token-checked Python guard
 acquisition/release; shell callback failure and signals still release that guard.
-`vm_lifecycle.py` owns start/stop transitions, readiness and failure cleanup;
-`vm-lifecycle-step.sh` retains platform/guest command boundaries and the launching
-Bash PID mapping. Provisioning remains staged shell orchestration using Python
-state mutations. Native Windows launcher PIDs carry an explicit marker so they
+`vm_phase.py` defines immutable lifecycle snapshots, process-evidence variants and
+legal transitions. `vm_lifecycle.py` owns start/stop, readiness and failure cleanup;
+`vm-lifecycle-step.sh` retains platform/guest planning and launching Bash PID
+mapping. Python directly owns and joins native gvproxy controller subprocesses;
+the helper still verifies executable/creation time. Provisioning remains staged
+shell orchestration, marking creation uncertain before each QEMU launch and using
+the same Python registration/termination paths. Native Windows launcher PIDs carry an explicit marker so they
 are not interpreted as MSYS PIDs. Unknown identity inspection returns a distinct
 failure status from a confirmed absent/unrelated QEMU process.
 
 Run `python plugins/qemu-alpine-docker/tests/test-vm-state.py`, the existing
-`test-vm-utils.sh` shell suite, and `test-vm-lifecycle.py` with real QEMU and
+`test-vm-utils.sh` shell suite, `python plugins/qemu-alpine-docker/tests/test-vm-transitions.py`,
+and `test-vm-lifecycle.py` with real QEMU and
 `GVPROXY_BINARY` set to an existing verified helper. The lifecycle fixture uses
 private state, mocked guest IO and an untouched synthetic disk; Windows launches
 native Python in a new process group and tests Ctrl+Break cleanup. It does not
@@ -187,5 +191,40 @@ process identities. It checks unknown/incomplete publication, cross-VM takeover
 refusal and PID reuse without signalling real processes. Profile regressions use
 the real Bash description adapter with private state, covering profile precedence,
 environment fallback, defaults, SSH readiness and graceful/forced stop behavior.
-The state owner resolves all PID pointers and identity records before mutation;
-the launch intent marker preserves an unknown launch before PID publication.
+The state owner resolves durable process evidence and compatibility PID/identity
+files before mutation. `run/active-vm.lock/lifecycle.json` is one atomic snapshot
+containing a reservation generation, phase and tagged process evidence. Native
+identity is published there before legacy `.qemu.json`/`.pid` pointers; an incomplete
+compatibility publication cannot erase ownership. Existing reservations without a
+snapshot retain conservative legacy identity/PID recovery. A generation mismatch
+rejects obsolete publication and cleanup. Operation lease tokens serialize whole
+commands; the durable reservation outlives the command when a VM or unknown launch
+remains. An existing helper/controller blocks acquisition even without a VM lock.
+
+| Phase | QEMU evidence / ownership | Cancellation or failure |
+| --- | --- | --- |
+| No reservation | No resources owned by this command | Release only its operation lease; never clean an existing VM after an idempotent health-check failure. |
+| `reserved` | This generation owns the global reservation; no new QEMU | Clean only this operation's resources, then release the reservation. |
+| `network-starting`, `network-ready` | No QEMU; native network controller must exit before cleanup can proceed | Join/cancel the controller, stop its owned helper, then release. If controller exit cannot be confirmed, retain the operation lease to prevent late publication. Logs/preflight IO happen before process creation. |
+| `spawning` | Creation outcome may be unknown | Defer handled signals through handle assignment or definitive `Popen` failure rollback. A known creation failure returns to `network-ready`; a forced/interrupted unknown launch remains reserved. |
+| `launched` | Launching Bash PID persisted before identity inspection | Verify the native executable and creation time. Failure/unknown identity retains helper and reservation; a verified process may be stopped. |
+| `registered` | Immutable native identity is durable; compatibility pointers may be incomplete | Stop the verified QEMU, join this command's adapter, then stop networking and clear ownership. |
+| `ready` | Readiness committed; background VM owns its reservation | This is the start completion boundary. A later cancellation does not undo the committed VM. |
+| `stopping` | Preserve the same process evidence during shutdown | Graceful/forced stop cancellation retains ownership for a later stop; release only after QEMU exit and helper/controller cleanup are confirmed. |
+| `recovery-required` | Preserve the last process evidence after failed start cleanup | A later owned stop can retry. Unknown creation/inspection or failed cleanup requires inspection, never age-based lock removal. |
+
+Successful cleanup removes the reservation (the terminal stopped state). Installer
+cleanup with `keep-lock` instead resets to `reserved` for the verification boot.
+Nested state guard mutations (including teardown) defer rather than drop signals;
+acquisition and creation finish bounded ownership publication before delivering
+cancellation. Readiness and helper network IO never run inside the state guard.
+Additional signals are ignored only during final cleanup and handlers are restored.
+
+`test-vm-transitions.py` checks the complete legal/illegal phase matrix, evidence
+validation, generation replacement, cancellation at lease/guard/acquire/spawn/READY
+boundaries, log-open and definite creation failures, every atomic publication
+boundary, failed cleanup/retry, stop cancellation and borrowed VM/helper protection.
+It uses synthetic processes and private state. The real lifecycle fixture also
+fails log opening after starting an isolated real helper and cancels its native
+controller at a private fixture barrier before QEMU creation. It checks full cleanup
+then exercises normal start/stop/cancellation without opening its synthetic disk.

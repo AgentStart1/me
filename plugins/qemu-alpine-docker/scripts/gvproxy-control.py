@@ -180,6 +180,8 @@ def main():
     args = parser.parse_args()
     # SIGTERM must run the same cleanup as exceptions and keyboard interrupts.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    if hasattr(signal, 'SIGBREAK'):
+        signal.signal(signal.SIGBREAK, lambda *_: sys.exit(128 + signal.SIGBREAK))
     guard = Path(args.state + ".control.lock")
     guard.mkdir()  # Serialize record comparison/removal, including standalone calls.
     try:

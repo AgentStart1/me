@@ -62,6 +62,16 @@ def main():
         shutil.copytree(ROOT / "templates", plugin / "templates")
         for file in plugin.rglob("*.sh"):
             file.write_bytes(file.read_bytes().replace(b"\r\n", b"\n"))
+        # Insert a private-fixture barrier after native helper identity publication.
+        # Production controllers do not expose test hooks or wait on fixture files.
+        control = plugin / 'scripts/gvproxy-control.py'
+        control_text = control.read_text()
+        barrier = '        write_record(state, record)\n'
+        assert control_text.count(barrier) == 1
+        control.write_text(control_text.replace(barrier, barrier +
+            '        if os.environ.get("FIXTURE_HOLD_NETWORK") == "1":\n'
+            '            while True:\n'
+            '                time.sleep(0.05)\n'))
         bin_dir = fixture / "bin"
         bin_dir.mkdir()
         (bin_dir / "qemu-system-x86_64").write_text('''#!/bin/bash
@@ -121,7 +131,32 @@ printf '{}'
         operation = base / "run/vm-operation.lock"
         qstate = base / "vms/lifecycle-fixture.qemu.json"
         hstate = base / "vms/lifecycle-fixture.gvproxy.pid"
+        active = base / "run/active-vm.lock"
         try:
+            # Failure before Popen must stop the real owned helper, not leave an
+            # uncertain launch marker. The synthetic disk is never opened by QEMU.
+            (home / "qemu.log").mkdir()
+            assert launch("start-vm").wait(timeout=60) != 0
+            assert not operation.exists() and not active.exists() and not qstate.exists() and not hstate.exists()
+            (home / "qemu.log").rmdir()
+            # Cancel while the native gvproxy controller owns a real helper,
+            # before QEMU creation. The controller must exit before lease release.
+            owner = launch('start-vm', FIXTURE_HOLD_NETWORK='1')
+            def network_identity_published():
+                try:
+                    return bool(json.loads(hstate.read_text()).get('identity'))
+                except (FileNotFoundError, json.JSONDecodeError):
+                    return False
+            wait_for(network_identity_published, owner)
+            helper_record = json.loads(hstate.read_text())
+            assert not qstate.exists()
+            if os.name == 'nt':
+                owner.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                os.kill(int((operation / 'owner.pid').read_text()), signal.SIGTERM)
+            assert owner.wait(timeout=30) == 128 + (signal.SIGBREAK if os.name == 'nt' else signal.SIGTERM)
+            assert identity(helper_record['pid']) is None
+            assert not operation.exists() and not active.exists() and not qstate.exists() and not hstate.exists()
             owner = launch("start-vm")
             wait_for(qstate.exists, owner)
             qrecord, hrecord = json.loads(qstate.read_text()), json.loads(hstate.read_text())
@@ -131,6 +166,7 @@ printf '{}'
                 assert json.loads(qstate.read_text()) == qrecord
             ready.touch()
             assert owner.wait(timeout=30) == 0
+            assert json.loads((active / 'lifecycle.json').read_text())['phase'] == 'ready'
             assert not operation.exists()
             assert launch("start-vm").wait(timeout=30) == 0  # Healthy idempotency.
             assert launch("stop-vm").wait(timeout=30) == 0
@@ -205,7 +241,7 @@ printf '{}'
                     record = json.loads(state.read_text())
                     if identity(record["pid"]) == record["identity"]:
                         terminate(record)
-        print("PASS: competing start/stop/create, coordinated restart, healthy idempotency, TERM/timeout cleanup, test reservation and disk preservation")
+        print("PASS: pre-spawn failure/network cancellation cleanup, competing start/stop/create, coordinated restart, healthy idempotency, TERM/timeout cleanup, test reservation and disk preservation")
 
 
 if __name__ == "__main__":

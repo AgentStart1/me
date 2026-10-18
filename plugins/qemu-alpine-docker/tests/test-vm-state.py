@@ -80,8 +80,11 @@ class StateTests(unittest.TestCase):
         lifecycle = vm_lifecycle.Lifecycle.__new__(vm_lifecycle.Lifecycle)
         lifecycle.state = state
         lifecycle.child = None
+        lifecycle.pending_controller = None
+        lifecycle.owned = None
         lifecycle.args = SimpleNamespace(force='true', stop_timeout='0')
         lifecycle.step = Mock()
+        lifecycle.network = Mock()
         return lifecycle
 
     def test_partial_pid_publication_failed_cleanup_then_recovery(self):
@@ -100,7 +103,12 @@ class StateTests(unittest.TestCase):
                     atomic(path, value)
                 with patch.object(module.qemu, 'probe', return_value=record):
                     if boundary == 'identity':
-                        with patch.object(module, 'write_record', side_effect=OSError('synthetic identity publication failure')):
+                        writer = module.write_record
+                        def publish_record(path, value):
+                            if path == state.identity_path:
+                                raise OSError('synthetic identity publication failure')
+                            writer(path, value)
+                        with patch.object(module, 'write_record', side_effect=publish_record):
                             with self.assertRaises(OSError):
                                 state.register(123)
                     else:
@@ -108,7 +116,7 @@ class StateTests(unittest.TestCase):
                             state.register(123)
                 lifecycle = self.lifecycle(state)
                 # Failed cleanup must preserve every published byte and networking.
-                before = {p: p.read_bytes() for p in Path(directory).rglob('*') if p.is_file()}
+                before = {p: p.read_bytes() for p in Path(directory).rglob('*') if p.is_file() and p != state.snapshot_path}
                 with patch.object(module.qemu, 'probe', return_value=record), \
                      patch.object(module, 'identity', return_value=record['identity']), \
                      patch.object(vm_lifecycle, 'terminate', side_effect=OSError('synthetic termination failure')):
@@ -120,8 +128,11 @@ class StateTests(unittest.TestCase):
                         state.clear()
                     with self.assertRaises(module.StateError):
                         state.release()
-                self.assertEqual(before, {p: p.read_bytes() for p in Path(directory).rglob('*') if p.is_file()})
+                self.assertEqual(before, {p: p.read_bytes() for p in Path(directory).rglob('*') if p.is_file() and p != state.snapshot_path})
+                self.assertEqual(state.snapshot().phase, module.Phase.STOPPING)
+                self.assertEqual(state.snapshot().process.record(), record)
                 lifecycle.step.assert_not_called()
+                lifecycle.network.assert_not_called()
                 # A later stop can recover through launch.pid/native identity,
                 # even when neither published PID pointer exists.
                 alive = True
@@ -137,7 +148,7 @@ class StateTests(unittest.TestCase):
                      patch.object(vm_lifecycle, 'terminate', side_effect=terminate) as termination:
                     lifecycle.stop()
                 termination.assert_called_once_with(record)
-                lifecycle.step.assert_called_once_with('network-stop')
+                lifecycle.network.assert_called_once_with('stop')
                 self.assertFalse(state.active.exists())
                 self.assertFalse(state.pid_path.exists())
                 self.assertFalse(state.identity_path.exists())

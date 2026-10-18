@@ -24,9 +24,7 @@ require_known_vm_process() {
     [ "$status" -le 1 ] || { echo 'Error: QEMU identity inspection failed; refusing lifecycle changes.' >&2; return 1; }
 }
 stop_qemu_process() {
-    local pid; pid="$(vm_pid 2>/dev/null || true)"
-    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 0
-    qemu_control stop --pid "$pid" --name "$VM_NAME" --state "$(qemu_native_path "$(vm_identity_file)")"
+    vm_state_control stop_qemu
 }
 active_vm_pid() { [ -f "${ACTIVE_LOCK_DIR}/qemu.pid" ] && cat "${ACTIVE_LOCK_DIR}/qemu.pid"; }
 
@@ -63,6 +61,7 @@ with_vm_state_guard() {
 acquire_single_vm_lock() { vm_state_control acquire; }
 release_single_vm_lock() { vm_state_control release; }
 register_vm_process() { vm_state_control register --pid "$1"; }
+prepare_vm_launch() { vm_state_control prepare_launch; }
 clear_vm_process_state() {
     local -a options=()
     [ "${1:-}" != keep-lock ] || options+=(--keep-lock)

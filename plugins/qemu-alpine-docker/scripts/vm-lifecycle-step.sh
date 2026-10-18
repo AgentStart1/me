@@ -32,9 +32,16 @@ case "$action" in
         printf '%s\n' "$launched" > "${pid_file}.tmp"
         mv "${pid_file}.tmp" "$pid_file"
         wait "$launched";;
-    network-start) start_gvproxy;;
-    network-check) check_gvproxy;;
-    network-stop) stop_gvproxy;;
+    network-plan)
+        mappings=""
+        if [ "$1" != stop ]; then mappings="$(build_forward_mappings)"; fi
+        if [ "$1" = start ]; then
+            [ -x "$(gvproxy_binary)" ] || { echo 'Error: run setup.sh to install verified gvproxy v0.9.0.' >&2; exit 1; }
+        fi
+        "$python_bin" -c 'import json,sys; print(json.dumps(dict(zip(sys.argv[1::2],sys.argv[2::2]))))' \
+            state "$(qemu_native_path "$(gvproxy_pid_file)")" binary "$(qemu_native_path "$(gvproxy_binary)")" \
+            log "$(qemu_native_path "${VM_DIR}/${VM_NAME}/gvproxy.log")" \
+            api "${GVPROXY_API_PORT:-19201}" transport "${GVPROXY_QEMU_PORT:-19200}" mappings "$mappings";;
     ssh-ready) ssh_exec 'echo ready' >/dev/null 2>&1;;
     docker-ready) curl --noproxy 127.0.0.1 --connect-timeout 2 --max-time 5 -sf "http://127.0.0.1:${DOCKER_DAEMON_PORT:-2375}/version" >/dev/null 2>&1;;
     pool-ready) verify_docker_publish_pool;;

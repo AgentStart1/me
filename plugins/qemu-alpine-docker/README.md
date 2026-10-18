@@ -301,8 +301,9 @@ the launching Bash runtime through `QEMU_BASH_BINARY`; native callers may set
 that variable explicitly. Set `QEMU_STATE_PYTHON` for an explicit interpreter.
 Start/stop own readiness, cancellation and failure cleanup in Python. Process
 signalling still verifies native executable and creation time through the
-shared process identity implementation. The platform/guest adapter invokes
-existing acceleration, networking and SSH commands without owning lifecycle locks.
+shared process identity implementation. The platform/guest adapter plans acceleration
+and networking and runs SSH commands without owning lifecycle locks. Python owns
+native helper controller subprocesses through cancellation and exit.
 
 `BOOT_TIMEOUT` (SSH readiness, default 300 seconds), `FORCE` (`true` skips graceful
 shutdown, default `false`) and `TIMEOUT` (graceful shutdown, default 30 seconds)
@@ -319,3 +320,14 @@ After partial PID publication, an owned stop also checks the pending launch PID
 and native identity before touching networking or releasing the reservation.
 If PID publication is incomplete or identity remains unknown, inspect the retained
 state and processes before manual recovery; missing PID files alone do not prove exit.
+
+Failures before QEMU creation, such as an unwritable log or a definite process
+creation failure, clean up this launch's helper and reservation automatically.
+Cancellation before readiness follows the same cleanup when process ownership can
+be verified. Once readiness is committed, the VM remains running in the background.
+Cancelling a stop preserves remaining ownership so a later stop can finish.
+If a native helper controller cannot be confirmed exited, the operation lease
+also stays in place; inspect all remaining plugin processes before recovery.
+Existing helper ownership is never adopted by a new start; explicitly stop that
+VM first. See [developer lifecycle rules](https://github.com/storytellerF/me/blob/main/DEVELOPMENT.md#vm-lifecycle-and-state-controllers)
+for phase transitions and recovery evidence.

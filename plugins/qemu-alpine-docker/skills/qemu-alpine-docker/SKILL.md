@@ -16,6 +16,7 @@ For now, use this plugin for Linux Docker container environments and Windows env
 - Whole-operation leases also protect setup and VM clients from concurrent lifecycle changes. Do not bypass a busy lease. After forced termination, confirm all plugin lifecycle/client processes have exited before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or a helper `.control.lock`; preserve process records until both owned processes are confirmed stopped.
 - Cleanup verifies QEMU/gvproxy native executable and creation time before signalling. Healthy repeated starts check forwarding rules, SSH, Docker and the publish pool. On Windows use the launching Bash runtime for path and PID conversion; bypass HTTP proxies explicitly for `127.0.0.1` instead of passing a wildcard to curl.
 - Missing PID pointers do not prove QEMU exit. Recover partial publication through the pending launch PID and native identity; retain networking and reservations when publication or inspection remains unknown. See the configuration and recovery reference for profile lifecycle options.
+- Follow the lifecycle snapshot's phase and reservation generation. Before creation, clean only this launch's resources; after creation, verify QEMU exit before stopping its helper. Never adopt existing helper ownership or bypass a recovery-required reservation. A completed ready VM survives cancellation of the already-completed start; a cancelled stop can be resumed with another owned stop.
 - In auto mode, probe KVM with `-cpu host` on Linux or WHPX with `-cpu qemu64` on Windows. Fall back to multi-threaded TCG with `-cpu max` if hardware acceleration is unavailable. Explicit `kvm`/`whpx` must fail clearly instead of silently falling back.
 - Use gvproxy v0.9.0 over a loopback TCP QEMU socket with either accelerator; preserve MAC `5a:94:ef:e4:0c:ee`.
 - Bind every host forward to `127.0.0.1`.
@@ -190,8 +191,9 @@ the launching Bash runtime through `QEMU_BASH_BINARY`; native callers may set
 that variable explicitly. Set `QEMU_STATE_PYTHON` for an explicit interpreter.
 Start/stop own readiness, cancellation and failure cleanup in Python. Process
 signalling still verifies native executable and creation time through the
-shared process identity implementation. The platform/guest adapter invokes
-existing acceleration, networking and SSH commands without owning lifecycle locks.
+shared process identity implementation. The platform/guest adapter plans acceleration
+and networking and runs SSH commands without owning lifecycle locks. Python owns
+native helper controller subprocesses through cancellation and exit.
 
 Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
 state controller for operation leases, global reservations, process registration

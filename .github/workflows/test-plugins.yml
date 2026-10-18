@@ -120,6 +120,7 @@ jobs:
       - run: bash plugins/qemu-alpine-docker/tests/test-port-ranges.sh
       - run: python3 plugins/qemu-alpine-docker/tests/test-gvproxy-control.py
       - run: python3 plugins/qemu-alpine-docker/tests/test-vm-state.py
+      - run: python3 plugins/qemu-alpine-docker/tests/test-vm-transitions.py
       - run: bash plugins/qemu-alpine-docker/tests/test-vm-utils.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-linux-testcontainers.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-apk-mirror-selection.sh

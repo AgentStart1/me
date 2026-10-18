@@ -45,6 +45,7 @@ start_gvproxy() {
 }
 
 stop_gvproxy() {
+    [ ! -d "$(gvproxy_pid_file).control.lock" ] || { echo 'Error: gvproxy controller remains; retaining ownership.' >&2; return 1; }
     [ -f "$(gvproxy_pid_file)" ] || return 0
     gvproxy_control stop --state "$(qemu_native_path "$(gvproxy_pid_file)")"
 }

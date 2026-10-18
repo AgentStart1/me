@@ -14,7 +14,8 @@ import tempfile
 import time
 import uuid
 
-from process_identity import identity, windows_pid, write_record
+from process_identity import identity, windows_pid, write_record, terminate
+from vm_phase import Phase, Snapshot, NoProcess, UnknownProcess, LaunchedProcess, OwnedProcess
 
 spec = importlib.util.spec_from_file_location('qemu_control', Path(__file__).with_name('qemu-control.py'))
 qemu = importlib.util.module_from_spec(spec)
@@ -28,6 +29,29 @@ class StateError(Exception):
 class Cancelled(Exception):
     def __init__(self, number):
         self.status = 128 + number
+
+
+@contextmanager
+def defer_cancellation():
+    """Deliver handled signals after a bounded ownership publication boundary.
+
+    Nested boundaries hand the signal back to the outer handler; they must not
+    interrupt a spawning transaction before its handle/known failure is recorded.
+    """
+    pending = []
+    previous = {number: signal.signal(number, lambda n, _f: pending.append(n)) for number in signals()}
+    try:
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+        if pending:
+            number = pending[0]
+            handler = previous[number]
+            if callable(handler):
+                handler(number, None)
+            elif handler != signal.SIG_IGN:
+                raise Cancelled(number)
 
 
 def atomic_text(path, value):
@@ -76,6 +100,27 @@ class State:
         self.operation = self.run_dir / 'vm-operation.lock'
         self.pid_path = self.vms / (self.name + '.pid')
         self.identity_path = self.vms / (self.name + '.qemu.json')
+        self.snapshot_path = self.active / 'lifecycle.json'
+
+    def snapshot(self):
+        if not self.snapshot_path.exists():
+            return None  # Pre-controller reservations are resolved by their legacy records.
+        return Snapshot.from_data(json.loads(self.snapshot_path.read_text()))
+
+    def network_retained(self, name=None):
+        path = self.vms / ((name or self.name) + '.gvproxy.pid')
+        return path.exists() or Path(str(path) + '.control.lock').exists()
+
+    def transition(self, generation, phase, process=None):
+        with self.guarded():
+            if read(self.active / 'vm-name') != self.name:
+                raise StateError('Another VM owns the lifecycle state')
+            current = self.snapshot()
+            if current is None or current.generation != generation:
+                raise StateError('VM reservation generation changed; refusing late publication')
+            updated = current.transition(phase, process)
+            write_record(self.snapshot_path, updated.data())
+            return updated
 
     def acquire_guard(self, owner=None):
         self.run_dir.mkdir(parents=True, exist_ok=True)
@@ -111,16 +156,15 @@ class State:
 
     @contextmanager
     def guarded(self):
-        token = self.acquire_guard()
-        try:
-            yield
-        finally:
-            previous = {number: signal.signal(number, signal.SIG_IGN) for number in signals()}
+        # Mutations include directory teardown and compatibility pointers, not
+        # just the atomic snapshot. Finish this bounded critical section before
+        # delivering a handled signal; readiness/network IO never runs here.
+        with defer_cancellation():
+            token = self.acquire_guard()
             try:
-                self.release_guard(token)
+                yield
             finally:
-                for number, handler in previous.items():
-                    signal.signal(number, handler)
+                self.release_guard(token)
 
     def begin(self, token):
         with self.guarded():
@@ -128,35 +172,60 @@ class State:
                 self.operation.mkdir()
             except FileExistsError as error:
                 raise StateError('VM lifecycle operation is busy or interrupted; inspect vm-operation.lock before recovery') from error
-            atomic_text(self.operation / 'owner.pid', self.owner)
-            atomic_text(self.operation / 'token', token)
-            atomic_text(self.operation / 'vm-name', self.name)
+            try:
+                atomic_text(self.operation / 'owner.pid', self.owner)
+                atomic_text(self.operation / 'token', token)
+                atomic_text(self.operation / 'vm-name', self.name)
+            except (OSError, Cancelled):
+                # Only this newly created directory is owned; never recover an
+                # existing/interrupted lease. No operation side effects ran yet.
+                self.remove_operation()
+                raise
+
+    def remove_operation(self):
+        for name in ('owner.pid', 'token', 'vm-name'):
+            (self.operation / name).unlink(missing_ok=True)
+        self.operation.rmdir()
 
     def end(self, token):
         with self.guarded():
             if not self.operation.exists():
                 return
             if read(self.operation / 'owner.pid') == str(self.owner) and read(self.operation / 'token') == token:
-                for name in ('owner.pid', 'token', 'vm-name'):
-                    (self.operation / name).unlink(missing_ok=True)
-                self.operation.rmdir()
+                self.remove_operation()
 
     def acquire(self):
         with self.guarded():
+            if self.network_retained():
+                raise StateError('Existing gvproxy ownership; stop that VM before another launch')
+            if self.qemu_running():
+                raise StateError('QEMU already owns this VM; refusing another launch')
             if self.active.exists():
                 name = read(self.active / 'vm-name')
                 if not name or not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]*', name):
                     raise StateError('Unknown VM lock metadata; inspect before recovery')
-                if name and (self.vms / (name + '.gvproxy.pid')).exists():
+                if self.network_retained(name):
                     raise StateError(f"VM '{name}' retains gvproxy state; stop that VM before another launch")
                 if self.process_record(name) is not None or self.launcher_running():
                     raise StateError(f"VM '{name or 'unknown'}' already owns the global lock")
                 self.remove_active()
             self.active.mkdir()
-            atomic_text(self.active / 'vm-name', self.name)
-            atomic_text(self.active / 'launcher.pid', self.owner)
-            if self.native_owner:
-                atomic_text(self.active / 'launcher-native', 'true')
+            try:
+                atomic_text(self.active / 'vm-name', self.name)
+                atomic_text(self.active / 'launcher.pid', self.owner)
+                if self.native_owner:
+                    atomic_text(self.active / 'launcher-native', 'true')
+                snapshot = Snapshot(uuid.uuid4().hex, Phase.RESERVED, NoProcess())
+                write_record(self.snapshot_path, snapshot.data())
+                # Old compatibility pointers were proven stale before acquisition.
+                # Remove them before QEMU can exist in the new reservation.
+                self.pid_path.unlink(missing_ok=True)
+                self.identity_path.unlink(missing_ok=True)
+                return snapshot
+            except (OSError, Cancelled):
+                # A failed reservation publication has not launched any process.
+                self.remove_active()
+                raise
 
     def launcher_running(self):
         value = read(self.active / 'launcher.pid')
@@ -169,7 +238,9 @@ class State:
         """Resolve partial publication; missing PID pointers do not prove exit."""
         name = name or self.name
         pointers = [self.vms / (name + '.pid')]
+        snapshot = None
         if read(self.active / 'vm-name') == name:
+            snapshot = self.snapshot()
             pending = self.active / 'launch.pid'
             if (self.active / 'launch-pending').exists() and not pending.exists():
                 raise StateError('Launch PID publication incomplete; inspect before recovery')
@@ -181,9 +252,16 @@ class State:
                 if number is None:
                     raise StateError('Invalid QEMU PID state; inspect before recovery')
                 numbers.add(number)
+        evidence = snapshot.process if snapshot else NoProcess()
+        if isinstance(evidence, LaunchedProcess):
+            numbers.add(evidence.shell_pid)
         identity_path = self.vms / (name + '.qemu.json')
-        if identity_path.exists():
-            record = json.loads(identity_path.read_text())
+        record = json.loads(identity_path.read_text()) if identity_path.exists() else None
+        if isinstance(evidence, OwnedProcess):
+            if record is not None and record != evidence.record():
+                raise StateError('Conflicting QEMU identity state; inspect before recovery')
+            record = evidence.record()
+        if record is not None:
             number = pid(record['shell_pid'])
             if number is None or numbers - {number}:
                 raise StateError('Conflicting QEMU PID state; inspect before recovery')
@@ -191,6 +269,8 @@ class State:
         if len(numbers) > 1:
             raise StateError('Conflicting QEMU PID state; inspect before recovery')
         if not numbers:
+            if isinstance(evidence, UnknownProcess):
+                raise StateError('Launch PID publication incomplete; inspect before recovery')
             return None
         number = numbers.pop()
         record = qemu.probe(number, name)
@@ -202,13 +282,15 @@ class State:
         return self.process_record() is not None
 
     def prepare_launch(self):
-        with self.guarded():
-            if read(self.active / 'vm-name') != self.name or read(self.active / 'launcher.pid') != str(self.owner):
-                raise StateError('Cannot launch QEMU without owning the VM reservation')
-            atomic_text(self.active / 'launch-pending', 'true')
+        if read(self.active / 'launcher.pid') != str(self.owner):
+            raise StateError('Cannot launch QEMU without owning the VM reservation')
+        current = self.snapshot()
+        if current is None:
+            raise StateError('Cannot launch without a lifecycle snapshot')
+        return self.transition(current.generation, Phase.SPAWNING, UnknownProcess())
 
     def remove_active(self):
-        for name in ('qemu.pid', 'launcher.pid', 'vm-name', 'launcher-native', 'launch.pid', 'launch-pending'):
+        for name in ('qemu.pid', 'launcher.pid', 'vm-name', 'launcher-native', 'launch.pid', 'launch-pending', 'lifecycle.json'):
             (self.active / name).unlink(missing_ok=True)
         self.active.rmdir()
 
@@ -218,7 +300,7 @@ class State:
                 return
             if read(self.active / 'vm-name') != self.name:
                 raise StateError('Refusing to release another VM reservation')
-            if (self.vms / (self.name + '.gvproxy.pid')).exists():
+            if self.network_retained():
                 raise StateError('gvproxy state remains; retaining VM reservation')
             if self.qemu_running():
                 raise StateError('QEMU process remains; retaining VM reservation')
@@ -231,19 +313,52 @@ class State:
         with self.guarded():
             if read(self.active / 'vm-name') != self.name or read(self.active / 'launcher.pid') != str(self.owner):
                 raise StateError('Cannot register QEMU without owning the VM reservation')
+            current = self.snapshot()
+            if current is None:
+                current = Snapshot(uuid.uuid4().hex, Phase.LAUNCHED, LaunchedProcess(number))
+            elif current.phase != Phase.LAUNCHED and not (
+                    current.phase == Phase.REGISTERED and current.process.shell_pid == number):
+                current = current.transition(Phase.LAUNCHED, LaunchedProcess(number))
+            if current.process.shell_pid != number:
+                raise StateError('Registered PID differs from the launched process')
+            # Persist launch evidence before inspection, then the native identity
+            # before compatibility files. Each interrupted prefix remains recoverable.
+            write_record(self.snapshot_path, current.data())
             record = qemu.probe(number, self.name)
             if record is None:
                 raise StateError('Cannot register a missing or unrelated QEMU process; retaining state for inspection')
-            # Publish identity before PID pointers. Partial writes remain reserved.
+            if current.phase != Phase.REGISTERED:
+                current = current.transition(Phase.REGISTERED, OwnedProcess.from_record(record))
+                write_record(self.snapshot_path, current.data())
+            elif current.process.record() != record:
+                raise StateError('Registered process identity changed; refusing replacement')
             write_record(self.identity_path, record)
             atomic_text(self.pid_path, number)
             atomic_text(self.active / 'qemu.pid', number)
+            return current
+
+    def stop_qemu(self):
+        record = self.process_record()
+        self.mark_stopping(record)
+        if record is not None:
+            terminate(record)
+        if self.process_record() is not None:
+            raise StateError('QEMU remains; retaining VM ownership')
+
+    def mark_stopping(self, record=None):
+        if read(self.active / 'vm-name') != self.name:
+            return
+        snapshot = self.snapshot()
+        if snapshot is not None and (snapshot.phase != Phase.STOPPING or
+                record is not None and not isinstance(snapshot.process, OwnedProcess)):
+            self.transition(snapshot.generation, Phase.STOPPING,
+                OwnedProcess.from_record(record) if record is not None else None)
 
     def clear(self, keep=False):
         with self.guarded():
             if self.qemu_running():
                 raise StateError('QEMU process remains; retaining VM state')
-            if (self.vms / (self.name + '.gvproxy.pid')).exists():
+            if self.network_retained():
                 raise StateError('gvproxy state remains; retaining VM reservation')
             owns_active = read(self.active / 'vm-name') == self.name
             release_active = owns_active and not keep and (
@@ -256,6 +371,12 @@ class State:
                 (self.active / name).unlink(missing_ok=True)
             if release_active:
                 self.remove_active()
+            elif keep:
+                current = self.snapshot()
+                if current is not None:
+                    if current.phase != Phase.STOPPING:
+                        current = current.transition(Phase.STOPPING)
+                    write_record(self.snapshot_path, current.transition(Phase.RESERVED, NoProcess()).data())
 
 
 def signals():
@@ -264,7 +385,7 @@ def signals():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('begin', 'end', 'acquire', 'release', 'register', 'clear', 'guard-acquire', 'guard-release'))
+    parser.add_argument('action', choices=('begin', 'end', 'acquire', 'release', 'register', 'clear', 'prepare_launch', 'stop_qemu', 'guard-acquire', 'guard-release'))
     for name in ('vm-dir', 'run-dir', 'active-lock', 'state-guard', 'name'):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--owner', type=int, required=True)

@@ -261,6 +261,7 @@ if [ "$VERIFY_ONLY" != "true" ]; then
     # INSTALL_TIMEOUT seconds, we assume failure.
     start_gvproxy
     echo "Installing Alpine and Docker with ${QEMU_ACCELERATOR} acceleration (timeout: ${INSTALL_TIMEOUT}s)..." >&2
+    prepare_vm_launch
     "$QEMU_BIN" "${install_args[@]}" &
     QEMU_PID=$!
     register_vm_process "$QEMU_PID"
@@ -303,6 +304,7 @@ verify_args=(
 )
 
 echo "Booting the installed disk for verification..." >&2
+prepare_vm_launch
 "$QEMU_BIN" "${verify_args[@]}" &
 QEMU_PID=$!
 register_vm_process "$QEMU_PID"
