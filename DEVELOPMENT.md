@@ -155,3 +155,14 @@ and browser/backend suites with `uv run --script <test.py>`. Run proxy tests
 with `go test -race ./...` in `plugins/qemu-alpine-docker/scripts/docker-proxy`.
 The container job requires Docker and a Linux runtime; see its workflow steps
 for the build and execution commands.
+
+## Device lease controller
+
+`android-device-lock/scripts/adb-device-lock.py` owns host lease operations.
+The shell entry selects Python 3.10+; `lock-metadata.py` remains an importable
+strict metadata validator with a compatible command entry. Device mutations
+remain serialized through the remote mkdir guard. The owner token is persisted
+before metadata publication and retained on remote deletion failure.
+Run `bash plugins/android-device-lock/tests/test-device-lock.sh` for fake-device
+races and failures, and `python plugins/android-device-lock/tests/test-controller.py`
+for native controller and cancellation checks. No real-device result is implied.

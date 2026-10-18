@@ -33,29 +33,33 @@ def render(values):
     decode(rendered)
     print(rendered,end="")
 
-try:
-    if sys.argv[1] == "render":
-        keys=("project_dir","test_name","requested_at_utc","acquired_at_utc",
-              "max_timeout_seconds","expires_at_epoch","host","pid","adb_serial","lock_path","owner_token")
-        values=dict(zip(keys,sys.argv[2:]))
-        if len(sys.argv[2:]) != len(keys): raise ValueError()
-        for key in ("max_timeout_seconds","expires_at_epoch","pid"):
-            values[key]=int(values[key])
-        render(values)
-        raise SystemExit(0)
-    record=decode(sys.stdin.read())
-    if sys.argv[1] == "renew":
-        duration,expiry,serial,lock_path=sys.argv[2:]
-        record.update(max_timeout_seconds=int(duration),expires_at_epoch=int(expiry),
-                      adb_serial=serial,lock_path=lock_path)
-        render(record)
-        raise SystemExit(0)
-    kind,key=sys.argv[1:]
-    if kind == "summary":
-        print(json.dumps({k:record[k] for k in ("host","pid","test_name","expires_at_epoch") if k in record}))
-    else:
-        value=record.get(key)
-        if (kind == "number" and type(value) is not int) or (kind == "string" and not isinstance(value,str)): raise ValueError()
-        print(value,end="")
-except (ValueError,TypeError,KeyError,OSError):
-    raise SystemExit(1)
+def main():
+    try:
+        if sys.argv[1] == "render":
+            keys=("project_dir","test_name","requested_at_utc","acquired_at_utc",
+                  "max_timeout_seconds","expires_at_epoch","host","pid","adb_serial","lock_path","owner_token")
+            values=dict(zip(keys,sys.argv[2:]))
+            if len(sys.argv[2:]) != len(keys): raise ValueError()
+            for key in ("max_timeout_seconds","expires_at_epoch","pid"):
+                values[key]=int(values[key])
+            render(values)
+            raise SystemExit(0)
+        record=decode(sys.stdin.read())
+        if sys.argv[1] == "renew":
+            duration,expiry,serial,lock_path=sys.argv[2:]
+            record.update(max_timeout_seconds=int(duration),expires_at_epoch=int(expiry),
+                          adb_serial=serial,lock_path=lock_path)
+            render(record)
+            raise SystemExit(0)
+        kind,key=sys.argv[1:]
+        if kind == "summary":
+            print(json.dumps({k:record[k] for k in ("host","pid","test_name","expires_at_epoch") if k in record}))
+        else:
+            value=record.get(key)
+            if (kind == "number" and type(value) is not int) or (kind == "string" and not isinstance(value,str)): raise ValueError()
+            print(value,end="")
+    except (ValueError,TypeError,KeyError,OSError):
+        raise SystemExit(1)
+
+if __name__ == "__main__":
+    main()

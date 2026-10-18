@@ -15,10 +15,17 @@ inspection; directory age alone is not proof that device work stopped. Custom lo
 paths stay below `/data/local/tmp`. The fixed-duration `run` lease must exceed the
 whole command; longer operations need manual renewal and cancellation on lost ownership.
 
-The helper uses Python 3's JSON library for typed ownership checks and escaping.
+The host lease controller uses Python 3.10+ for device operations, typed ownership checks and escaping.
 It tries working `python3` and `python` commands; set `ANDROID_DEVICE_LOCK_PYTHON`
 to an explicit interpreter when needed. Invalid JSON or field types leave ownership
 unknown rather than extracting expiry/tokens from text patterns.
+
+## Native Python entry
+
+Use `python /absolute/plugin/scripts/adb-device-lock.py` with the same commands
+and options on Windows or Unix. The `.sh` entry only selects a Python 3.10+
+interpreter and forwards arguments. The controller retains the device guard and
+token protocol; it owns command cancellation, child cleanup and lease release.
 
 ## Device Leases status panel
 

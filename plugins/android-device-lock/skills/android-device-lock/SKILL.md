@@ -64,7 +64,7 @@ The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain
 - If metadata is malformed or missing, ownership is unknown. The helper does not
   infer expiry from directory mtime; inspect before recovery. Interrupted `.guard`
   directories are also preserved until all mutation operations are confirmed stopped.
-- Metadata requires working Python 3 for strict JSON/type checks; set
+- The lease controller requires Python 3.10+ for strict JSON/type checks; set
   `ANDROID_DEVICE_LOCK_PYTHON` when automatic interpreter lookup is unavailable.
 - If release fails because the token does not match, do not delete the lock; another run owns it.
 - Do not clear app data, install APKs, start device test sessions, or reset the emulator before acquiring the lock.
@@ -72,6 +72,13 @@ The helper handles Git Bash-to-Windows ADB path conversion: Android paths remain
   Bound the command within that lease; use manual renewal for longer operations and
   stop device work before expiry if renewal cannot be confirmed. Custom paths must
   stay below `/data/local/tmp` without parent traversal.
+
+## Native Python entry
+
+Use `python /absolute/plugin/scripts/adb-device-lock.py` with the same commands
+and options on Windows or Unix. The `.sh` entry only selects a Python 3.10+
+interpreter and forwards arguments. The controller retains the device guard and
+token protocol; it owns command cancellation, child cleanup and lease release.
 
 ## Bundled Resource
 
