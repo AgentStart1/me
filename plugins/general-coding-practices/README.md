@@ -8,6 +8,7 @@ This plugin provides project collaboration rules plus focused README and project
 - Root-cause-first debugging that prefers structural ownership, lifecycle and boundary fixes over accumulating patches, while preserving necessary recovery and privacy-safe diagnostics.
 - Comments that explain intent and constraints, document useful API contracts, and keep workarounds and TODOs actionable.
 - Focused test, formatter, lint, static-analysis, and build verification.
+- Test design and review across unit, integration, UI, and E2E layers: align names with asserted outcomes and split independent contracts while preserving assertions, input matrices, and necessarily dependent flows. Ordinary changes focus on new and affected tests.
 - Audience-specific documentation maintenance: user guidance in `README.md`, developer guidance in `DEVELOPMENT.md`, and AI guidance in `AGENTS.md`.
 - Cross-platform code design rules: sequential async control flow and callback/listener adaptation, plus owned asynchronous work, cancellation, immutable variants, explicit transitions, and rejection of superseded results.
 - Portable Claude documentation-agent delegation.
