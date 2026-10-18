@@ -23,6 +23,10 @@ The `.sh` files are thin compatibility launchers. Every command also has a same-
 Default cache keys now use the native Python project path. Regenerate reports
 after upgrading, or pass the same explicit `--output-dir` to reuse an older cache.
 
+Reports can be generated from repository subdirectories. Committed comparisons
+use only the selected Git history; deleted files remain empty on the deleted side,
+even when a same-named file exists in the current working tree.
+
 ## Configuration
 
 | Variable | Description | Default |

@@ -22,9 +22,10 @@ def b64(value):
     return base64.b64encode(value).decode('ascii')
 
 
-def structural_payload(revisions, executable, env):
+def structural_payload(revisions, executable, env, *, include_worktree):
     # Raw -z records preserve tabs/newlines and avoid quoting or executing filenames.
-    records = iter(git('diff', '--raw', '-z', '--no-abbrev', *revisions, '--').split(b'\0'))
+    repository_root = Path(os.fsdecode(git('rev-parse', '--show-toplevel').rstrip(b'\r\n')))
+    records = iter(git('diff', '--raw', '-z', '--no-abbrev', '--no-relative', *revisions, '--').split(b'\0'))
     lines = []
     with tempfile.TemporaryDirectory() as directory:
         for header in records:
@@ -37,11 +38,15 @@ def structural_payload(revisions, executable, env):
             sources = []
             for side, oid in enumerate((old_oid, new_oid)):
                 if set(oid) == {48}:
-                    path = Path(os.fsdecode(name))
-                    if side == 1 and len(revisions) == 1 and path.is_symlink():
-                        content = os.fsencode(os.readlink(path))
-                    else:
-                        content = path.read_bytes() if side == 1 and len(revisions) == 1 and path.is_file() else b''
+                    content = b''
+                    # Zero OIDs also represent deleted sides, which must never read
+                    # an unrelated, re-created file from the current working tree.
+                    if side == 1 and include_worktree and new_mode != b'000000':
+                        path = repository_root / os.fsdecode(name)
+                        if path.is_symlink():
+                            content = os.fsencode(os.readlink(path))
+                        elif path.is_file():
+                            content = path.read_bytes()
                 else:
                     content = git('cat-file', 'blob', oid.decode())
                 sources.append(content)
@@ -76,7 +81,8 @@ def generate():
         args.base_ref = 'HEAD~1'
         base = git('rev-parse', '--verify', 'HEAD~1^{commit}').decode().strip()
     revisions = [base]
-    if os.environ.get('GIT_INCLUDE_UNCOMMITTED', 'true') != 'true':
+    include_worktree = os.environ.get('GIT_INCLUDE_UNCOMMITTED', 'true') == 'true'
+    if not include_worktree:
         compare = git('rev-parse', '--verify', '--end-of-options', args.compare_ref + '^{commit}').decode().strip()
         revisions = [base + '...' + compare]
     directory = args.output_dir / 'diff'
@@ -107,7 +113,7 @@ def generate():
         env = dict(os.environ, DFT_UNSTABLE='yes', DFT_DISPLAY='json', DFT_WIDTH=width,
                    DFT_SKIP_UNCHANGED=skip, DFT_PARSE_ERROR_LIMIT=limit)
         try:
-            payload = structural_payload(revisions, executable, env)
+            payload = structural_payload(revisions, executable, env, include_worktree=include_worktree)
             (directory / 'difftastic.jsonl').write_bytes(payload)
             structural = render(TEMPLATES / 'difftastic-content.html', {'PAYLOAD': b64(payload)}) if payload else '<div class="no-diff">No Difftastic diff available</div>'
         except (OSError, ValueError, subprocess.CalledProcessError) as error:

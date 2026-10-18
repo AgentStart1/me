@@ -16,7 +16,10 @@ Run the existing shell suites in both plugins, `python tests/test-report-python.
 `python tests/test-report-launchers.py`, and `python tests/test-validation-workflow.py`.
 Native tests cover bounded scans, repeated directory arguments, overlapping roots,
 recursive output rejection, URL/HTML escaping, binary Git statistics, committed
-comparisons and invalid input. Loopback tests exercise cancellation, failed ngrok
+comparisons and invalid input. Difftastic regressions also cover subdirectory
+invocation with either `diff.relative` setting and committed/worktree deletions
+whose paths were re-created locally. Set `REPORT_TEST_PLUGINS` to a generated
+client's absolute `plugins/` directory to exercise its bundled entrypoints. Loopback tests exercise cancellation, failed ngrok
 and a simulated running tunnel. Windows uses a new process group and Ctrl+Break
 to exercise graceful cancellation; forceful OS termination cannot run cleanup.
 No live ngrok authentication is exercised by these tests.

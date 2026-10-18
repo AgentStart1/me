@@ -10,6 +10,7 @@ import unittest
 import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
+PLUGINS = Path(os.environ.get('REPORT_TEST_PLUGINS', ROOT / 'plugins'))
 PLUGIN = sys.argv.pop(1) if len(sys.argv) > 1 and sys.argv[1] in ('diff-sharing', 'test-report-sharing') else None
 
 
@@ -19,11 +20,11 @@ class ReportTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.project = Path(self.temporary.name)
 
-    def command(self, plugin, script, *args, env=None, success=True):
+    def command(self, plugin, script, *args, env=None, success=True, cwd=None):
         environment = dict(os.environ)
         environment.update(env or {})
-        result = subprocess.run([sys.executable, str(ROOT / 'plugins' / plugin / 'scripts' / script), *map(str, args)],
-                                cwd=self.project, env=environment, capture_output=True, text=True, encoding='utf-8')
+        result = subprocess.run([sys.executable, str(PLUGINS / plugin / 'scripts' / script), *map(str, args)],
+                                cwd=cwd or self.project, env=environment, capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         return result
 
@@ -134,6 +135,63 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(new.decode().replace('\r\n', '\n'), before.replace('1', '2'))
         self.assertEqual(json.loads(payload)['status'], 'changed')
         self.assertEqual(json.loads((output / 'diff/stats.json').read_text())['files_changed'], 1)
+
+    def init_structural_fixture(self):
+        if not shutil.which('bash'):
+            self.skipTest('Bash fixture unavailable')
+        def git(*args):
+            return subprocess.check_output(['git', *args], cwd=self.project, stderr=subprocess.PIPE)
+        git('init', '-q')
+        git('config', 'user.name', 'Fixture')
+        git('config', 'user.email', 'fixture@example.invalid')
+        git('config', 'core.autocrlf', 'false')
+        fake = self.project / 'fake difft'
+        fake.write_text('#!/usr/bin/env bash\nprintf \'{"status":"changed"}\\n\'\n', encoding='utf-8', newline='\n')
+        fake.chmod(0o755)
+        return git, fake
+
+    @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
+    def test_worktree_sources_from_repository_subdirectory(self):
+        git, fake = self.init_structural_fixture()
+        directory = self.project / 'nested space'
+        directory.mkdir()
+        source = directory / 'example.py'
+        source.write_bytes(b'value = 1\n')
+        git('add', 'nested space'); git('commit', '-qm', 'base')
+        source.write_bytes(b'value = 2\n')
+        for relative in ('false', 'true'):
+            with self.subTest(diff_relative=relative):
+                git('config', 'diff.relative', relative)
+                output = self.project / ('output-' + relative)
+                self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output,
+                             cwd=directory, env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
+                records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
+                self.assertEqual(len(records), 1)
+                old, new, _ = map(base64.b64decode, records[0].split('\t'))
+                self.assertEqual(old, b'value = 1\n')
+                self.assertEqual(new, b'value = 2\n')
+
+    @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
+    def test_committed_deletion_does_not_capture_worktree_file(self):
+        git, fake = self.init_structural_fixture()
+        source = self.project / 'example.py'
+        source.write_bytes(b'value = 1\n')
+        git('add', 'example.py'); git('commit', '-qm', 'base')
+        git('tag', 'base')
+        git('rm', 'example.py'); git('commit', '-qm', 'delete')
+        source.write_bytes(b'outside-comparison-fixture\n')
+        for mode in ('false', 'true'):
+            with self.subTest(include_worktree=mode):
+                output = self.project / ('output-' + mode)
+                self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'base', '--compare-ref', 'HEAD',
+                             '--output-dir', output, env={'GIT_INCLUDE_UNCOMMITTED': mode, 'DIFFTASTIC_COMMAND': str(fake)})
+                records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
+                self.assertEqual(len(records), 1)
+                old, new, _ = map(base64.b64decode, records[0].split('\t'))
+                self.assertEqual(old, b'value = 1\n')
+                self.assertEqual(new, b'')
+                page = (output / 'diff/index.html').read_text(encoding='utf-8')
+                self.assertNotIn(base64.b64encode(source.read_bytes()).decode(), page)
 
 
 if __name__ == '__main__':
