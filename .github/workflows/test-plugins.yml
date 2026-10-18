@@ -79,6 +79,7 @@ jobs:
       - run: uv run --script tests/android-status/test-panels.py
       - run: bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
       - run: bash plugins/android-emulator-profile/tests/test-install-sdk.sh
+      - run: python3 plugins/android-emulator-profile/tests/test-profile-controller.py
       - run: bash plugins/android-device-lock/tests/test-device-lock.sh
 
   qemu-status:
@@ -133,6 +134,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify native emulator profile controller
+        run: python plugins/android-emulator-profile/tests/test-profile-controller.py
       - uses: msys2/setup-msys2@v2
         with:
           location: C:\

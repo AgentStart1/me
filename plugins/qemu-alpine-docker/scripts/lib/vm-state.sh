@@ -26,7 +26,6 @@ require_known_vm_process() {
 stop_qemu_process() {
     vm_state_control stop_qemu
 }
-active_vm_pid() { [ -f "${ACTIVE_LOCK_DIR}/qemu.pid" ] && cat "${ACTIVE_LOCK_DIR}/qemu.pid"; }
 
 vm_state_control() {
     local action="$1"; shift

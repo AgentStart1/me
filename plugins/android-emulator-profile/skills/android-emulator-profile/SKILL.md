@@ -87,3 +87,25 @@ Screen capture is an explicit panel action through the app-only `android_emulato
 - Submit a new issue when no duplicate exists and the user has authorized upstream reporting in the current session or standing instructions. This rule alone does not authorize external posting. Honor existing authorization without asking again; otherwise prepare a sanitized draft for approval.
 - Include the plugin/skill and version, observed and expected behavior, a minimal synthetic reproduction or concrete improvement proposal, and relevant duplicate-search results. Use a concise title prefixed with the plugin name.
 - If search, authentication, or submission fails, retain the sanitized draft and explain the blocker; do not post without completing duplicate checks. After an uncertain submission result, check for the created issue before retrying. Return the existing or created issue URL, or clearly mark the report as an unsubmitted draft.
+
+## Python profile controller
+
+Run `python /absolute/plugin/scripts/start-avd.py /absolute/profile` directly
+with Python 3.10+ on Windows or Unix. The shell startup entry only selects the
+interpreter (`ANDROID_PROFILE_PYTHON` overrides lookup) and forwards arguments.
+SDK installation remains Bash orchestration; its compatibility utilities use
+the same Python profile parser, tool resolver and argument mapper. The native
+startup controller owns AVD configuration updates.
+Profiles remain literal data. Native Windows batch tools reject command
+metacharacters and arguments ending in a backslash that cannot be safely forwarded; executable tools receive argument
+lists. Use Ctrl+C or native Windows Ctrl+Break for graceful cancellation. Git
+Bash `kill -TERM` forcibly terminates native Windows programs and cannot run
+Python cleanup; inspect any remaining guard before recovery.
+
+Profile configuration is read directly from the file, preserving key and option
+case. AVD names, custom paths, emulator options, INI overrides and wipe permission
+are not inherited from environment variables. Put these settings in the profile.
+The shell creation entry keeps profile values in a separate map rather than
+exporting them. Only `ANDROID_HOME`, `ANDROID_AVD_HOME`, `ANDROID_USER_HOME` and
+the `EMULATOR_DISPLAY` to `DISPLAY` mapping are forwarded explicitly for Android
+tools. Host PATH, HOME and profile/interpreter selection still use the environment.

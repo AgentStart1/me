@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import sys
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -219,7 +220,7 @@ class ProfileTests(unittest.TestCase):
         self.addCleanup(self.environment.stop)
         self.assertTrue(os.environ.get('QEMU_BASH_BINARY') or shutil.which('bash'), 'Bash is required')
 
-    def test_profile_values_override_environment_and_control_lifecycle(self):
+    def test_profile_values_control_lifecycle_independently_of_environment(self):
         self.profile.write_text(self.profile.read_text() + 'BOOT_TIMEOUT=7\nFORCE=true\nTIMEOUT=0\n')
         os.environ.update(BOOT_TIMEOUT='99', FORCE='false', TIMEOUT='60')
         lifecycle = vm_lifecycle.Lifecycle(self.profile)
@@ -244,9 +245,45 @@ class ProfileTests(unittest.TestCase):
         sleep.assert_not_called()
         stop.assert_called_once()
 
-    def test_environment_fallback_and_defaults(self):
+    def run_config(self, commands, **environment):
+        bash = os.environ.get('QEMU_BASH_BINARY') or shutil.which('bash')
+        return subprocess.run([bash, '-c', 'source "$1"; shift; ' + commands,
+                               'profile-fixture', (SCRIPTS / 'lib/config.sh').as_posix(), self.profile.as_posix(), sys.executable],
+                              env={**os.environ, **environment}, capture_output=True, text=True)
+
+    def test_file_values_are_not_exported_to_children(self):
+        self.profile.write_text('VM_NAME=file-vm\nSSH_PORT=2299\nBOOT_TIMEOUT=7\n')
+        result = self.run_config(
+            'load_profile "$1" && [ "$VM_NAME" = file-vm ] && [ "$BOOT_TIMEOUT" = 7 ] && '
+            "\"$2\" -c 'import os; assert not any(k in os.environ for k in (\"VM_NAME\", \"SSH_PORT\", \"BOOT_TIMEOUT\"))'",
+            VM_NAME='inherited-vm', SSH_PORT='1111', BOOT_TIMEOUT='99')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_missing_required_and_optional_values_do_not_inherit(self):
+        self.profile.write_text('SSH_PORT=2299\n')
+        result = self.run_config('load_profile "$1" && ! require_profile_value VM_NAME && '
+                                 '[ -z "${FORCE+x}" ] && [ -z "${PRELOAD_IMAGES+x}" ]',
+                                 VM_NAME='inherited-vm', FORCE='true', PRELOAD_IMAGES='unwanted/image')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_reload_clears_previous_profile_and_preserves_host_environment(self):
+        second = self.profile.with_name('second.profile')
+        second.write_text('VM_NAME=second\nSSH_PORT=2300\n')
+        self.profile.write_text('VM_NAME=first\nSSH_PORT=2299\nPRELOAD_IMAGES=example/image\n')
+        result = self.run_config('original_path="$PATH"; original_home="$HOME"; '
+                                 'load_profile "$1" && load_profile "${1%/*}/second.profile" && '
+                                 '[ "$VM_NAME" = second ] && [ -z "${PRELOAD_IMAGES+x}" ] && '
+                                 '[ "$PATH" = "$original_path" ] && [ "$HOME" = "$original_home" ]')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_profile_cannot_replace_host_environment(self):
+        self.profile.write_text('PATH=unexpected\n')
+        result = self.run_config('original="$PATH"; ! load_profile "$1" && [ "$PATH" = "$original" ]')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_environment_is_ignored_and_defaults_are_used(self):
         for values, expected in (({}, ('300', 'false', '30')),
-                                 ({'BOOT_TIMEOUT': '11', 'FORCE': 'true', 'TIMEOUT': '2'}, ('11', 'true', '2'))):
+                                 ({'BOOT_TIMEOUT': '11', 'FORCE': 'true', 'TIMEOUT': '2'}, ('300', 'false', '30'))):
             with self.subTest(values=values), patch.dict(os.environ, values):
                 lifecycle = vm_lifecycle.Lifecycle(self.profile)
                 self.assertEqual((lifecycle.args.boot_timeout, lifecycle.args.force, lifecycle.args.stop_timeout), expected)

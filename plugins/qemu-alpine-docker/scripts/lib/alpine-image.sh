@@ -14,14 +14,13 @@ download_file() {
     fi
 }
 
-ALPINE_IMAGE_URL="${ALPINE_IMAGE_URL:-https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/alpine-virt-3.24.1-x86_64.iso}"
-ALPINE_IMAGE_NAME="${ALPINE_IMAGE_NAME:-alpine-virt-3.24.1-x86_64.iso}"
-
 ensure_alpine_image() {
-    local image_path="${IMAGES_DIR}/${ALPINE_IMAGE_NAME}"
+    local image_url="${ALPINE_IMAGE_URL:-https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/alpine-virt-3.24.1-x86_64.iso}"
+    local image_name="${ALPINE_IMAGE_NAME:-alpine-virt-3.24.1-x86_64.iso}"
+    local image_path="${IMAGES_DIR}/${image_name}"
     local checksum_path="${image_path}.sha256"
-    [ -f "$image_path" ] || download_file "$ALPINE_IMAGE_URL" "$image_path"
-    [ -f "$checksum_path" ] || download_file "${ALPINE_IMAGE_URL}.sha256" "$checksum_path"
+    [ -f "$image_path" ] || download_file "$image_url" "$image_path"
+    [ -f "$checksum_path" ] || download_file "${image_url}.sha256" "$checksum_path"
     require_command sha256sum
     (cd "$IMAGES_DIR" && sha256sum -c "$(basename "$checksum_path")") >&2
     echo "$image_path"

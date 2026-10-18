@@ -105,7 +105,7 @@ printf '{}'
                            f"SSH_PORT={ports[0]}\nDOCKER_DAEMON_PORT={ports[1]}\n"
                            f"GVPROXY_QEMU_PORT={ports[2]}\nGVPROXY_API_PORT={ports[3]}\n"
                            f"TESTCONTAINERS_PORT_START={start}\nTESTCONTAINERS_PORT_END={start+2}\n"
-                           "TESTCONTAINERS_RESOURCE_METRICS=false\n")
+                           "TESTCONTAINERS_RESOURCE_METRICS=false\nBOOT_TIMEOUT=30\n")
         base = fixture / "state"
         home = base / "vms/lifecycle-fixture"
         home.mkdir(parents=True)
@@ -118,7 +118,7 @@ printf '{}'
                    QEMU_ALPINE_BASE_DIR=str(base), QEMU_ALPINE_SKIP_MSYS2_PATH="1",
                    FIXTURE_READY=str(ready), FIXTURE_PYTHON=sys.executable,
                    FIXTURE_NETWORK_READY=str(fixture / 'network-published'),
-                   FIXTURE_PLUGIN=str(plugin), FIXTURE_CURL=shutil.which("curl"), BOOT_TIMEOUT="30")
+                   FIXTURE_PLUGIN=str(plugin), FIXTURE_CURL=shutil.which("curl"))
         env.pop("VM_OPERATION_TOKEN", None)
         logs = []
         children = []
@@ -187,7 +187,9 @@ printf '{}'
             assert identity(qrecord["pid"]) is None and identity(hrecord["pid"]) is None
             assert not operation.exists() and not qstate.exists() and not hstate.exists()
             # Startup timeout follows the same cleanup; no retries of failed protocol IO.
-            assert launch("start-vm", BOOT_TIMEOUT="1").wait(timeout=30) != 0
+            profile.write_text(profile.read_text().replace('BOOT_TIMEOUT=30', 'BOOT_TIMEOUT=1'))
+            assert launch("start-vm").wait(timeout=30) != 0
+            profile.write_text(profile.read_text().replace('BOOT_TIMEOUT=1', 'BOOT_TIMEOUT=30'))
             assert not operation.exists() and not qstate.exists() and not hstate.exists()
             # A test command holds the VM reservation; shutdown cannot race it.
             ready.touch()

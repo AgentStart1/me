@@ -204,3 +204,14 @@ Unknown process probes, interrupted guards and failed cleanup retain ownership
 for inspection. On Windows use Ctrl+C or native Ctrl+Break for graceful
 cancellation; Git Bash `kill -TERM` forcibly terminates native Python and cannot
 run cleanup. Inspect any remaining operation lease before manual recovery.
+
+## File-only profile settings
+
+Read VM settings directly from the selected profile. Do not set VM configuration,
+lifecycle timeouts, `FORCE`, `VERIFY_EXISTING`, ports or provisioning options through
+environment variables; inherited values are ignored. Missing required file values
+fail, while optional values use built-in defaults. Profile values are non-exported
+shell configuration; only explicit tool/test contracts receive derived settings.
+Unknown keys are rejected. Keep host/tool controls such as `QEMU_ALPINE_BASE_DIR`,
+profile/interpreter selection, `GVPROXY_BINARY` and proxy helper paths in the host
+environment. See the plugin README for the configuration boundary.
