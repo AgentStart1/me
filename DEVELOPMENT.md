@@ -166,3 +166,17 @@ before metadata publication and retained on remote deletion failure.
 Run `bash plugins/android-device-lock/tests/test-device-lock.sh` for fake-device
 races and failures, and `python plugins/android-device-lock/tests/test-controller.py`
 for native controller and cancellation checks. No real-device result is implied.
+
+Command ownership uses a Windows Job Object with a launch gate: user code starts
+only after the wrapper is assigned to the job. Cleanup terminates the job and
+waits for its active process count to reach zero. Unix cleanup signals the process
+group even after the root exits. A cleanup error retains the device lease.
+Native controller tests include signal-resistant descendants, normal root exit,
+cleanup failure, and Python/Bash shebang argument forwarding. They run in both
+Linux and Windows CI. Windows job semantics follow the
+[Job Objects API](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects).
+
+`command_tree.py` owns platform-specific command lifetime; `command-worker.py`
+is the gated Windows launch entry. The lease controller only starts, waits and
+stops that owner, then releases on confirmed cleanup. Cancellation handlers are
+suppressed during cleanup and restored afterwards.

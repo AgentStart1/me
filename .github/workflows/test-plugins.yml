@@ -145,6 +145,16 @@ jobs:
           test -x /c/msys64/usr/bin/xorriso.exe
           bash plugins/qemu-alpine-docker/tests/test-msys2-path.sh
 
+  windows-device-lock:
+    name: Windows device lock controller
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python plugins/android-device-lock/tests/test-controller.py
+
   docker-proxy:
     name: QEMU Docker proxy Go tests
     runs-on: ubuntu-latest

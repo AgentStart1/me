@@ -24,6 +24,12 @@ metadata = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(metadata)
 
 
+spec = importlib.util.spec_from_file_location("command_tree", Path(__file__).with_name("command_tree.py"))
+command_tree = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(command_tree)
+CommandTree = command_tree.CommandTree
+
+
 class LeaseError(Exception):
     def __init__(self, message, status=1):
         super().__init__(message)
@@ -52,7 +58,8 @@ def host_command(command):
                 break
             with candidate.open("rb") as source:
                 if source.read(2) == b"#!":
-                    return [shutil.which("bash") or "bash", str(candidate), *command[1:]]
+                    return [shutil.which("bash") or "bash", "-c", 'exec "$@"',
+                            "android-lease-command", str(candidate), *command[1:]]
             break
         if candidate.with_name(candidate.name + ".exe").is_file():
             break
@@ -183,9 +190,9 @@ class Controller:
     def run(self, command):
         self.acquire()
         status = 0
-        child = None
+        tree = CommandTree()
         try:
-            child = subprocess.Popen(host_command(command), start_new_session=os.name != "nt")
+            child = tree.start(host_command(command))
             while True:
                 try:
                     status = child.wait(timeout=.2)
@@ -199,38 +206,37 @@ class Controller:
         except OSError:
             status = 127
         finally:
-            # Repeated cancellation must not interrupt owned-child and lease cleanup.
-            for number in cancellation_signals():
-                signal.signal(number, signal.SIG_IGN)
-            if child is not None and child.poll() is None:
-                if os.name == "nt":
-                    # A shell test command may own descendants. Terminate only
-                    # this still-live native child's tree before releasing access.
-                    result = subprocess.run(["taskkill", "/PID", str(child.pid), "/T", "/F"],
-                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    if result.returncode and child.poll() is None:
-                        child.terminate()
-                else:
-                    os.killpg(child.pid, signal.SIGTERM)
+            with protected_cleanup():
                 try:
-                    child.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    if os.name == "nt":
-                        child.kill()
-                    else:
-                        os.killpg(child.pid, signal.SIGKILL)
-                    child.wait()
-            try:
-                self.mutate()
-            except (LeaseError, OSError) as error:
-                print(str(error), file=sys.stderr)
-                print("Release failed; owner token retained for recovery", file=sys.stderr)
-                status = status or 1
+                    tree.stop()
+                except (OSError, subprocess.TimeoutExpired) as error:
+                    print(f"Command tree cleanup failed; lease and owner token retained: {error}", file=sys.stderr)
+                    status = status or 1
+                else:
+                    try:
+                        self.mutate()
+                    except (LeaseError, OSError) as error:
+                        print(str(error), file=sys.stderr)
+                        print("Release failed; owner token retained for recovery", file=sys.stderr)
+                        status = status or 1
         return status
 
 
 def cancellation_signals():
     return [signal.SIGINT, signal.SIGTERM] + ([signal.SIGBREAK] if hasattr(signal, "SIGBREAK") else [])
+
+
+@contextmanager
+def protected_cleanup():
+    """Defer repeated cancellation until command and lease cleanup completes."""
+    previous = {number: signal.getsignal(number) for number in cancellation_signals()}
+    try:
+        for number in previous:
+            signal.signal(number, signal.SIG_IGN)
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
 
 
 def main():

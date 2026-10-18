@@ -81,3 +81,11 @@ On Windows, use Ctrl+C or native Ctrl+Break for graceful cancellation. Git Bash
 `kill -TERM` forcibly terminates native Python and cannot run cleanup; inspect
 retained tokens and device guards before recovery. Native waits dispatch signals
 while the command is running, then stop the owned command tree before release.
+
+The `run` command stops remaining descendants before releasing the lease, even
+when the command's root process has already exited. Windows uses a Job Object;
+Unix commands must keep device workers in the owned process group (do not daemonize
+or create detached sessions). If tree cleanup cannot be confirmed, the lease and
+owner token remain for recovery. Windows shebang entrypoints run through Git Bash
+with their declared interpreter and original arguments; that interpreter must be
+available in the Git Bash environment.

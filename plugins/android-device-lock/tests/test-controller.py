@@ -58,29 +58,33 @@ class ControllerTests(unittest.TestCase):
                 with patch.object(controller, "acquire"), patch.object(controller, "mutate", side_effect=module.LeaseError("delete failed")):
                     self.assertEqual(controller.run([sys.executable, "-c", f"raise SystemExit({command_status})"]), command_status or 1)
 
-    def test_cancellation_stops_owned_child_before_releasing(self):
+    def test_cleanup_failure_retains_lease(self):
         with tempfile.TemporaryDirectory() as directory:
             controller = self.controller(directory)
-            child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=sys.platform != "win32")
-            original_wait = child.wait
-            original_popen = subprocess.Popen
-            calls = 0
-            def wait(*args, **kwargs):
-                nonlocal calls
-                calls += 1
-                if calls == 1:
-                    raise module.Cancelled(signal.SIGTERM)
-                return original_wait(*args, **kwargs)
-            try:
-                with patch.object(controller, "acquire"), patch.object(controller, "mutate") as release, \
-                     patch.object(module.subprocess, "Popen", side_effect=lambda command, **kwargs: child if command == ["fixture"] else original_popen(command, **kwargs)), patch.object(child, "wait", side_effect=wait):
-                    self.assertEqual(controller.run(["fixture"]), 143)
-                    release.assert_called_once()
-                self.assertIsNotNone(child.poll())
-            finally:
-                if child.poll() is None:
-                    child.kill()
-                    original_wait()
+            with patch.object(controller, "acquire"), patch.object(controller, "mutate") as release, \
+                 patch.object(module, "CommandTree") as tree:
+                tree.return_value.start.return_value.wait.return_value = 0
+                tree.return_value.stop.side_effect = OSError("fixture cleanup failure")
+                self.assertEqual(controller.run(["fixture"]), 1)
+                release.assert_not_called()
+
+    def test_python_shebang_preserves_arguments(self):
+        with tempfile.TemporaryDirectory(prefix="lease script ") as directory:
+            entry = Path(directory) / "python-entry"
+            interpreter = "python" if os.name == "nt" else "python3"
+            entry.write_text(f"#!/usr/bin/env {interpreter}\nimport sys\n"
+                             "assert sys.argv[1:] == ['space quote \" $value', '']\n"
+                             "sys.exit(17)\n", encoding="utf-8", newline="\n")
+            entry.chmod(0o755)
+            self.assertEqual(subprocess.run(module.host_command(
+                [str(entry), 'space quote " $value', ''])).returncode, 17)
+
+    def test_missing_command_preserves_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            controller = self.controller(directory)
+            with patch.object(controller, "acquire"), patch.object(controller, "mutate") as release:
+                self.assertEqual(controller.run([str(Path(directory) / "missing-command")]), 127)
+                release.assert_called_once()
 
     def test_native_signal_dispatch_during_real_child_wait(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -97,7 +101,17 @@ class ControllerTests(unittest.TestCase):
                 ' def mutate(self): self.token_file.unlink()\n'
                 'lease.Controller=Fixture\n'
                 'sys.exit(lease.main())\n', encoding='utf-8')
-            child_command = f'from pathlib import Path; import time; Path({str(ready)!r}).touch(); time.sleep(60)'
+            heartbeat = root / 'heartbeat'
+            worker = root / 'worker.py'
+            worker.write_text(
+                'import signal,time,sys\nfrom pathlib import Path\n'
+                'signal.signal(signal.SIGBREAK if sys.platform == "win32" else signal.SIGTERM, signal.SIG_IGN)\n'
+                'while True:\n Path(sys.argv[1]).write_text(str(time.monotonic()))\n time.sleep(.02)\n',
+                encoding='utf-8')
+            child_command = (f'import subprocess,sys,time\nfrom pathlib import Path\n'
+                             f'subprocess.Popen([sys.executable, {str(worker)!r}, {str(heartbeat)!r}])\n'
+                             f'while not Path({str(heartbeat)!r}).exists(): time.sleep(.01)\n'
+                             f'Path({str(ready)!r}).touch()\ntime.sleep(60)')
             command = [sys.executable, str(harness), 'run', '--token-file', str(token), '--', sys.executable, '-c', child_command]
             process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
@@ -109,10 +123,57 @@ class ControllerTests(unittest.TestCase):
                 process.send_signal(signal.CTRL_BREAK_EVENT if os.name == 'nt' else signal.SIGTERM)
                 self.assertEqual(process.wait(timeout=10), 128 + (signal.SIGBREAK if os.name == 'nt' else signal.SIGTERM))
                 self.assertFalse(token.exists())
+                before = heartbeat.read_text()
+                time.sleep(.2)
+                self.assertEqual(heartbeat.read_text(), before, "descendant survived release")
             finally:
                 if process.poll() is None:
                     process.kill()
                     process.wait()
+
+    @unittest.skipUnless(os.name == "nt", "Windows Job Object contract")
+    def test_assignment_failure_never_starts_user_command(self):
+        import ctypes
+        from unittest.mock import Mock
+        api = ctypes.WinDLL("kernel32", use_last_error=True)
+        api.AssignProcessToJobObject = Mock(return_value=0)
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "must-not-run"
+            tree = module.CommandTree()
+            try:
+                with patch.object(ctypes, "WinDLL", return_value=api):
+                    with self.assertRaises(OSError):
+                        tree.start([sys.executable, "-c", f"from pathlib import Path; Path({str(marker)!r}).touch()"])
+            finally:
+                tree.stop()
+            self.assertFalse(marker.exists())
+
+    def test_cleanup_restores_signal_handlers(self):
+        before = {number: signal.getsignal(number) for number in module.cancellation_signals()}
+        with self.assertRaises(OSError):
+            with module.protected_cleanup():
+                self.assertTrue(all(signal.getsignal(number) == signal.SIG_IGN for number in before))
+                raise OSError("fixture")
+        self.assertEqual({number: signal.getsignal(number) for number in before}, before)
+
+    def test_root_exit_does_not_abandon_descendants(self):
+        with tempfile.TemporaryDirectory() as directory:
+            heartbeat = Path(directory) / "heartbeat"
+            worker = ("import signal,time\nfrom pathlib import Path\n"
+                      "signal.signal(signal.SIGTERM,signal.SIG_IGN)\n"
+                      f"while True:\n Path({str(heartbeat)!r}).write_text(str(time.monotonic()))\n time.sleep(.02)\n")
+            parent = ("import subprocess,sys,time\nfrom pathlib import Path\n"
+                      f"subprocess.Popen([sys.executable,'-c',{worker!r}])\n"
+                      f"while not Path({str(heartbeat)!r}).exists(): time.sleep(.01)\n")
+            tree = module.CommandTree()
+            try:
+                child = tree.start([sys.executable, "-c", parent])
+                self.assertEqual(child.wait(timeout=10), 0)
+            finally:
+                tree.stop()
+            before = heartbeat.read_text()
+            time.sleep(.2)
+            self.assertEqual(heartbeat.read_text(), before)
 
 
 if __name__ == "__main__":

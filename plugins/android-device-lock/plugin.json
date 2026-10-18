@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-device-lock",
-  "version": "0.5.0-20261018123201",
+  "version": "0.5.0-20261018123634",
   "description": "Project-independent adb device locking for Android tests across projects and frameworks.",
   "author": {
     "name": "Local Android Practices"
