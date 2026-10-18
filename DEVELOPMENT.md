@@ -272,3 +272,14 @@ at metadata/output boundaries, output failure and a nonzero exit after publicati
 Separate barriers hold creation before/after publication; a Shell trap marker proves
 signal delivery before allowing the creator to finish. Tests cover both resources,
 normal/custom traps, rollback/retry and preservation of existing unknown owners.
+## Emulator profile controller
+
+`profile_controller.py` owns literal profile decoding, tool lookup, argument
+mapping and atomic INI replacement. `start-avd.py` owns the per-AVD guard and
+emulator process. Shell installation orchestration calls that shared parser
+without eval. Native Windows waits are bounded so Ctrl+Break reaches cleanup;
+only the owned process tree is terminated. Run the existing fake SDK/emulator
+shell suites and `python plugins/android-emulator-profile/tests/test-profile-controller.py`.
+The native test covers spaces/Unicode paths, CRLF, expansion rejection,
+arguments, duplicate keys, native locks, competition, failure and cancellation.
+The Git Bash smoke suite delegates Windows signal coverage to that native test.

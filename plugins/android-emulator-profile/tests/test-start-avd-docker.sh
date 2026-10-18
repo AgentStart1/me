@@ -245,6 +245,13 @@ HOME="$HOME_DIR" EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" EMULATOR_ENV_LOG="$EMULA
     bash "${PLUGIN_DIR}/scripts/start-avd.sh" "$TMP_DIR/fresh.profile" > "$START_AVD_OUT" 2> "$START_AVD_ERR"
 ! grep -q -- -wipe-data "$EMULATOR_ARGS_LOG"
 
+# Native Windows cancellation uses CTRL_BREAK_EVENT, covered by test-profile-controller.py.
+# Git Bash kill -TERM does not deliver a Python signal to native processes.
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*)
+    echo 'PASS: profile/config fake-command smoke; native Windows cancellation is tested separately.'
+    exit 0;;
+esac
+
 HOME="$HOME_DIR" EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" EMULATOR_ENV_LOG="$EMULATOR_ENV_LOG" \
     EMULATOR_CONFIG_LOG="$EMULATOR_CONFIG_LOG" ADB_ARGS_LOG="$ADB_ARGS_LOG" \
     FAKE_EMULATOR_HOLD=1 FAKE_EMULATOR_PID="$TMP_DIR/held.pid" \

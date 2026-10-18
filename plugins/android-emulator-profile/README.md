@@ -52,3 +52,16 @@ Native rendering requires MCP Apps and OpenAI thread-entrypoint support. This is
 ## Improvement feedback
 
 Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+
+## Python profile controller
+
+Run `python /absolute/plugin/scripts/start-avd.py /absolute/profile` directly
+with Python 3.10+ on Windows or Unix. The shell startup entry only selects the
+interpreter (`ANDROID_PROFILE_PYTHON` overrides lookup) and forwards arguments.
+SDK installation remains Bash orchestration; its compatibility utilities use
+the same Python profile parser, tool resolver, argument mapper and INI updater.
+Profiles remain literal data. Native Windows batch tools reject command
+metacharacters that cannot be safely quoted; executable tools receive argument
+lists. Use Ctrl+C or native Windows Ctrl+Break for graceful cancellation. Git
+Bash `kill -TERM` forcibly terminates native Windows programs and cannot run
+Python cleanup; inspect any remaining guard before recovery.
