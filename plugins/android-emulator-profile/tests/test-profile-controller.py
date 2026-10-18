@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,31 @@ class ProfileTests(unittest.TestCase):
                    'EMULATOR_DISPLAY': ':42'}
         environment = profiles.tool_environment(profile, {'PATH': 'tools'})
         self.assertEqual(environment, {'PATH': 'tools', 'ANDROID_HOME': 'sdk', 'DISPLAY': ':42'})
+
+    @unittest.skipUnless(os.name == 'nt' and shutil.which('cygpath'), 'requires Windows Git Bash cygpath')
+    def test_windows_android_environment_paths(self):
+        with tempfile.TemporaryDirectory(prefix='Android paths 名称 ') as directory:
+            root = Path(directory)
+            paths = {key: root / key for key in profiles.ANDROID_PATHS}
+            for path in paths.values():
+                path.mkdir()
+            unix = {key: subprocess.check_output(['cygpath', '-u', str(path)], text=True).strip()
+                    for key, path in paths.items()}
+            for overrides in ({}, unix):
+                with self.subTest(overrides=bool(overrides)):
+                    environment = profiles.tool_environment(overrides, {**os.environ, **unix})
+                    # Launch native Python directly: Bash must not convert the environment for us.
+                    result = subprocess.run([sys.executable, '-c',
+                        'import json,os; print(json.dumps({k: os.environ[k] for k in '
+                        + repr(profiles.ANDROID_PATHS) + '}))'],
+                        env=environment, text=True, capture_output=True, check=True)
+                    received = json.loads(result.stdout)
+                    for key, expected in paths.items():
+                        self.assertEqual(Path(received[key]), expected)
+                        self.assertEqual(profiles.native_path(unix[key]), Path(received[key]))
+            native = {key: str(path) for key, path in paths.items()}
+            self.assertEqual(profiles.tool_environment(native, {}), native)
+            self.assertEqual(profiles.tool_environment({'ANDROID_HOME': ''}, {}), {'ANDROID_HOME': ''})
 
     def test_literal_profiles_and_crlf(self):
         with tempfile.TemporaryDirectory() as directory:

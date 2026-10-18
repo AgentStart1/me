@@ -350,3 +350,8 @@ uses real native QEMU/gvproxy with private state, mocked guest IO and no guest d
 General code guidance now prioritizes structural ownership, lifecycle, state and
 interface fixes over compensating patches, while retaining evidence and explicit
 recovery for crashes, uncertain effects and partial publication.
+
+Android tool environment construction normalizes the three Android directory
+variables on Windows after applying profile overrides. The native regression
+passes Git Bash paths containing spaces and Unicode directly to a Python child,
+covering inherited values, profile overrides, native paths and empty values.

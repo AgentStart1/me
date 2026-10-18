@@ -23,6 +23,8 @@ def tool_environment(profile, inherited=None):
     for key in ANDROID_PATHS:
         if key in profile:
             environment[key] = profile[key]
+        if os.name == 'nt' and environment.get(key):
+            environment[key] = str(native_path(environment[key]))
     if profile.get('EMULATOR_DISPLAY'):
         environment['DISPLAY'] = profile['EMULATOR_DISPLAY']
     return environment
