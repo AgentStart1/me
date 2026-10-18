@@ -180,3 +180,10 @@ and lifecycle tests remain applicable.
 VM client fixtures keep QEMU probes mocked while setting `QEMU_STATE_PYTHON`
 to a real interpreter before installing fake commands on PATH. This exercises
 operation lease acquisition/release rather than mocking away the state controller.
+
+`test-vm-state.py` also injects failures at identity and both PID publication
+boundaries, fails cleanup, and exercises later stop recovery with synthetic
+process identities. It checks unknown/incomplete publication, cross-VM takeover
+refusal and PID reuse without signalling real processes.
+The state owner resolves all PID pointers and identity records before mutation;
+the launch intent marker preserves an unknown launch before PID publication.

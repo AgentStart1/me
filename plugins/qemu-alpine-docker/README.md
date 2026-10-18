@@ -304,6 +304,7 @@ signalling still verifies native executable and creation time through the
 shared process identity implementation. The platform/guest adapter invokes
 existing acceleration, networking and SSH commands without owning lifecycle locks.
 
+
 Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
 state controller for operation leases, global reservations, process registration
 and state cleanup. Guest templates and simple command forwarding remain shell.
@@ -311,3 +312,7 @@ Unknown process probes, interrupted guards and failed cleanup retain ownership
 for inspection. On Windows use Ctrl+C or native Ctrl+Break for graceful
 cancellation; Git Bash `kill -TERM` forcibly terminates native Python and cannot
 run cleanup. Inspect any remaining operation lease before manual recovery.
+After partial PID publication, an owned stop also checks the pending launch PID
+and native identity before touching networking or releasing the reservation.
+If PID publication is incomplete or identity remains unknown, inspect the retained
+state and processes before manual recovery; missing PID files alone do not prove exit.

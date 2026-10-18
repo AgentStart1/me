@@ -13,7 +13,7 @@ import time
 from types import SimpleNamespace
 import uuid
 
-from process_identity import identity, terminate
+from process_identity import terminate
 
 spec = importlib.util.spec_from_file_location('vm_state', Path(__file__).with_name('vm-state.py'))
 state_module = importlib.util.module_from_spec(spec)
@@ -69,15 +69,7 @@ class Lifecycle:
             raise
 
     def record(self):
-        number = state_module.pid(state_module.read(self.state.pid_path))
-        if number is None:
-            return None
-        if self.state.identity_path.exists():
-            record = json.loads(self.state.identity_path.read_text())
-            if record.get('shell_pid') != number:
-                return None
-            return record if identity(record['pid']) == record['identity'] else None
-        return state_module.qemu.probe(number, self.state.name)
+        return self.state.process_record()
 
     def wait_ready(self):
         timeout = int(os.environ.get('BOOT_TIMEOUT', '300'))
@@ -98,15 +90,6 @@ class Lifecycle:
     def stop_owned(self):
         record = self.record()
         pending = self.state.active / 'launch.pid'
-        if record is None and pending.exists():
-            number = state_module.pid(state_module.read(pending))
-            stored = json.loads(self.state.identity_path.read_text()) if self.state.identity_path.exists() else None
-            if stored and stored.get('shell_pid') == number:
-                record = stored if identity(stored['pid']) == stored['identity'] else None
-            elif number:
-                record = state_module.qemu.probe(number, self.state.name)
-                if record is None and state_module.running(number):
-                    raise state_module.StateError('Unknown launched process; retaining VM ownership')
         if record is None and self.child is not None and self.child.poll() is None and not pending.exists():
             raise state_module.StateError('Launch PID publication incomplete; inspect before recovery')
         if record is not None:
@@ -132,6 +115,7 @@ class Lifecycle:
         self.reserved = True
         self.step('network-start')
         pid_file = self.state.active / 'launch.pid'
+        self.state.prepare_launch()
         with (self.home / 'qemu.log').open('ab') as log:
             self.child = subprocess.Popen([self.bash, str(self.adapter), self.profile, 'launch', str(pid_file), *plan],
                 stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=os.name != 'nt')

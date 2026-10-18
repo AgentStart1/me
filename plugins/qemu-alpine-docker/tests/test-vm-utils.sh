@@ -244,7 +244,11 @@ assert_not_dir "${MOCK_DIR}/home/run/active-vm.lock" "stop clears stale global l
 mkdir -p "${MOCK_DIR}/home/run/active-vm.lock"
 printf '%s\n' "$$" > "${MOCK_DIR}/home/run/active-vm.lock/qemu.pid"
 printf '%s\n' test-vm > "${MOCK_DIR}/home/run/active-vm.lock/vm-name"
-bash "${PLUGIN_DIR}/scripts/stop-vm.sh" "${MOCK_DIR}/test.profile" >/dev/null 2>"${MOCK_DIR}/stop-live-output"
+if bash "${PLUGIN_DIR}/scripts/stop-vm.sh" "${MOCK_DIR}/test.profile" >/dev/null 2>"${MOCK_DIR}/stop-live-output"; then
+    fail "stop rejects an unidentifiable live process"
+else
+    pass "stop rejects an unidentifiable live process"
+fi
 [ -d "${MOCK_DIR}/home/run/active-vm.lock" ] && pass "stop preserves live same-name VM lock" || fail "stop preserves live same-name VM lock"
 rm -f "${MOCK_DIR}/home/run/active-vm.lock/qemu.pid" "${MOCK_DIR}/home/run/active-vm.lock/vm-name"
 rmdir "${MOCK_DIR}/home/run/active-vm.lock"

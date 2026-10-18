@@ -149,7 +149,7 @@ class State:
                     raise StateError('Unknown VM lock metadata; inspect before recovery')
                 if name and (self.vms / (name + '.gvproxy.pid')).exists():
                     raise StateError(f"VM '{name}' retains gvproxy state; stop that VM before another launch")
-                if running(read(self.active / 'qemu.pid')) or self.launcher_running():
+                if self.process_record(name) is not None or self.launcher_running():
                     raise StateError(f"VM '{name or 'unknown'}' already owns the global lock")
                 self.remove_active()
             self.active.mkdir()
@@ -165,17 +165,50 @@ class State:
             return number is not None and identity(number) is not None
         return running(value)
 
+    def process_record(self, name=None):
+        """Resolve partial publication; missing PID pointers do not prove exit."""
+        name = name or self.name
+        pointers = [self.vms / (name + '.pid')]
+        if read(self.active / 'vm-name') == name:
+            pending = self.active / 'launch.pid'
+            if (self.active / 'launch-pending').exists() and not pending.exists():
+                raise StateError('Launch PID publication incomplete; inspect before recovery')
+            pointers.extend((self.active / 'qemu.pid', pending))
+        numbers = set()
+        for path in pointers:
+            if path.exists():
+                number = pid(read(path))
+                if number is None:
+                    raise StateError('Invalid QEMU PID state; inspect before recovery')
+                numbers.add(number)
+        identity_path = self.vms / (name + '.qemu.json')
+        if identity_path.exists():
+            record = json.loads(identity_path.read_text())
+            number = pid(record['shell_pid'])
+            if number is None or numbers - {number}:
+                raise StateError('Conflicting QEMU PID state; inspect before recovery')
+            return record if identity(record['pid']) == record['identity'] else None
+        if len(numbers) > 1:
+            raise StateError('Conflicting QEMU PID state; inspect before recovery')
+        if not numbers:
+            return None
+        number = numbers.pop()
+        record = qemu.probe(number, name)
+        if record is None and running(number):
+            raise StateError('Unknown launched process; retaining VM ownership')
+        return record
+
     def qemu_running(self):
-        number = pid(read(self.pid_path))
-        if number is None:
-            return False
-        if self.identity_path.exists():
-            record = json.loads(self.identity_path.read_text())
-            return record.get('shell_pid') == number and identity(record['pid']) == record['identity']
-        return qemu.probe(number, self.name) is not None
+        return self.process_record() is not None
+
+    def prepare_launch(self):
+        with self.guarded():
+            if read(self.active / 'vm-name') != self.name or read(self.active / 'launcher.pid') != str(self.owner):
+                raise StateError('Cannot launch QEMU without owning the VM reservation')
+            atomic_text(self.active / 'launch-pending', 'true')
 
     def remove_active(self):
-        for name in ('qemu.pid', 'launcher.pid', 'vm-name', 'launcher-native', 'launch.pid'):
+        for name in ('qemu.pid', 'launcher.pid', 'vm-name', 'launcher-native', 'launch.pid', 'launch-pending'):
             (self.active / name).unlink(missing_ok=True)
         self.active.rmdir()
 
@@ -187,7 +220,7 @@ class State:
                 raise StateError('Refusing to release another VM reservation')
             if (self.vms / (self.name + '.gvproxy.pid')).exists():
                 raise StateError('gvproxy state remains; retaining VM reservation')
-            if running(read(self.active / 'qemu.pid')):
+            if self.qemu_running():
                 raise StateError('QEMU process remains; retaining VM reservation')
             launcher = read(self.active / 'launcher.pid')
             if launcher != str(self.owner) and self.launcher_running():
@@ -212,20 +245,16 @@ class State:
                 raise StateError('QEMU process remains; retaining VM state')
             if (self.vms / (self.name + '.gvproxy.pid')).exists():
                 raise StateError('gvproxy state remains; retaining VM reservation')
-            active_pid = read(self.active / 'qemu.pid')
-            recorded = json.loads(self.identity_path.read_text()) if self.identity_path.exists() else None
-            confirmed_exit = recorded is not None and str(recorded.get('shell_pid')) == active_pid
+            owns_active = read(self.active / 'vm-name') == self.name
+            release_active = owns_active and not keep and (
+                read(self.active / 'launcher.pid') == str(self.owner) or not self.launcher_running())
             self.pid_path.unlink(missing_ok=True)
             self.identity_path.unlink(missing_ok=True)
-            if read(self.active / 'vm-name') != self.name:
+            if not owns_active:
                 return
-            if not confirmed_exit and running(active_pid):
-                return
-            (self.active / 'qemu.pid').unlink(missing_ok=True)
-            if keep:
-                return
-            launcher = read(self.active / 'launcher.pid')
-            if launcher == str(self.owner) or not self.launcher_running():
+            for name in ('qemu.pid', 'launch.pid', 'launch-pending'):
+                (self.active / name).unlink(missing_ok=True)
+            if release_active:
                 self.remove_active()
 
 
