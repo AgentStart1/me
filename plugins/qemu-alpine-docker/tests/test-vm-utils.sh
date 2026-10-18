@@ -182,6 +182,8 @@ if validate_image_reference "image;shutdown" 2>/dev/null; then fail "image refer
 acquire_single_vm_lock
 echo "$$" > "${ACTIVE_LOCK_DIR}/qemu.pid"
 if acquire_single_vm_lock 2>/dev/null; then fail "single VM lock rejects second owner"; else pass "single VM lock rejects second owner"; fi
+if release_single_vm_lock 2>/dev/null; then fail "release refuses a live process"; else pass "release refuses a live process"; fi
+rm "${ACTIVE_LOCK_DIR}/qemu.pid"
 release_single_vm_lock
 
 fail_guarded_update() { return 7; }
@@ -242,7 +244,11 @@ assert_not_dir "${MOCK_DIR}/home/run/active-vm.lock" "stop clears stale global l
 mkdir -p "${MOCK_DIR}/home/run/active-vm.lock"
 printf '%s\n' "$$" > "${MOCK_DIR}/home/run/active-vm.lock/qemu.pid"
 printf '%s\n' test-vm > "${MOCK_DIR}/home/run/active-vm.lock/vm-name"
-bash "${PLUGIN_DIR}/scripts/stop-vm.sh" "${MOCK_DIR}/test.profile" >/dev/null 2>"${MOCK_DIR}/stop-live-output"
+if bash "${PLUGIN_DIR}/scripts/stop-vm.sh" "${MOCK_DIR}/test.profile" >/dev/null 2>"${MOCK_DIR}/stop-live-output"; then
+    fail "stop rejects an unidentifiable live process"
+else
+    pass "stop rejects an unidentifiable live process"
+fi
 [ -d "${MOCK_DIR}/home/run/active-vm.lock" ] && pass "stop preserves live same-name VM lock" || fail "stop preserves live same-name VM lock"
 rm -f "${MOCK_DIR}/home/run/active-vm.lock/qemu.pid" "${MOCK_DIR}/home/run/active-vm.lock/vm-name"
 rmdir "${MOCK_DIR}/home/run/active-vm.lock"
@@ -286,13 +292,13 @@ assert_contains recovered-public "$(cat "${SSH_KEY}.pub")" "public-only key pres
 download_file https://example.invalid/file "${MOCK_DIR}/downloaded"
 assert_file "${MOCK_DIR}/downloaded" "download helper target"
 
-start_source="$(<"${PLUGIN_DIR}/scripts/start-vm.sh")"
+start_source="$(<"${PLUGIN_DIR}/scripts/vm-lifecycle-step.sh")"
 assert_contains 'configure_qemu_acceleration "$QEMU_BIN"' "$start_source" "start script selects the configured accelerator"
 assert_contains '"${QEMU_ACCEL_ARGS[@]}"' "$start_source" "start script uses shared acceleration arguments"
 assert_not_contains "enable-kvm" "$start_source" "start script excludes KVM"
 
-stop_source="$(<"${PLUGIN_DIR}/scripts/stop-vm.sh")"
-assert_contains 'ssh_exec "poweroff"' "$stop_source" "stop script uses Alpine's poweroff command"
+stop_source="$(<"${PLUGIN_DIR}/scripts/vm-lifecycle-step.sh")"
+assert_contains 'ssh_exec poweroff' "$stop_source" "stop script uses Alpine's poweroff command"
 
 assert_file "${PLUGIN_DIR}/scripts/connect-vm.sh" "VM connection script uses an accurate name"
 assert_not_file "${PLUGIN_DIR}/scripts/sync-code.sh" "misleading code-sync script name is removed"
@@ -309,7 +315,10 @@ create_source="$(<"${PLUGIN_DIR}/scripts/create-vm.sh")"
 setup_template="$(<"${PLUGIN_DIR}/templates/setup.start.tpl")"
 assert_contains 'configure_qemu_acceleration "$QEMU_BIN"' "$create_source" "provisioning selects the configured accelerator"
 assert_contains '"${QEMU_ACCEL_ARGS[@]}"' "$create_source" "provisioning and verification use shared acceleration arguments"
-assert_contains "apk add cgroupfs-mount docker docker-cli-compose openssh" "$setup_template" "guest template installs Docker"
+assert_contains "apk add docker docker-cli-compose openssh" "$setup_template" "guest template installs Docker and SSH"
+assert_not_contains "cgroupfs-mount" "$setup_template" "guest uses Alpine OpenRC cgroups without a foreign package"
+assert_contains "rc-update add cgroups default" "$setup_template" "guest enables the OpenRC cgroups service"
+assert_contains "lbu include /usr/local/libexec/dockerd-with-port-range" "$setup_template" "system install persists the supervised Docker wrapper"
 assert_contains "rc-update add local default" "$setup_template" "guest template enables local DNS selection"
 assert_contains 'VM_DISK_NATIVE="$(qemu_native_path "$VM_DISK")"' "$create_source" "disk path is converted explicitly"
 assert_contains 'MODIFIED_ISO_NATIVE="$(qemu_native_path "$MODIFIED_ISO")"' "$create_source" "ISO path is converted explicitly"

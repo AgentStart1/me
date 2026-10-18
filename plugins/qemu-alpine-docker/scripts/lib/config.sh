@@ -1,13 +1,26 @@
 # Profile and user-supplied value validation helpers.
 # Sourced by ../vm-utils.sh before modules that consume validated settings.
 
+# The complete file-configuration namespace. Host/tool controls (QEMU_* paths,
+# interpreter selection, PATH, HOME) are separate process-environment settings.
+QEMU_PROFILE_KEYS=(
+    VM_NAME VM_ACCELERATOR VM_MEMORY VM_CPUS VM_DISK_SIZE SSH_PORT SSH_HOST
+    DOCKER_DAEMON_PORT GVPROXY_QEMU_PORT GVPROXY_API_PORT PORT_FORWARD
+    TESTCONTAINERS_PORT_START TESTCONTAINERS_PORT_END
+    TESTCONTAINERS_PULL_PAUSE_TIMEOUT TESTCONTAINERS_PULL_TIMEOUT
+    TESTCONTAINERS_RESOURCE_METRICS TESTCONTAINERS_RESOURCE_METRICS_INTERVAL
+    ALPINE_BRANCH ALPINE_MIRROR_BASE ALPINE_IMAGE_URL ALPINE_IMAGE_NAME PRELOAD_IMAGES
+    INSTALL_TIMEOUT BOOT_TIMEOUT VERIFY_EXISTING FORCE TIMEOUT
+)
+
 load_profile() {
     local profile_path="${1:-}"
     if [ -z "$profile_path" ] || [ ! -f "$profile_path" ]; then
         echo "Error: Profile not found: ${profile_path:-<empty>}." >&2
         return 1
     fi
-    local line
+    local line key value supported supported_key
+    local -A parsed=()
     while IFS= read -r line || [ -n "$line" ]; do
         line="${line%$'\r'}"
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
@@ -20,21 +33,36 @@ load_profile() {
             echo "Error: Invalid profile entry: ${line}" >&2
             return 1
         fi
-        export "$line"
+        key="${line%%=*}"
+        value="${line#*=}"
+        supported=false
+        for supported_key in "${QEMU_PROFILE_KEYS[@]}"; do
+            if [ "$key" = "$supported_key" ]; then supported=true; break; fi
+        done
+        if [ "$supported" != true ]; then
+            echo "Error: Unsupported profile key '${key}'." >&2
+            return 1
+        fi
+        parsed["$key"]="$value"
     done < "$profile_path"
-    if [ -n "${VM_NAME:-}" ] && [[ ! "$VM_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+    if [ -n "${parsed[VM_NAME]:-}" ] && [[ ! "${parsed[VM_NAME]}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
         echo 'Error: VM_NAME must be a simple directory name.' >&2
         return 1
     fi
-    if [ "${TESTCONTAINERS_PORT_END:-}" = auto ]; then
-        local resolved_end
-        resolved_end="$(default_testcontainers_port_end)" || return 1
-        export TESTCONTAINERS_PORT_END="$resolved_end"
+    if [ "${parsed[TESTCONTAINERS_PORT_END]:-}" = auto ]; then
+        parsed[TESTCONTAINERS_PORT_END]="$(default_testcontainers_port_end "${parsed[TESTCONTAINERS_PORT_START]:-20000}")" || return 1
     fi
+    # Replace the whole configuration, including absent optional keys. Ordinary
+    # shell values keep existing consumers simple without exporting profile data.
+    unset "${QEMU_PROFILE_KEYS[@]}"
+    for key in "${!parsed[@]}"; do
+        declare -g "$key=${parsed[$key]}"
+        export -n "$key"
+    done
 }
 
 default_testcontainers_port_end() {
-    local start="${TESTCONTAINERS_PORT_START:-20000}"
+    local start="${1:-${TESTCONTAINERS_PORT_START:-20000}}"
     validate_port "$start" TESTCONTAINERS_PORT_START || return 1
     [ "$start" -le 65408 ] || {
         echo 'Error: The automatic 128-port pool would exceed port 65535; choose explicit bounds.' >&2

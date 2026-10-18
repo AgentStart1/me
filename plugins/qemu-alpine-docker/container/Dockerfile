@@ -6,7 +6,7 @@ RUN --mount=type=secret,id=proxy_ca \
       printf 'Acquire::https::CaInfo "/run/secrets/proxy_ca";\n' > /etc/apt/apt.conf.d/99-build-ca; \
     fi; \
     apt-get update && apt-get install -y --no-install-recommends \
-      bash ca-certificates curl openssh-client procps python3 qemu-system-x86 \
+      bash ca-certificates curl openssh-client python3 qemu-system-x86 \
       qemu-utils tar xorriso && \
     rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/99-build-ca
 RUN useradd --create-home --uid 1000 developer && \

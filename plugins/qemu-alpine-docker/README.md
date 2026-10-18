@@ -17,7 +17,7 @@ For now, these are the intended environments. On Linux hosts running outside con
 - Docker automatically allocates published ports from `20000–20127` on both platforms; gvproxy forwards every TCP port in the selected range to the same guest port before QEMU starts.
 - A global lock permits only one VM from this plugin to run at a time, which also reserves the forwarded range. Lock-state changes are serialized with an atomic guard directory so concurrent launchers cannot overwrite each other.
 - A separate operation lease spans setup, provisioning, start/stop and client commands (tests, Docker, SSH/SFTP, workspace sync and proxy builds). Competing operations fail before changing VM state. Normal exits and handled signals release the lease; after a forced kill, inspect all plugin processes before manually removing an interrupted `run/vm-operation.lock` or `vm-state.guard`.
-- QEMU and gvproxy ownership records verify the native executable and creation time before termination. An already-running VM is accepted only after its forwarding rules and guest readiness match the profile. Windows path/PID translation uses the launching Bash runtime's tools.
+- QEMU and gvproxy ownership records verify the native executable and creation time before termination. An already-running VM is accepted only after its forwarding rules and guest readiness match the profile. Windows provisioning and legacy shell PID translation use the launching Bash runtime's tools; normal starts retain native PIDs directly.
 - Docker images remain on the qcow2 disk and are reused by later test runs. Do not recreate the VM or run `docker image prune -a` if cache reuse matters.
 - Testcontainers Ryuk stays enabled and uses the guest Docker socket.
 
@@ -87,8 +87,10 @@ replacing Git Bash's tools.
 
 When the install log proves that disk installation completed and only post-boot verification failed, resume verification without reinstalling:
 
+Set `VERIFY_EXISTING=true` in a recovery profile, then run:
+
 ```bash
-VERIFY_EXISTING=true ./scripts/create-vm.sh ./profiles/dev.profile
+./scripts/create-vm.sh /absolute/path/to/recovery.profile
 ```
 
 Set `PRELOAD_IMAGES` in a profile to a comma-separated list if a few images should be pulled during initial verification. Image references may contain registry paths, tags, digests, dots, dashes, and underscores. Normal Testcontainers pulls are cached automatically on the persistent disk.
@@ -292,3 +294,96 @@ If gvproxy exits, stop the VM and start it again. Upstream v0.9.0 accepts one QE
 ## Improvement feedback
 
 Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+
+## Python lifecycle and state controller
+
+Use Python 3.10+ to run `scripts/start-vm.py` or `scripts/stop-vm.py` with the same
+optional profile argument. The `.sh` commands select an interpreter and retain
+the launching Bash runtime through `QEMU_BASH_BINARY`; native callers may set
+that variable explicitly. Set `QEMU_STATE_PYTHON` for an explicit interpreter.
+Start/stop own readiness, cancellation and failure cleanup in Python. Process
+signalling still verifies native executable and creation time through the
+shared process identity implementation. The platform/guest adapter plans acceleration
+and networking and runs SSH commands without owning lifecycle locks. Python owns
+native helper controller subprocesses through cancellation and exit.
+
+`BOOT_TIMEOUT` (SSH readiness, default 300 seconds), `FORCE` (`true` skips graceful
+shutdown, default `false`) and `TIMEOUT` (graceful shutdown, default 30 seconds)
+are read only from the profile; inherited environment variables do not set them.
+
+Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
+state controller for operation leases, global reservations, process registration
+and state cleanup. Guest templates and simple command forwarding remain shell.
+Unknown process probes, interrupted guards and failed cleanup retain ownership
+for inspection. On Windows use Ctrl+C or native Ctrl+Break for graceful
+cancellation; Git Bash `kill -TERM` forcibly terminates native Python and cannot
+run cleanup. Inspect any remaining operation lease before manual recovery.
+After partial PID publication, an owned stop also checks the pending launch PID
+and native identity before touching networking or releasing the reservation.
+If PID publication is incomplete or identity remains unknown, inspect the retained
+state and processes before manual recovery; missing PID files alone do not prove exit.
+
+Failures before QEMU creation, such as an unwritable log or a definite process
+creation failure, clean up this launch's helper and reservation automatically.
+Initial guard metadata failures also roll back a guard created by that operation,
+allowing a retry; pre-existing interrupted guards still require inspection.
+Shell clients also retain cleanup responsibility while requesting their lease or
+guard. Cancellation waits for the creator to finish, then releases only that
+request's resources; failed token delivery can be retried without manual lock removal.
+Cancelling helper creation waits for its owned process to exit before removing
+its reservation. If exit cannot be confirmed, its recovery evidence remains.
+Cancellation before readiness follows the same cleanup when process ownership can
+be verified. Once readiness is committed, the VM remains running in the background.
+Cancelling a stop preserves remaining ownership so a later stop can finish.
+If a native helper controller cannot be confirmed exited, the operation lease
+also stays in place; inspect all remaining plugin processes before recovery.
+Existing helper ownership is never adopted by a new start; explicitly stop that
+VM first. See [developer lifecycle rules](https://github.com/storytellerF/me/blob/main/DEVELOPMENT.md#vm-lifecycle-and-state-controllers)
+for phase transitions and recovery evidence.
+
+## Profile configuration isolation
+
+Profile settings come only from the selected literal `KEY=value` file. Missing
+required settings fail validation; missing optional settings use built-in defaults.
+Each load replaces the previous file configuration. Profile settings are not
+exported to child processes; Testcontainers settings are passed explicitly to
+the test command where required. Unknown profile keys are rejected, so profiles
+cannot change PATH, HOME or controller/tool selection.
+
+Set VM resources, ports, acceleration, Alpine image/mirror settings, image
+preloading, lifecycle timeouts, `FORCE` and `VERIFY_EXISTING` in the profile.
+Host controls such as `QEMU_ALPINE_BASE_DIR`, `QEMU_STATUS_PROFILE`,
+`QEMU_STATE_PYTHON`, `QEMU_BASH_BINARY`, `GVPROXY_BINARY` and proxy helper paths
+remain environment settings. They are not profile keys.
+
+
+Normal startup creates QEMU directly from Python and records its native process
+identity before readiness. A completed start transfers ownership to the persisted
+VM state so the VM continues running. Interrupted or unverified publication keeps
+the reservation and networking for inspection; older shell-launched records remain
+recoverable. Do not remove retained state merely because a PID file is absent.
+
+## Guest provisioning dependencies
+
+The Alpine guest installs `docker`, `docker-cli-compose`, and `openssh` for the
+Docker API/CLI, Compose commands, SSH/SFTP, and proxy compilation transport.
+OpenRC supplies the `cgroups` service; provisioning enables it with
+`rc-update add cgroups default`. Do not add the non-Alpine `cgroupfs-mount`
+package. Go is installed only when building the Docker CLI proxy. The outer
+Linux runtime reads process identity from `/proc` and does not require `procps`.
+The guest installer explicitly includes the supervised Docker wrapper in Alpine's
+`lbu` archive so its executable and OpenRC configuration survive system installation.
+
+For a real acceptance check, provision a fresh isolated VM with its own
+`QEMU_ALPINE_BASE_DIR`, profile ports, disk, key, and proxy output directory.
+After starting it and building its proxy, run from this plugin root:
+
+```bash
+bash scripts/run-testcontainers.sh --profile /path/to/isolated.profile -- \
+  uv run --script tests/validate-guest-testcontainers.py --pool-start 28000 --pool-end 28015
+```
+
+Use the publish-pool bounds from that isolated profile. This opt-in check pulls
+BusyBox, Alpine and Ryuk images, exercises HTTP forwarding and CPU/memory cgroup limits,
+forces an OOM inside the constrained container, and checks workload removal.
+Keep Ryuk enabled. Stop only the isolated VM after verification.

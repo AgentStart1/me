@@ -9,6 +9,12 @@ Profiles are literal `KEY=value` files and must not contain shell expansion. Req
 - `TESTCONTAINERS_PORT_START`
 - `TESTCONTAINERS_PORT_END`
 
+Lifecycle options are read only from the selected profile, never inherited from
+the process environment. Missing optional values use the defaults below.
+`BOOT_TIMEOUT` is the SSH readiness timeout in seconds (default 300).
+`FORCE=true` skips graceful shutdown (default `false`), and `TIMEOUT` bounds the
+graceful shutdown wait in seconds (default 30).
+
 The end value `auto` selects 128 ports from the configured start on both platforms
 (20000–20127 by default). An automatic pool extending above 65535 is rejected;
 explicit numeric ranges have no count ceiling. The guest kernel
@@ -44,8 +50,23 @@ Control ports `GVPROXY_QEMU_PORT` (19200) and `GVPROXY_API_PORT` (19201) are loo
 
 ## Limitations and recovery
 
-Setup, lifecycle and client scripts share an operation lease. Competing calls fail before modifying the VM. Normal exits and handled signals release the lease. After a forced kill, inspect all plugin processes before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or helper `.control.lock` directories. Never discard QEMU/gvproxy identity records while either owned process remains alive.
+Setup, lifecycle and client scripts share an operation lease. Competing calls fail before modifying the VM. Normal exits and handled signals release the lease once owned controller exit is confirmed; an unjoinable native controller retains it to block late publication. After a forced kill or failed controller cancellation, inspect all plugin processes before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or helper `.control.lock` directories. Never discard QEMU/gvproxy identity records while either owned process remains alive.
+
+An owned stop can recover a partially published QEMU launch from its pending PID
+or native identity even when the per-VM PID file is missing. Failed identity
+inspection, an unidentifiable live process, conflicting PID pointers, or a launch
+whose PID publication never completed retain networking and the VM reservation
+for inspection. Do not remove the reservation merely because a PID file is absent.
+
+Definitive failures before QEMU creation (including log access and process creation
+errors) clean up the current launch automatically. If start is cancelled before
+readiness, its verified process and helper are stopped; a committed ready VM stays
+running. A cancelled stop retains remaining ownership for another stop to finish.
+Existing helper ownership requires an explicit stop and is not adopted by start.
+For recovery, inspect the atomic `run/active-vm.lock/lifecycle.json` phase and
+process evidence together with native identities; do not edit phases or delete
+records to bypass an unknown launch. Developer transition rules are in DEVELOPMENT.md.
 
 Because Docker runs in a remote guest, Host or outer-container paths cannot be used as ordinary Docker bind mounts. Prefer Docker build contexts, named volumes, or test fixtures copied through the Docker API.
 
-If provisioning leaves a disk without a ready marker, inspect the install and verify console logs. When installation is known to be complete and only verification failed, run `VERIFY_EXISTING=true ./scripts/create-vm.sh <profile>` to resume verification. Do not remove the VM directory unless the user explicitly chooses to rebuild it.
+If provisioning leaves a disk without a ready marker, inspect the install and verify console logs. When installation is known to be complete and only verification failed, set `VERIFY_EXISTING=true` in a recovery profile and run `./scripts/create-vm.sh <recovery-profile>` to resume verification. Do not remove the VM directory unless the user explicitly chooses to rebuild it.

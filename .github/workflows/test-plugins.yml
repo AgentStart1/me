@@ -47,6 +47,7 @@ jobs:
           done
       - run: python3 tests/test-report-launchers.py "${{ matrix.plugin }}"
       - run: python3 tests/test-report-python.py "${{ matrix.plugin }}"
+      - run: python3 tests/test-report-snapshots.py
 
   android-status:
     runs-on: ubuntu-latest
@@ -79,6 +80,8 @@ jobs:
       - run: uv run --script tests/android-status/test-panels.py
       - run: bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
       - run: bash plugins/android-emulator-profile/tests/test-install-sdk.sh
+      - run: python3 plugins/android-emulator-profile/tests/test-profile-controller.py
+      - run: python3 plugins/android-emulator-profile/tests/test-command-tree.py
       - run: bash plugins/android-device-lock/tests/test-device-lock.sh
       - run: python3 plugins/android-device-lock/tests/test-controller.py
 
@@ -120,6 +123,9 @@ jobs:
           python3 plugins/qemu-alpine-docker/tests/test-vm-lifecycle.py
       - run: bash plugins/qemu-alpine-docker/tests/test-port-ranges.sh
       - run: python3 plugins/qemu-alpine-docker/tests/test-gvproxy-control.py
+      - run: python3 plugins/qemu-alpine-docker/tests/test-vm-state.py
+      - run: python3 plugins/qemu-alpine-docker/tests/test-vm-transitions.py
+      - run: python3 plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py
       - run: bash plugins/qemu-alpine-docker/tests/test-vm-utils.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-linux-testcontainers.sh
       - run: bash plugins/qemu-alpine-docker/tests/test-apk-mirror-selection.sh
@@ -131,6 +137,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify native emulator profile controller
+        run: python plugins/android-emulator-profile/tests/test-profile-controller.py
       - uses: msys2/setup-msys2@v2
         with:
           location: C:\
@@ -144,6 +155,29 @@ jobs:
           test -x /c/msys64/usr/bin/bash.exe
           test -x /c/msys64/usr/bin/xorriso.exe
           bash plugins/qemu-alpine-docker/tests/test-msys2-path.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify native Python to Git Bash ownership handoffs
+        shell: pwsh
+        env:
+          BASH_TEST_BINARY: C:\Program Files\Git\bin\bash.exe
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py
+
+  windows-runtime:
+    name: Windows native ownership and reports
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python plugins/android-emulator-profile/tests/test-command-tree.py
+      - run: python plugins/qemu-alpine-docker/tests/test-vm-state.py
+      - run: python tests/test-report-python.py
+      - run: python tests/test-report-snapshots.py
+      - run: python tests/test-report-launchers.py
 
   windows-device-lock:
     name: Windows device lock controller

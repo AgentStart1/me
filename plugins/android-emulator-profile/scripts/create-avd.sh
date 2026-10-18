@@ -49,7 +49,7 @@ build_avdmanager_args() {
         --package "$RESOLVED_SYS_IMG_PKG"
     )
 
-    append_args_from_env args_ref AVDMANAGER -- name package
+    append_args_from_profile args_ref AVDMANAGER -- name package
 }
 
 is_sdk_package_installed() {
@@ -93,6 +93,14 @@ load_profile "$ANDROID_PROFILE"
 assert_profile_keys_absent "$ANDROID_PROFILE" ARCH ABI AVD_ARCH AVD_ABI AVDMANAGER_ABI AVDMANAGER_ARCH EMULATOR_ABI EMULATOR_ARCH
 require_profile_value AVD_NAME
 require_profile_value SYS_IMG_PKG
+AVD_NAME="${PROFILE_VALUES[AVD_NAME]}"
+SYS_IMG_PKG="${PROFILE_VALUES[SYS_IMG_PKG]}"
+# Android SDK tools require these paths in their own environment.
+for path_key in ANDROID_HOME ANDROID_AVD_HOME ANDROID_USER_HOME; do
+    if [[ -v PROFILE_VALUES[$path_key] ]]; then
+        export "$path_key=${PROFILE_VALUES[$path_key]}"
+    fi
+done
 
 SDKMANAGER="$(resolve_android_tool sdkmanager)"
 AVDMANAGER="$(resolve_android_tool avdmanager)"

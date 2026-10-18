@@ -18,7 +18,7 @@ description: Use when collecting, previewing, or sharing test reports such as JU
 
 ## Runtime
 
-All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Use the same `--project-dir` throughout the workflow. Resolve explicit relative output paths from the original calling directory before entering the project directory. GNU text utilities and jq are not runtime requirements.
+All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Use the same `--project-dir` throughout the workflow. Resolve explicit relative output paths from the original calling directory without changing the caller working directory. GNU text utilities and jq are not runtime requirements.
 
 ## Quick Start
 
@@ -81,3 +81,14 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 - Submit a new issue when no duplicate exists and the user has authorized upstream reporting in the current session or standing instructions. This rule alone does not authorize external posting. Honor existing authorization without asking again; otherwise prepare a sanitized draft for approval.
 - Include the plugin/skill and version, observed and expected behavior, a minimal synthetic reproduction or concrete improvement proposal, and relevant duplicate-search results. Use a concise title prefixed with the plugin name.
 - If search, authentication, or submission fails, retain the sanitized draft and explain the blocker; do not post without completing duplicate checks. After an uncertain submission result, check for the created issue before retrying. Return the existing or created issue URL, or clearly mark the report as an unsubmitted draft.
+
+
+Each collection publishes a complete replacement snapshot, including its site.
+Repeating collection does not duplicate reports in the current view; removed
+source reports disappear from the next snapshot. Failed collection leaves the
+previous version available. Use the launcher URL for the latest snapshot; open
+pages keep their original assets. Older generations are retained, so remove the
+dedicated report cache only after its servers and readers have finished.
+
+Materialize linked assets when publishing a snapshot. Reject directory cycles and
+retain the previous publication on copy failure; do not keep live source links.

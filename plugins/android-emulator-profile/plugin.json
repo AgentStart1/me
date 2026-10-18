@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-emulator-profile",
-  "version": "0.4.2-20261016225904",
+  "version": "0.5.1-20261018212024",
   "description": "Profile-driven Android AVD creation and Docker-friendly emulator startup.",
   "author": {
     "name": "Android Emulator Profile Maintainers",

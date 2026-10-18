@@ -11,7 +11,7 @@ ALPINE_MIRROR_BASE="$(sed -n '2p' /mirror-config)"
 SELECTED_MIRROR="$(ALPINE_FALLBACK_MIRROR="{{ALPINE_FALLBACK_MIRROR}}" \
     /usr/local/libexec/select-apk-mirror "$ALPINE_BRANCH" "$ALPINE_MIRROR_BASE" /answers)"
 echo "Selected Alpine mirror: ${SELECTED_MIRROR}"
-apk add cgroupfs-mount docker docker-cli-compose openssh
+apk add docker docker-cli-compose openssh
 rc-update add cgroups default
 rc-update add docker default
 rc-update add sshd default
@@ -29,6 +29,8 @@ touch /etc/qemu-alpine-docker-image
 rm -f /etc/local.d/setup.start
 rm -f /docker-daemon.json /docker-port-range.conf /mirror-config /usr/local/libexec/select-apk-mirror
 
+# setup-disk restores lbu's archive; /usr/local is not included by default.
+lbu include /usr/local/libexec/dockerd-with-port-range
 ERASE_DISKS=/dev/vda setup-alpine -e -f /answers
 trap - EXIT
 poweroff

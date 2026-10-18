@@ -14,7 +14,11 @@ For now, use this plugin for Linux Docker container environments and Windows env
 - Use the bundled persistent Alpine VM with unprivileged gvproxy networking inside Linux Docker containers and on Windows.
 - Run at most one plugin VM at a time. The scripts serialize lock-state updates with an atomic guard and enforce a global VM lock.
 - Whole-operation leases also protect setup and VM clients from concurrent lifecycle changes. Do not bypass a busy lease. After forced termination, confirm all plugin lifecycle/client processes have exited before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or a helper `.control.lock`; preserve process records until both owned processes are confirmed stopped.
-- Cleanup verifies QEMU/gvproxy native executable and creation time before signalling. Healthy repeated starts check forwarding rules, SSH, Docker and the publish pool. On Windows use the launching Bash runtime for path and PID conversion; bypass HTTP proxies explicitly for `127.0.0.1` instead of passing a wildcard to curl.
+- Cleanup verifies QEMU/gvproxy native executable and creation time before signalling. Healthy repeated starts check forwarding rules, SSH, Docker and the publish pool. For Windows provisioning and legacy shell records, use the launching Bash runtime for path/PID conversion; normal native starts keep their original PIDs; bypass HTTP proxies explicitly for `127.0.0.1` instead of passing a wildcard to curl.
+- Missing PID pointers do not prove QEMU exit. Recover partial publication through the pending launch PID and native identity; retain networking and reservations when publication or inspection remains unknown. See the configuration and recovery reference for profile lifecycle options.
+- Follow the lifecycle snapshot's phase and reservation generation. Before creation, clean only this launch's resources; after creation, verify QEMU exit before stopping its helper. Never adopt existing helper ownership or bypass a recovery-required reservation. A completed ready VM survives cancellation of the already-completed start; a cancelled stop can be resumed with another owned stop.
+- Resource creation and cleanup share one cancellation handoff rule: defer handled signals through handle assignment or definitive failure rollback. Failed initial metadata publication removes only the guard created by that call. Helper cancellation joins the owned process before removing pending state; failed kill/join retains evidence. Never apply this rollback to a pre-existing guard or helper reservation.
+- For CLI-to-Shell claims, generate the token and install matching cleanup before acquisition. Join the native creator before cancellation rollback, retain custom cleanup traps, and release only the same owner/token. Use the shared shell facade; the internal begin/guard-acquire CLI requires a caller-known token. Failed delivery does not authorize removal of an existing unknown lease or guard.
 - In auto mode, probe KVM with `-cpu host` on Linux or WHPX with `-cpu qemu64` on Windows. Fall back to multi-threaded TCG with `-cpu max` if hardware acceleration is unavailable. Explicit `kvm`/`whpx` must fail clearly instead of silently falling back.
 - Use gvproxy v0.9.0 over a loopback TCP QEMU socket with either accelerator; preserve MAC `5a:94:ef:e4:0c:ee`.
 - Bind every host forward to `127.0.0.1`.
@@ -180,3 +184,52 @@ For network recovery, coordinate `stop-vm.sh` then `start-vm.sh` after confirmin
 - Submit a new issue when no duplicate exists and the user has authorized upstream reporting in the current session or standing instructions. This rule alone does not authorize external posting. Honor existing authorization without asking again; otherwise prepare a sanitized draft for approval.
 - Include the plugin/skill and version, observed and expected behavior, a minimal synthetic reproduction or concrete improvement proposal, and relevant duplicate-search results. Use a concise title prefixed with the plugin name.
 - If search, authentication, or submission fails, retain the sanitized draft and explain the blocker; do not post without completing duplicate checks. After an uncertain submission result, check for the created issue before retrying. Return the existing or created issue URL, or clearly mark the report as an unsubmitted draft.
+
+## Python lifecycle and state controller
+
+Use Python 3.10+ to run `scripts/start-vm.py` or `scripts/stop-vm.py` with the same
+optional profile argument. The `.sh` commands select an interpreter and retain
+the launching Bash runtime through `QEMU_BASH_BINARY`; native callers may set
+that variable explicitly. Set `QEMU_STATE_PYTHON` for an explicit interpreter.
+Start/stop own readiness, cancellation and failure cleanup in Python. Process
+signalling still verifies native executable and creation time through the
+shared process identity implementation. The platform/guest adapter plans acceleration
+and networking and runs SSH commands without owning lifecycle locks. Python owns
+native helper controller subprocesses through cancellation and exit.
+
+Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
+state controller for operation leases, global reservations, process registration
+and state cleanup. Guest templates and simple command forwarding remain shell.
+Unknown process probes, interrupted guards and failed cleanup retain ownership
+for inspection. On Windows use Ctrl+C or native Ctrl+Break for graceful
+cancellation; Git Bash `kill -TERM` forcibly terminates native Python and cannot
+run cleanup. Inspect any remaining operation lease before manual recovery.
+
+## File-only profile settings
+
+Read VM settings directly from the selected profile. Do not set VM configuration,
+lifecycle timeouts, `FORCE`, `VERIFY_EXISTING`, ports or provisioning options through
+environment variables; inherited values are ignored. Missing required file values
+fail, while optional values use built-in defaults. Profile values are non-exported
+shell configuration; only explicit tool/test contracts receive derived settings.
+Unknown keys are rejected. Keep host/tool controls such as `QEMU_ALPINE_BASE_DIR`,
+profile/interpreter selection, `GVPROXY_BINARY` and proxy helper paths in the host
+environment. See the plugin README for the configuration boundary.
+
+
+Normal startup creates QEMU directly from Python and records its native process
+identity before readiness. A completed start transfers ownership to the persisted
+VM state so the VM continues running. Interrupted or unverified publication keeps
+the reservation and networking for inspection; older shell-launched records remain
+recoverable. Do not remove retained state merely because a PID file is absent.
+
+## Guest dependency and acceptance checks
+
+Use Alpine's OpenRC `cgroups` service, not a `cgroupfs-mount` package. Retain
+Docker, Compose and SSH/SFTP dependencies; Go is needed only for proxy compilation.
+For real provisioning validation, use a new isolated base directory, disk, key,
+ports and proxy directory. Run `tests/validate-guest-testcontainers.py` through
+`run-testcontainers.sh` after provisioning/startup and proxy compilation; supply
+that profile's publish-pool bounds and keep Ryuk enabled. See the README for the
+exact command. The check verifies forwarding, cgroup limits, OOM enforcement and
+container removal; it does not authorize changes to another session's VM.

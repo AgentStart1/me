@@ -10,15 +10,13 @@ source "${PLUGIN_DIR}/scripts/profile-utils.sh"
 
 assert_profile_arg_case() {
     local emulator_output avdmanager_output
-    local EMULATOR_FLAG_Mixed_Case=true
-    local EMULATOR_VALUE_Custom_Value=preserved
-    local AVDMANAGER_FLAG_verbose=true
-    local AVDMANAGER_VALUE_Custom_Path=/tmp/avd
+    local -A PROFILE_VALUES=([EMULATOR_FLAG_Mixed_Case]=true [EMULATOR_VALUE_Custom_Value]=preserved
+        [AVDMANAGER_FLAG_verbose]=true [AVDMANAGER_VALUE_Custom_Path]=/tmp/avd)
     local -a emulator_args=()
     local -a avdmanager_args=()
 
-    append_args_from_env emulator_args EMULATOR -
-    append_args_from_env avdmanager_args AVDMANAGER --
+    append_args_from_profile emulator_args EMULATOR -
+    append_args_from_profile avdmanager_args AVDMANAGER --
 
     emulator_output="$(printf '%s\n' "${emulator_args[@]}")"
     avdmanager_output="$(printf '%s\n' "${avdmanager_args[@]}")"
@@ -137,7 +135,8 @@ PROFILE
 printf 'TEST_LITERAL=value; touch %s/should-not-exist\n' "$TMP_DIR" > "$TMP_DIR/literal.profile"
 load_profile "$TMP_DIR/literal.profile"
 [ ! -e "$TMP_DIR/should-not-exist" ]
-[[ "$TEST_LITERAL" == 'value; touch '* ]]
+[ -z "${TEST_LITERAL+x}" ]
+[[ "${PROFILE_VALUES[TEST_LITERAL]}" == 'value; touch '* ]]
 
 # Refusing an unapproved wipe must leave existing config and locks unchanged.
 cp "${AVD_HOME}/docker-test-avd.avd/config.ini" "$TMP_DIR/config-before"
@@ -244,6 +243,13 @@ HOME="$HOME_DIR" EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" EMULATOR_ENV_LOG="$EMULA
     EMULATOR_CONFIG_LOG="$EMULATOR_CONFIG_LOG" ADB_ARGS_LOG="$ADB_ARGS_LOG" \
     bash "${PLUGIN_DIR}/scripts/start-avd.sh" "$TMP_DIR/fresh.profile" > "$START_AVD_OUT" 2> "$START_AVD_ERR"
 ! grep -q -- -wipe-data "$EMULATOR_ARGS_LOG"
+
+# Native Windows cancellation uses CTRL_BREAK_EVENT, covered by test-profile-controller.py.
+# Git Bash kill -TERM does not deliver a Python signal to native processes.
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*)
+    echo 'PASS: profile/config fake-command smoke; native Windows cancellation is tested separately.'
+    exit 0;;
+esac
 
 HOME="$HOME_DIR" EMULATOR_ARGS_LOG="$EMULATOR_ARGS_LOG" EMULATOR_ENV_LOG="$EMULATOR_ENV_LOG" \
     EMULATOR_CONFIG_LOG="$EMULATOR_CONFIG_LOG" ADB_ARGS_LOG="$ADB_ARGS_LOG" \

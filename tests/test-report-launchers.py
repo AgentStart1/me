@@ -1,6 +1,7 @@
 """Loopback-only launcher integration; ngrok is simulated, no public tunnel."""
 from pathlib import Path
 import os
+import json
 import socket
 import signal
 import hashlib
@@ -11,6 +12,7 @@ import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+PLUGINS = Path(os.environ.get('REPORT_TEST_PLUGINS', ROOT / 'plugins'))
 
 
 def exercise(plugin, mode):
@@ -26,6 +28,13 @@ def exercise(plugin, mode):
         output = home / '.cache' / ('diff-reports' if plugin == 'diff-sharing' else 'test-reports') / digest
         output.mkdir(parents=True)
         (output / "index.html").write_text("owned-report-fixture")
+        generation = '1' * 32
+        if mode == 'local':
+            first = output / 'generations' / generation
+            first.mkdir(parents=True)
+            (first / 'index.html').write_text('owned-report-fixture')
+            (first / 'asset.css').write_text('old-generation-asset')
+            (output / 'current.json').write_text(json.dumps({'generation': generation}))
         binary = fixture / "bin"
         binary.mkdir()
         (binary / "ngrok").write_text("#!/bin/bash\necho attempted > \"$TUNNEL_LOG\"\n"
@@ -35,7 +44,7 @@ def exercise(plugin, mode):
             probe.bind(("127.0.0.1", 0))
             port = probe.getsockname()[1]
         log_file = fixture / "output.log"
-        script = ROOT / "plugins" / plugin / "scripts/start-ngrok.sh"
+        script = PLUGINS / plugin / "scripts/start-ngrok.sh"
         env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ["PATH"],
                    HOME=str(home), USERPROFILE=str(home),
                    TUNNEL_BLOCK="1" if mode == "tunnel" else "0",
@@ -64,6 +73,18 @@ def exercise(plugin, mode):
                     assert time.monotonic() < deadline, log_file.read_text(errors="replace")
                     time.sleep(0.1)
                 assert mode != "local" or not (fixture / "tunnel.log").exists()
+                if mode == 'local':
+                    second_id = '2' * 32
+                    second = output / 'generations' / second_id
+                    second.mkdir()
+                    (second / 'index.html').write_text('replacement-fixture')
+                    pending = output / 'next.json'
+                    pending.write_text(json.dumps({'generation': second_id}))
+                    os.replace(pending, output / 'current.json')
+                    with http.open(f'http://127.0.0.1:{port}/', timeout=2) as response:
+                        assert response.read() == b'replacement-fixture'
+                    with http.open(f'http://127.0.0.1:{port}/generations/{generation}/asset.css', timeout=2) as response:
+                        assert response.read() == b'old-generation-asset'
             finally:
                 if process.poll() is None:
                     process.send_signal(signal.CTRL_BREAK_EVENT if os.name == 'nt' else signal.SIGTERM)

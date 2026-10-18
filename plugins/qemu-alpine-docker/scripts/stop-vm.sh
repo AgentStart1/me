@@ -1,100 +1,14 @@
-#!/bin/bash
-# stop-vm.sh — Gracefully shut down the Alpine VM.
-#
-# Shutdown strategy:
-#   1. If FORCE=true, immediately kill the QEMU process (SIGKILL).
-#   2. Otherwise, send "poweroff" to the guest via SSH (ACPI shutdown).
-#   3. Wait up to TIMEOUT seconds (default: 30s) for the process to exit.
-#   4. If the process doesn't exit, force-kill it.
-#
-# The script clears the VM state (PID file and global lock) after shutdown.
-# It also handles the case where the VM is not running (clears stale state).
-#
-# Environment variables:
-#   FORCE  — if "true", skip graceful shutdown (default: false)
-#   TIMEOUT — seconds to wait for graceful shutdown (default: 30)
-#
+#!/usr/bin/env bash
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=vm-utils.sh
-source "${SCRIPT_DIR}/vm-utils.sh"
-
-# --- Load profile ---
-PROFILE_ARG="${1:-}"
-if [ -n "$PROFILE_ARG" ]; then
-    load_profile "$PROFILE_ARG"
-else
-    load_profile "${PLUGIN_DIR}/profiles/dev.profile"
-fi
-
-require_profile_value VM_NAME
-require_profile_value SSH_PORT
-
-VM_NAME="${VM_NAME:-alpine-dev}"
-SSH_PORT="${SSH_PORT:-2222}"
-FORCE="${FORCE:-false}"
-TIMEOUT="${TIMEOUT:-30}"
-
-begin_vm_operation
-require_known_vm_process
-
-# A live launcher owns its networking until startup/provisioning returns.
-# Do not terminate that launcher's helper from a concurrent stop command.
-if [ -d "$ACTIVE_LOCK_DIR" ]; then
-    active_launcher="$(cat "${ACTIVE_LOCK_DIR}/launcher.pid" 2>/dev/null || true)"
-    active_name="$(cat "${ACTIVE_LOCK_DIR}/vm-name" 2>/dev/null || true)"
-    if [ "$active_name" = "$VM_NAME" ] && process_is_running "$active_launcher"; then
-        echo "Error: VM launch/provisioning is in progress; its owner must finish or cancel it before shutdown." >&2
-        exit 1
+export QEMU_BASH_BINARY="${BASH}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+candidates=(python3 python)
+[ -z "${QEMU_STATE_PYTHON:-}" ] || candidates=("$QEMU_STATE_PYTHON")
+for candidate in "${candidates[@]}"; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+       "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
+        exec "$candidate" "$SCRIPT_DIR/stop-vm.py" "$@"
     fi
-fi
-
-# --- Check if running ---
-# If the VM is not running, clean up any stale state and exit.
-if ! vm_is_running; then
-    echo "VM '${VM_NAME}' is not running." >&2
-    stop_gvproxy
-    clear_vm_process_state
-    exit 0
-fi
-
-QEMU_PID="$(vm_pid)"
-echo "Stopping VM '${VM_NAME}' (PID: ${QEMU_PID})..." >&2
-
-# --- Force stop mode ---
-if [ "$FORCE" = "true" ]; then
-    echo "Force stopping VM..." >&2
-    stop_qemu_process
-    if vm_is_running; then echo 'Error: QEMU still owns its disk; retaining VM state.' >&2; exit 1; fi
-    stop_gvproxy
-    clear_vm_process_state
-    echo "VM '${VM_NAME}' force stopped." >&2
-    exit 0
-fi
-
-# --- Graceful shutdown ---
-# Send "poweroff" to the guest via SSH. This triggers the Alpine shutdown sequence.
-# If SSH is not available, we'll fall through to the force-kill logic.
-echo "Attempting graceful ACPI shutdown..." >&2
-ssh_exec "poweroff" 2>/dev/null || true
-
-# Wait for the QEMU process to exit naturally.
-elapsed=0
-while vm_is_running && [ "$elapsed" -lt "$TIMEOUT" ]; do
-    sleep 1
-    elapsed=$((elapsed + 1))
 done
-
-# If the process is still running after the timeout, force-kill it.
-if vm_is_running; then
-    echo "Graceful shutdown timed out after ${TIMEOUT}s. Force stopping..." >&2
-    stop_qemu_process
-fi
-
-# Wait for the process to exit and clean up state.
-if vm_is_running; then echo 'Error: QEMU did not exit; retaining VM state.' >&2; exit 1; fi
-wait "$QEMU_PID" 2>/dev/null || true
-stop_gvproxy
-clear_vm_process_state
-echo "VM '${VM_NAME}' stopped." >&2
+echo 'Error: Python 3.10+ is required; set QEMU_STATE_PYTHON to a working interpreter.' >&2
+exit 1
