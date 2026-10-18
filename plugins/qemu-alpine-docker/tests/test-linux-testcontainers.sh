@@ -23,8 +23,10 @@ set -euo pipefail
 [[ "$1" == 'argument with spaces' ]]
 exit 23
 COMMAND
+controller_python="$(command -v python3 || command -v python)"
 result=0
-PATH="$fixture/bin:$PATH" QEMU_DOCKER_PROXY_DIR="$fixture/bin" QEMU_ALPINE_BASE_DIR="$fixture/state" TESTCONTAINERS_RYUK_DISABLED=true \
+QEMU_STATE_PYTHON="$controller_python" PATH="$fixture/bin:$PATH" QEMU_DOCKER_PROXY_DIR="$fixture/bin" QEMU_ALPINE_BASE_DIR="$fixture/state" TESTCONTAINERS_RYUK_DISABLED=true \
   bash "$PLUGIN_DIR/scripts/run-testcontainers.sh" -- bash "$fixture/command.sh" 'argument with spaces' || result=$?
 [[ "$result" == 23 ]] || { echo "FAIL: Linux auto metrics blocked or changed command status: $result"; exit 1; }
+[ ! -e "$fixture/state/run/vm-operation.lock" ]
 echo 'PASS: Linux default profile runs tests, preserves arguments/exit status, and enables guest Ryuk without PowerShell'

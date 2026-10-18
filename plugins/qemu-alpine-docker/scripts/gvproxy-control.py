@@ -10,6 +10,7 @@ import signal
 import sys
 import secrets
 from process_identity import identity, terminate, write_record, owns_listeners
+from resource_ownership import defer_cancellation
 import subprocess
 import time
 import urllib.request
@@ -107,32 +108,38 @@ def start(args):
     # overwriting the same ownership record. Incomplete forced-kill reservations
     # require inspection; they must never be silently treated as stopped.
     pending = {"pending": True, "controller_pid": os.getpid(), "token": secrets.token_hex(16)}
-    with state.open("x") as reservation:
-        json.dump(pending, reservation)
+    reserved = False
+    proc = None
+    record = None
     try:
-        launch(args, state, pending, mappings)
-    except BaseException:
-        remove_owned_state(state, pending)
-        raise
-
-
-def launch(args, state, pending, mappings):
-    # Probe all configured sockets before starting; gvproxy still owns the real bind.
-    with socket.socket() as transport, socket.socket() as api:
-        if os.name != "nt":
-            # Go's Linux listeners reuse TIME_WAIT sockets during coordinated restarts.
-            # Match that policy without weakening Windows' exclusive bind behavior.
-            for listener in (transport, api):
-                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        transport.bind(("127.0.0.1", args.transport))
-        api.bind(("127.0.0.1", args.api))
-    with open(args.log, "ab") as log:
-        proc = subprocess.Popen([args.binary, "-ssh-port", "-1", "-listen-qemu", f"tcp://127.0.0.1:{args.transport}",
-                                 "-services", f"tcp://127.0.0.1:{args.api}"],
-                                stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-                                start_new_session=os.name != "nt")
-    try:
+        with defer_cancellation():
+            reservation = state.open("x")
+            try:
+                with reservation:
+                    json.dump(pending, reservation)
+            except BaseException:
+                # Exclusively created here; no process can exist yet.
+                state.unlink()
+                raise
+            reserved = True
+        # Probe sockets before starting; gvproxy still owns the real bind.
+        with socket.socket() as transport, socket.socket() as api:
+            if os.name != "nt":
+                # Match Go's Linux TIME_WAIT reuse without weakening Windows'
+                # exclusive bind behavior during coordinated restarts.
+                for listener in (transport, api):
+                    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            transport.bind(("127.0.0.1", args.transport))
+            api.bind(("127.0.0.1", args.api))
+        # The cleanup scope already exists. Defer cancellation through handle
+        # assignment, including log close, before allowing any signal to unwind.
+        with defer_cancellation():
+            with open(args.log, "ab") as log:
+                proc = subprocess.Popen([args.binary, "-ssh-port", "-1", "-listen-qemu", f"tcp://127.0.0.1:{args.transport}",
+                                         "-services", f"tcp://127.0.0.1:{args.api}"],
+                                        stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                                        start_new_session=os.name != "nt")
         record = {"pid": proc.pid, "identity": identity(proc.pid), "token": pending["token"],
                   "api": args.api, "transport": args.transport}
         if not record["identity"] or record["identity"][0] != os.path.normcase(os.path.realpath(args.binary)):
@@ -161,10 +168,16 @@ def launch(args, state, pending, mappings):
         if proc.poll() is not None:
             raise RuntimeError("gvproxy exited during forwarding registration")
     except BaseException:
-        proc.kill()
-        proc.wait()
-        if "record" in locals():
-            remove_owned_state(state, record)
+        with defer_cancellation():
+            if proc is not None:
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait(timeout=10)
+            # A failed kill/join must retain pending or published evidence.
+            if reserved:
+                if record is not None:
+                    remove_owned_state(state, record)
+                remove_owned_state(state, pending)
         raise
 
 
@@ -180,12 +193,19 @@ def main():
     args = parser.parse_args()
     # SIGTERM must run the same cleanup as exceptions and keyboard interrupts.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    if hasattr(signal, 'SIGBREAK'):
+        signal.signal(signal.SIGBREAK, lambda *_: sys.exit(128 + signal.SIGBREAK))
     guard = Path(args.state + ".control.lock")
-    guard.mkdir()  # Serialize record comparison/removal, including standalone calls.
+    guard_owned = False
     try:
+        with defer_cancellation():
+            guard.mkdir()  # Serialize record comparison/removal, including standalone calls.
+            guard_owned = True
         dispatch(args)
     finally:
-        guard.rmdir()
+        if guard_owned:
+            with defer_cancellation():
+                guard.rmdir()
 
 
 def dispatch(args):

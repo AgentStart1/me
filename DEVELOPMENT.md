@@ -155,3 +155,120 @@ and browser/backend suites with `uv run --script <test.py>`. Run proxy tests
 with `go test -race ./...` in `plugins/qemu-alpine-docker/scripts/docker-proxy`.
 The container job requires Docker and a Linux runtime; see its workflow steps
 for the build and execution commands.
+
+## VM lifecycle and state controllers
+
+`vm-state.py` owns state guards, operation tokens, singleton reservations and
+atomic identity/PID publication. `lib/vm-state.sh` is a compatibility facade for
+provisioning and clients. Generic shell callbacks use token-checked Python guard
+acquisition/release; shell callback failure and signals still release that guard.
+`vm_phase.py` defines immutable lifecycle snapshots, process-evidence variants and
+legal transitions. `vm_lifecycle.py` owns start/stop, readiness and failure cleanup;
+`vm-lifecycle-step.sh` retains platform/guest planning and launching Bash PID
+mapping. Python directly owns and joins native gvproxy controller subprocesses;
+the helper still verifies executable/creation time. Provisioning remains staged
+shell orchestration, marking creation uncertain before each QEMU launch and using
+the same Python registration/termination paths. Native Windows launcher PIDs carry an explicit marker so they
+are not interpreted as MSYS PIDs. Unknown identity inspection returns a distinct
+failure status from a confirmed absent/unrelated QEMU process.
+
+Run `python plugins/qemu-alpine-docker/tests/test-vm-state.py`, the existing
+`test-vm-utils.sh` shell suite, `python plugins/qemu-alpine-docker/tests/test-vm-transitions.py`,
+and `test-vm-lifecycle.py` with real QEMU and
+`GVPROXY_BINARY` set to an existing verified helper. The lifecycle fixture uses
+private state, mocked guest IO and an untouched synthetic disk; Windows launches
+native Python in a new process group and tests Ctrl+Break cleanup. It does not
+provision a real guest or inspect/stop another VM. Existing gvproxy controller
+and lifecycle tests remain applicable.
+
+VM client fixtures keep QEMU probes mocked while setting `QEMU_STATE_PYTHON`
+to a real interpreter before installing fake commands on PATH. This exercises
+operation lease acquisition/release rather than mocking away the state controller.
+
+`test-vm-state.py` also injects failures at identity and both PID publication
+boundaries, fails cleanup, and exercises later stop recovery with synthetic
+process identities. It checks unknown/incomplete publication, cross-VM takeover
+refusal and PID reuse without signalling real processes. Profile regressions use
+the real Bash description adapter with private state, covering profile precedence,
+environment fallback, defaults, SSH readiness and graceful/forced stop behavior.
+The state owner resolves durable process evidence and compatibility PID/identity
+files before mutation. `run/active-vm.lock/lifecycle.json` is one atomic snapshot
+containing a reservation generation, phase and tagged process evidence. Native
+identity is published there before legacy `.qemu.json`/`.pid` pointers; an incomplete
+compatibility publication cannot erase ownership. Existing reservations without a
+snapshot retain conservative legacy identity/PID recovery. A generation mismatch
+rejects obsolete publication and cleanup. Operation lease tokens serialize whole
+commands; the durable reservation outlives the command when a VM or unknown launch
+remains. An existing helper/controller blocks acquisition even without a VM lock.
+
+| Phase | QEMU evidence / ownership | Cancellation or failure |
+| --- | --- | --- |
+| No reservation | No resources owned by this command | Release only its operation lease; never clean an existing VM after an idempotent health-check failure. |
+| `reserved` | This generation owns the global reservation; no new QEMU | Clean only this operation's resources, then release the reservation. |
+| `network-starting`, `network-ready` | No QEMU; native network controller must exit before cleanup can proceed | Join/cancel the controller, stop its owned helper, then release. If controller exit cannot be confirmed, retain the operation lease to prevent late publication. Logs/preflight IO happen before process creation. |
+| `spawning` | Creation outcome may be unknown | Defer handled signals through handle assignment or definitive `Popen` failure rollback. A known creation failure returns to `network-ready`; a forced/interrupted unknown launch remains reserved. |
+| `launched` | Launching Bash PID persisted before identity inspection | Verify the native executable and creation time. Failure/unknown identity retains helper and reservation; a verified process may be stopped. |
+| `registered` | Immutable native identity is durable; compatibility pointers may be incomplete | Stop the verified QEMU, join this command's adapter, then stop networking and clear ownership. |
+| `ready` | Readiness committed; background VM owns its reservation | This is the start completion boundary. A later cancellation does not undo the committed VM. |
+| `stopping` | Preserve the same process evidence during shutdown | Graceful/forced stop cancellation retains ownership for a later stop; release only after QEMU exit and helper/controller cleanup are confirmed. |
+| `recovery-required` | Preserve the last process evidence after failed start cleanup | A later owned stop can retry. Unknown creation/inspection or failed cleanup requires inspection, never age-based lock removal. |
+
+Successful cleanup removes the reservation (the terminal stopped state). Installer
+cleanup with `keep-lock` instead resets to `reserved` for the verification boot.
+Nested state guard mutations (including teardown) defer rather than drop signals;
+acquisition and creation finish bounded ownership publication before delivering
+cancellation. Readiness and helper network IO never run inside the state guard.
+Additional signals are ignored only during final cleanup and handlers are restored.
+
+`resource_ownership.py` supplies the same nested cancellation boundary to VM state,
+QEMU launch and gvproxy controllers. Establish the cleanup scope before acquisition;
+finish handle assignment or definitive creation-failure rollback before delivering
+a handled signal. A failed metadata write to a guard created by the current call
+removes that new guard, so a later operation can retry. A pre-existing guard is
+never reclaimed this way. The helper controller owns its exclusive reservation
+through creation, identity publication and readiness; cancellation before identity
+publication still kills and joins its process handle before removing the pending
+record. Failed termination or a bounded join timeout retains the pending/published
+evidence for inspection. Network readiness stays cancellable outside the boundary.
+
+`test-vm-transitions.py` checks the complete legal/illegal phase matrix, evidence
+validation, generation replacement, cancellation at lease/guard/acquire/spawn/READY
+boundaries, log-open and definite creation failures, every atomic publication
+boundary, failed cleanup/retry, stop cancellation and borrowed VM/helper protection.
+It uses synthetic processes and private state. The real lifecycle fixture also
+fails log opening after starting an isolated real helper and cancels its native
+controller at a private fixture barrier before QEMU creation. It checks full cleanup
+then exercises normal start/stop/cancellation without opening its synthetic disk.
+`test-gvproxy-control.py` deterministically delivers each supported handled signal
+after creating a real private child and before returning its handle. It asserts
+the child has exited before ownership disappears, and covers failed creation,
+repeated cancellation during cleanup, failed kill/join and existing guard protection.
+The state suite injects failures before and after each initial guard metadata write,
+checks rollback and retry, and preserves pre-existing unknown guards. The original
+guard leak and creation-window orphan both fail these tests on the earlier code.
+
+Shell claims use caller-generated tokens and preinstalled token-checked cleanup.
+The internal `vm-state.py begin` and `guard-acquire` CLI actions require `--token`;
+`new-token` performs no resource acquisition. `publish_claim` defers cancellation
+through creation and local ownership assignment and rolls back its own claim if
+metadata publication or flushed output fails. Before creation the Shell already
+knows the token, so unsuccessful delivery or a later nonzero creator exit cannot
+lose the cleanup capability. Guard rollback is idempotent and checks owner/token;
+it never removes another caller's or an unknown guard.
+
+`claim_vm_state` temporarily records handled Shell signals while waiting for its
+exec'd native creator, joins that process even if `wait` is interrupted, restores
+the caller's traps, then reports cancellation. Rollback cannot run ahead of a
+creator that may still publish. `begin_vm_operation keep-traps` preserves existing
+build cleanup, while failed acquisition also rolls back before returning to an
+error-handling caller. This protocol covers handled cancellation and known errors;
+forced termination and unconfirmed cleanup still require inspection.
+Nested acquisition by an already-owning Shell is rejected before changing its
+token or traps; other failed requests restore the caller's previous context.
+
+Run `python plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py` for actual
+CLI-to-Bash tests with private state. The fixture interpreter injects cancellation
+at metadata/output boundaries, output failure and a nonzero exit after publication.
+Separate barriers hold creation before/after publication; a Shell trap marker proves
+signal delivery before allowing the creator to finish. Tests cover both resources,
+normal/custom traps, rollback/retry and preservation of existing unknown owners.

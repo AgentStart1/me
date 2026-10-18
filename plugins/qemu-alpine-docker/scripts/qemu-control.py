@@ -58,4 +58,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        print(f"Error: QEMU identity inspection failed: {error}", file=sys.stderr)
+        sys.exit(2)

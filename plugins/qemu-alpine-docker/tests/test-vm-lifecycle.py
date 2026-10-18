@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -61,6 +62,17 @@ def main():
         shutil.copytree(ROOT / "templates", plugin / "templates")
         for file in plugin.rglob("*.sh"):
             file.write_bytes(file.read_bytes().replace(b"\r\n", b"\n"))
+        # Insert a private-fixture barrier after native helper identity publication.
+        # Production controllers do not expose test hooks or wait on fixture files.
+        control = plugin / 'scripts/gvproxy-control.py'
+        control_text = control.read_text()
+        barrier = '        write_record(state, record)\n'
+        assert control_text.count(barrier) == 1
+        control.write_text(control_text.replace(barrier, barrier +
+            '        if os.environ.get("FIXTURE_HOLD_NETWORK") == "1":\n'
+            '            Path(os.environ["FIXTURE_NETWORK_READY"]).touch()\n'
+            '            while True:\n'
+            '                time.sleep(0.05)\n'))
         bin_dir = fixture / "bin"
         bin_dir.mkdir()
         (bin_dir / "qemu-system-x86_64").write_text('''#!/bin/bash
@@ -105,6 +117,7 @@ printf '{}'
                    QEMU_TEST_BINARY=str(Path(qemu).resolve()), GVPROXY_BINARY=helper,
                    QEMU_ALPINE_BASE_DIR=str(base), QEMU_ALPINE_SKIP_MSYS2_PATH="1",
                    FIXTURE_READY=str(ready), FIXTURE_PYTHON=sys.executable,
+                   FIXTURE_NETWORK_READY=str(fixture / 'network-published'),
                    FIXTURE_PLUGIN=str(plugin), FIXTURE_CURL=shutil.which("curl"), BOOT_TIMEOUT="30")
         env.pop("VM_OPERATION_TOKEN", None)
         logs = []
@@ -112,14 +125,37 @@ printf '{}'
         def launch(script, **overrides):
             log = open(fixture / f"{len(logs)}-{script}.log", "wb")
             logs.append(log)
-            child = subprocess.Popen([bash, (plugin / "scripts" / (script + ".sh")).as_posix(), profile.as_posix()], env=dict(env, **overrides),
-                                     stdout=log, stderr=log)
+            entry = [sys.executable, str(plugin / "scripts" / (script + ".py"))] if os.name == "nt" and script in ("start-vm", "stop-vm") else [bash, (plugin / "scripts" / (script + ".sh")).as_posix()]
+            child = subprocess.Popen([*entry, profile.as_posix()], env=dict(env, QEMU_BASH_BINARY=bash, **overrides),
+                                     stdout=log, stderr=log, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
             children.append(child)
             return child
         operation = base / "run/vm-operation.lock"
         qstate = base / "vms/lifecycle-fixture.qemu.json"
         hstate = base / "vms/lifecycle-fixture.gvproxy.pid"
+        active = base / "run/active-vm.lock"
         try:
+            # Failure before Popen must stop the real owned helper, not leave an
+            # uncertain launch marker. The synthetic disk is never opened by QEMU.
+            (home / "qemu.log").mkdir()
+            assert launch("start-vm").wait(timeout=60) != 0
+            assert not operation.exists() and not active.exists() and not qstate.exists() and not hstate.exists()
+            (home / "qemu.log").rmdir()
+            # Cancel while the native gvproxy controller owns a real helper,
+            # before QEMU creation. The controller must exit before lease release.
+            owner = launch('start-vm', FIXTURE_HOLD_NETWORK='1')
+            # Poll a separate completion marker: opening hstate while the native
+            # controller replaces it can deny Windows' atomic rename.
+            wait_for((fixture / 'network-published').exists, owner)
+            helper_record = json.loads(hstate.read_text())
+            assert not qstate.exists()
+            if os.name == 'nt':
+                owner.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                os.kill(int((operation / 'owner.pid').read_text()), signal.SIGTERM)
+            assert owner.wait(timeout=30) == 128 + (signal.SIGBREAK if os.name == 'nt' else signal.SIGTERM)
+            assert identity(helper_record['pid']) is None
+            assert not operation.exists() and not active.exists() and not qstate.exists() and not hstate.exists()
             owner = launch("start-vm")
             wait_for(qstate.exists, owner)
             qrecord, hrecord = json.loads(qstate.read_text()), json.loads(hstate.read_text())
@@ -129,6 +165,7 @@ printf '{}'
                 assert json.loads(qstate.read_text()) == qrecord
             ready.touch()
             assert owner.wait(timeout=30) == 0
+            assert json.loads((active / 'lifecycle.json').read_text())['phase'] == 'ready'
             assert not operation.exists()
             assert launch("start-vm").wait(timeout=30) == 0  # Healthy idempotency.
             assert launch("stop-vm").wait(timeout=30) == 0
@@ -142,8 +179,11 @@ printf '{}'
             wait_for(qstate.exists, owner)
             qrecord, hrecord = json.loads(qstate.read_text()), json.loads(hstate.read_text())
             shell_pid = int((operation / "owner.pid").read_text())
-            subprocess.run([bash, "-lc", f"kill -TERM {shell_pid}"], check=True)
-            assert owner.wait(timeout=30) == 143
+            if os.name == "nt":
+                owner.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                os.kill(shell_pid, signal.SIGTERM)
+            assert owner.wait(timeout=30) == 128 + (signal.SIGBREAK if os.name == "nt" else signal.SIGTERM)
             assert identity(qrecord["pid"]) is None and identity(hrecord["pid"]) is None
             assert not operation.exists() and not qstate.exists() and not hstate.exists()
             # Startup timeout follows the same cleanup; no retries of failed protocol IO.
@@ -200,7 +240,7 @@ printf '{}'
                     record = json.loads(state.read_text())
                     if identity(record["pid"]) == record["identity"]:
                         terminate(record)
-        print("PASS: competing start/stop/create, coordinated restart, healthy idempotency, TERM/timeout cleanup, test reservation and disk preservation")
+        print("PASS: pre-spawn failure/network cancellation cleanup, competing start/stop/create, coordinated restart, healthy idempotency, TERM/timeout cleanup, test reservation and disk preservation")
 
 
 if __name__ == "__main__":

@@ -42,6 +42,8 @@ MOCK
 chmod +x "${MOCK_DIR}/bin/python"
 chmod +x "${MOCK_DIR}/bin/ssh"
 
+# Mock only QEMU probing; state leases must run the real Python controller.
+export QEMU_STATE_PYTHON="$(command -v python || command -v python3)"
 export PATH="${MOCK_DIR}/bin:${PATH}"
 export QEMU_ALPINE_SKIP_MSYS2_PATH=1
 export QEMU_ALPINE_BASE_DIR="${MOCK_DIR}/home"

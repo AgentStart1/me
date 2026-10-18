@@ -292,3 +292,49 @@ If gvproxy exits, stop the VM and start it again. Upstream v0.9.0 accepts one QE
 ## Improvement feedback
 
 Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+
+## Python lifecycle and state controller
+
+Use Python 3.10+ to run `scripts/start-vm.py` or `scripts/stop-vm.py` with the same
+optional profile argument. The `.sh` commands select an interpreter and retain
+the launching Bash runtime through `QEMU_BASH_BINARY`; native callers may set
+that variable explicitly. Set `QEMU_STATE_PYTHON` for an explicit interpreter.
+Start/stop own readiness, cancellation and failure cleanup in Python. Process
+signalling still verifies native executable and creation time through the
+shared process identity implementation. The platform/guest adapter plans acceleration
+and networking and runs SSH commands without owning lifecycle locks. Python owns
+native helper controller subprocesses through cancellation and exit.
+
+`BOOT_TIMEOUT` (SSH readiness, default 300 seconds), `FORCE` (`true` skips graceful
+shutdown, default `false`) and `TIMEOUT` (graceful shutdown, default 30 seconds)
+can be set in the profile or environment. Profile values take precedence.
+
+Provisioning remains shell orchestration in `create-vm.sh`, using the same Python
+state controller for operation leases, global reservations, process registration
+and state cleanup. Guest templates and simple command forwarding remain shell.
+Unknown process probes, interrupted guards and failed cleanup retain ownership
+for inspection. On Windows use Ctrl+C or native Ctrl+Break for graceful
+cancellation; Git Bash `kill -TERM` forcibly terminates native Python and cannot
+run cleanup. Inspect any remaining operation lease before manual recovery.
+After partial PID publication, an owned stop also checks the pending launch PID
+and native identity before touching networking or releasing the reservation.
+If PID publication is incomplete or identity remains unknown, inspect the retained
+state and processes before manual recovery; missing PID files alone do not prove exit.
+
+Failures before QEMU creation, such as an unwritable log or a definite process
+creation failure, clean up this launch's helper and reservation automatically.
+Initial guard metadata failures also roll back a guard created by that operation,
+allowing a retry; pre-existing interrupted guards still require inspection.
+Shell clients also retain cleanup responsibility while requesting their lease or
+guard. Cancellation waits for the creator to finish, then releases only that
+request's resources; failed token delivery can be retried without manual lock removal.
+Cancelling helper creation waits for its owned process to exit before removing
+its reservation. If exit cannot be confirmed, its recovery evidence remains.
+Cancellation before readiness follows the same cleanup when process ownership can
+be verified. Once readiness is committed, the VM remains running in the background.
+Cancelling a stop preserves remaining ownership so a later stop can finish.
+If a native helper controller cannot be confirmed exited, the operation lease
+also stays in place; inspect all remaining plugin processes before recovery.
+Existing helper ownership is never adopted by a new start; explicitly stop that
+VM first. See [developer lifecycle rules](https://github.com/storytellerF/me/blob/main/DEVELOPMENT.md#vm-lifecycle-and-state-controllers)
+for phase transitions and recovery evidence.
