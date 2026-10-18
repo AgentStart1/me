@@ -6,6 +6,7 @@ source "$PLUGIN_DIR/scripts/vm-utils.sh"
 load_profile "$PLUGIN_DIR/profiles/dev.profile"
 [[ "$(id -u)" != 0 ]]
 [[ ! -e /var/run/docker.sock ]]
+[[ ! -e /usr/bin/ps ]]
 [[ "$(awk '/^CapEff:/ {print $2}' /proc/self/status)" == 0000000000000000 ]]
 QEMU_BIN="$(resolve_qemu)"
 configure_qemu_acceleration "$QEMU_BIN"

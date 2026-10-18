@@ -362,3 +362,28 @@ identity before readiness. A completed start transfers ownership to the persiste
 VM state so the VM continues running. Interrupted or unverified publication keeps
 the reservation and networking for inspection; older shell-launched records remain
 recoverable. Do not remove retained state merely because a PID file is absent.
+
+## Guest provisioning dependencies
+
+The Alpine guest installs `docker`, `docker-cli-compose`, and `openssh` for the
+Docker API/CLI, Compose commands, SSH/SFTP, and proxy compilation transport.
+OpenRC supplies the `cgroups` service; provisioning enables it with
+`rc-update add cgroups default`. Do not add the non-Alpine `cgroupfs-mount`
+package. Go is installed only when building the Docker CLI proxy. The outer
+Linux runtime reads process identity from `/proc` and does not require `procps`.
+The guest installer explicitly includes the supervised Docker wrapper in Alpine's
+`lbu` archive so its executable and OpenRC configuration survive system installation.
+
+For a real acceptance check, provision a fresh isolated VM with its own
+`QEMU_ALPINE_BASE_DIR`, profile ports, disk, key, and proxy output directory.
+After starting it and building its proxy, run from this plugin root:
+
+```bash
+bash scripts/run-testcontainers.sh --profile /path/to/isolated.profile -- \
+  uv run --script tests/validate-guest-testcontainers.py --pool-start 28000 --pool-end 28015
+```
+
+Use the publish-pool bounds from that isolated profile. This opt-in check pulls
+BusyBox, Alpine and Ryuk images, exercises HTTP forwarding and CPU/memory cgroup limits,
+forces an OOM inside the constrained container, and checks workload removal.
+Keep Ryuk enabled. Stop only the isolated VM after verification.

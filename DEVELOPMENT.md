@@ -355,3 +355,20 @@ Android tool environment construction normalizes the three Android directory
 variables on Windows after applying profile overrides. The native regression
 passes Git Bash paths containing spaces and Unicode directly to a Python child,
 covering inherited values, profile overrides, native paths and empty values.
+
+### Real Alpine guest acceptance
+
+`plugins/qemu-alpine-docker/tests/validate-guest-testcontainers.py` is an opt-in
+real-guest check, separate from the deterministic fake-process CI suites. Run it
+through the plugin's Testcontainers wrapper against a freshly provisioned isolated
+VM after building its CLI proxy. It checks cgroup v2 CPU quota and memory limits,
+actual OOM enforcement without swap, mapped HTTP readiness, active Ryuk and
+workload removal. Provisioning regression checks reject `cgroupfs-mount` while
+retaining OpenRC's `cgroups` service; real installation validates that this service
+is supplied by Alpine rather than asserting a foreign package name.
+
+System provisioning uses Alpine's `lbu` archive when `setup-disk` installs the
+persistent root filesystem. Register the supervised Docker wrapper with `lbu include`
+before `setup-alpine`; an executable merely present under the live ISO's
+`/usr/local` is otherwise absent after reboot. Real fresh-disk verification must
+check both the persisted OpenRC configuration and the referenced executable.

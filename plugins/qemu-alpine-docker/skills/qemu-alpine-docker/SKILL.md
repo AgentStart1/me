@@ -222,3 +222,14 @@ identity before readiness. A completed start transfers ownership to the persiste
 VM state so the VM continues running. Interrupted or unverified publication keeps
 the reservation and networking for inspection; older shell-launched records remain
 recoverable. Do not remove retained state merely because a PID file is absent.
+
+## Guest dependency and acceptance checks
+
+Use Alpine's OpenRC `cgroups` service, not a `cgroupfs-mount` package. Retain
+Docker, Compose and SSH/SFTP dependencies; Go is needed only for proxy compilation.
+For real provisioning validation, use a new isolated base directory, disk, key,
+ports and proxy directory. Run `tests/validate-guest-testcontainers.py` through
+`run-testcontainers.sh` after provisioning/startup and proxy compilation; supply
+that profile's publish-pool bounds and keep Ryuk enabled. See the README for the
+exact command. The check verifies forwarding, cgroup limits, OOM enforcement and
+container removal; it does not authorize changes to another session's VM.
