@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 import socket
 import signal
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -15,7 +16,16 @@ ROOT = Path(__file__).resolve().parents[1]
 def exercise(plugin, mode):
     with tempfile.TemporaryDirectory() as directory:
         fixture = Path(directory)
-        (fixture / "index.html").write_text("owned-report-fixture")
+        project = fixture / 'project'
+        nested = project / 'nested'
+        nested.mkdir(parents=True)
+        if plugin == 'diff-sharing':
+            subprocess.run(['git', 'init', '-q', str(project)], check=True, capture_output=True)
+        home = fixture / 'home'
+        digest = hashlib.md5(str(project.resolve()).encode()).hexdigest()
+        output = home / '.cache' / ('diff-reports' if plugin == 'diff-sharing' else 'test-reports') / digest
+        output.mkdir(parents=True)
+        (output / "index.html").write_text("owned-report-fixture")
         binary = fixture / "bin"
         binary.mkdir()
         (binary / "ngrok").write_text("#!/bin/bash\necho attempted > \"$TUNNEL_LOG\"\n"
@@ -27,15 +37,18 @@ def exercise(plugin, mode):
         log_file = fixture / "output.log"
         script = ROOT / "plugins" / plugin / "scripts/start-ngrok.sh"
         env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ["PATH"],
-                   REPORT_OUTPUT_DIR=fixture.as_posix(),
+                   HOME=str(home), USERPROFILE=str(home),
                    TUNNEL_BLOCK="1" if mode == "tunnel" else "0",
                    TUNNEL_LOG=(fixture / "tunnel.log").as_posix())
+        env.pop('REPORT_OUTPUT_DIR', None)
         args = [sys.executable, str(script.with_suffix('.py')), '--port', str(port)]
+        if plugin == 'test-report-sharing':
+            args += ['--project-dir', '..']
         if mode == "local":
             args.append("--local-only")
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with log_file.open("wb") as log:
-            process = subprocess.Popen(args, env=env, stdout=log, stderr=log,
+            process = subprocess.Popen(args, env=env, stdout=log, stderr=log, cwd=nested,
                                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
             try:
                 deadline = time.monotonic() + 15

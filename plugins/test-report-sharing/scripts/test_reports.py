@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import shutil
 import hashlib
+import subprocess
 from urllib.parse import quote
 from datetime import datetime
 from report_runtime import output_parser, render, timestamp, write_json
@@ -16,19 +17,54 @@ DEFAULT_DIRS = ('build/reports', 'app/build/reports', 'androidApp/build/reports'
                 'target/failsafe-reports', 'test-results', 'test-reports', 'reports')
 
 
-def bounded_files(root, output):
+def submodule_directories(project):
+    """Return registered gitlinks without requiring Git for non-Git projects."""
+    executable = shutil.which('git')
+    has_metadata = any((path / '.git').exists() or (path / '.gitmodules').exists()
+                       for path in (project, *project.parents))
+    if not executable:
+        if has_metadata:
+            raise ValueError('Git is required to exclude submodules when collecting from a Git repository.')
+        return set()
+    result = subprocess.run([executable, '-C', str(project), 'rev-parse', '--show-toplevel'], capture_output=True)
+    if result.returncode:
+        if has_metadata:
+            raise subprocess.CalledProcessError(result.returncode, result.args)
+        return set()
+    root = Path(os.fsdecode(result.stdout.rstrip(b'\r\n'))).resolve()
+    entries = subprocess.check_output([executable, '-C', str(root), 'ls-files', '--stage', '-z'])
+    paths = {os.fsdecode(entry.split(b'\t', 1)[1]) for entry in entries.split(b'\0')
+             if entry.startswith(b'160000 ')}
+    modules = root / '.gitmodules'
+    if modules.is_file():
+        config = subprocess.run([executable, 'config', '--file', str(modules), '--null',
+                                 '--get-regexp', r'^submodule\..*\.path$'], capture_output=True)
+        if config.returncode not in (0, 1):
+            raise subprocess.CalledProcessError(config.returncode, config.args)
+        paths.update(os.fsdecode(entry.partition(b'\n')[2]) for entry in config.stdout.split(b'\0') if entry)
+    return {path for name in paths if (path := (root / name).resolve()).is_relative_to(root)}
+
+
+def inside_submodule(path, submodules):
+    path = path.resolve()
+    return any(path == module or module in path.parents for module in submodules)
+
+
+def bounded_files(root, output, submodules):
     """Find files at GNU find -maxdepth 4 depth, pruning output and directory links."""
     for directory, children, files in os.walk(root, followlinks=False):
         path = Path(directory)
         depth = len(path.relative_to(root).parts)
         children[:] = sorted(child for child in children
                              if depth < 3 and (path / child).resolve() != output
+                             and child != '.git' and not inside_submodule(path / child, submodules)
                              and not (path / child).is_symlink())
         if path.resolve() == output:
             children.clear()
             continue
         for name in sorted(files):
-            yield path / name
+            if not inside_submodule(path / name, submodules):
+                yield path / name
 
 
 def collect():
@@ -40,11 +76,13 @@ def collect():
     custom = args.test_dirs if args.test_dirs is not None else os.environ.get('TEST_RESULT_DIRS', os.environ.get('REPORT_DIRS', ''))
     roots = {Path(path).resolve() for path in [*DEFAULT_DIRS, *args.test_dir, *filter(None, (custom or '').split(':'))]
              if Path(path).is_dir()}
+    submodules = set().union(*(submodule_directories(root) for root in roots | {args.project_dir}))
+    roots = {root for root in roots if not inside_submodule(root, submodules)}
     roots = sorted(roots, key=lambda path: (len(path.parts), str(path)))
     candidates = {}
     xml_files = set()
     for root in roots:
-        for file in bounded_files(root, output):
+        for file in bounded_files(root, output, submodules):
             if file.name == 'index.html':
                 candidates.setdefault(file.parent, root)
             if file.match('*-tests.xml') or file.match('TEST-*.xml'):
@@ -58,6 +96,8 @@ def collect():
     (output / 'reports').mkdir(parents=True, exist_ok=True)
     (output / 'test-results').mkdir(parents=True, exist_ok=True)
     reports = []
+    def ignore_submodules(directory, names):
+        return [name for name in names if name == '.git' or inside_submodule(Path(directory) / name, submodules)]
     for candidate in selected:
         relative = candidate.relative_to(candidates[candidate]).as_posix()
         name = re.sub(r'[^\w.-]', '_', relative.replace('/', '-')).strip('-')
@@ -68,13 +108,13 @@ def collect():
         while destination.exists():
             suffix += 1
             destination = output / 'reports' / f'{name}-{suffix}'
-        shutil.copytree(candidate, destination, symlinks=True)
+        shutil.copytree(candidate, destination, symlinks=True, ignore=ignore_submodules)
         index = destination / 'index.html'
         page = index.read_text(encoding='utf-8')
         for asset, attribute in (('css', 'href'), ('js', 'src')):
             source = candidate.parent / asset
             if f'../{asset}/' in page and source.is_dir():
-                shutil.copytree(source, destination / asset, dirs_exist_ok=True, symlinks=True)
+                shutil.copytree(source, destination / asset, dirs_exist_ok=True, symlinks=True, ignore=ignore_submodules)
                 page = page.replace(f'{attribute}="../{asset}/', f'{attribute}="{asset}/')
         index.write_text(page, encoding='utf-8')
         reports.append(str(destination))

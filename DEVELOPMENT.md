@@ -14,25 +14,33 @@ Keep maintained page bodies under each plugin's `templates/` directory.
 
 Run the existing shell suites in both plugins, `python tests/test-report-python.py`,
 `python tests/test-report-launchers.py`, and `python tests/test-validation-workflow.py`.
-Native tests cover bounded scans, repeated directory arguments, overlapping roots,
+Native tests cover bounded scans, custom project directories, overlapping roots,
 recursive output rejection, URL/HTML escaping, binary Git statistics, committed
-comparisons and invalid input. Difftastic regressions also cover subdirectory
-invocation with either `diff.relative` setting and committed/worktree deletions
-whose paths were re-created locally. Gitlink tests cover additions, updates,
-deletions with objects absent from the parent repository, and checked-out
-submodules with changed commits or dirty files, alongside ordinary file diffs.
-The working-tree fixture combines root/subdirectory invocation, both
-`diff.relative` settings, and literal submodule paths containing spaces/brackets. Set `REPORT_TEST_PLUGINS` to a generated
-client's absolute `plugins/` directory to exercise its bundled entrypoints. Loopback tests exercise cancellation, failed ngrok
-and a simulated running tunnel. Windows uses a new process group and Ctrl+Break
-to exercise graceful cancellation; forceful OS termination cannot run cleanup.
+comparisons, and invalid input. Diff commands enter the Git root once during
+argument parsing, aligning statistics, both renderers and cache identity. Test
+report commands enter `--project-dir` (default: caller cwd). Explicit output paths
+are made absolute before entering the project. Cache identity uses that project.
+
+Submodule changes are excluded from all Git diff queries via one shared command
+boundary. Collection excludes registered gitlinks and `.gitmodules` paths from
+both discovery and directory copies, without requiring Git for non-Git projects.
+Regressions cover committed additions/updates/deletions and changed/dirty
+submodules from root/subdirectories with both `diff.relative` settings, as well as
+repository-wide scope and cached site reuse. Rendering gitlink content and
+per-query root-relative path workarounds are no longer needed. The explicit
+worktree comparison mode and empty deleted sides remain required.
+
+Set `REPORT_TEST_PLUGINS` to a generated client's absolute `plugins/` directory to
+exercise bundled entrypoints. Loopback tests launch from a subdirectory and
+verify default cache selection, `--project-dir`, cancellation, failed ngrok and a
+simulated running tunnel. Windows uses a new process group and Ctrl+Break to
+exercise graceful cancellation; forceful OS termination cannot run cleanup.
 No live ngrok authentication is exercised by these tests.
 
 Reports can be run directly with `python /path/to/plugin/scripts/<command>.py`.
 Use repeated `--test-dir DIR` for platform-independent custom report roots;
 `--test-dirs`, `TEST_RESULT_DIRS`, and `REPORT_DIRS` retain legacy colon separation.
-Default output cache keys use the native Python working-directory path, so
-regenerate an old shell-created cache or provide the same explicit output path.
+Use a fresh output directory after upgrading old collected report caches.
 
 ## Plugin rule audit
 

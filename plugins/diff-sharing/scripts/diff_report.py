@@ -15,6 +15,8 @@ TEMPLATES = Path(__file__).resolve().parent.parent / 'templates'
 
 
 def git(*args):
+    if args[0] == 'diff':
+        args = ('diff', '--ignore-submodules=all', *args[1:])
     return subprocess.check_output(['git', *args], env=dict(os.environ, GIT_EXTERNAL_DIFF=''), stderr=subprocess.PIPE)
 
 
@@ -22,10 +24,23 @@ def b64(value):
     return base64.b64encode(value).decode('ascii')
 
 
-def structural_payload(revisions, executable, env, *, include_worktree):
+def comparison_scope(revisions):
+    # Git's ignore-submodules flag still emits regular-file/gitlink type changes.
+    records = iter(git('diff', '--raw', '-z', '--diff-filter=T', *revisions, '--').split(b'\0'))
+    excluded = []
+    for header in records:
+        if not header:
+            continue
+        name = next(records)
+        old_mode, new_mode = header.split()[:2]
+        if b'160000' in (old_mode[1:], new_mode):
+            excluded.append(':(exclude,literal)' + os.fsdecode(name))
+    return [*revisions, '--', *excluded]
+
+
+def structural_payload(comparison, executable, env, *, include_worktree):
     # Raw -z records preserve tabs/newlines and avoid quoting or executing filenames.
-    repository_root = Path(os.fsdecode(git('rev-parse', '--show-toplevel').rstrip(b'\r\n')))
-    records = iter(git('diff', '--raw', '-z', '--no-abbrev', '--no-relative', *revisions, '--').split(b'\0'))
+    records = iter(git('diff', '--raw', '-z', '--no-abbrev', *comparison).split(b'\0'))
     lines = []
     with tempfile.TemporaryDirectory() as directory:
         for header in records:
@@ -35,26 +50,14 @@ def structural_payload(revisions, executable, env, *, include_worktree):
             name = next(records)
             if status.startswith((b'R', b'C')):
                 name = next(records)
-            modes = (old_mode[1:], new_mode)
-            gitlink_patch = []
-            if b'160000' in modes:
-                # Gitlinks reference commits in another repository, not blobs in
-                # this one. Git's short representation also preserves -dirty.
-                # Raw paths are root-relative data, not caller-relative pathspecs.
-                gitlink_patch = git('diff', '--no-ext-diff', '--no-color', '--no-relative', '--submodule=short',
-                                    *revisions, '--', ':(top,literal)' + os.fsdecode(name)).splitlines()
             sources = []
             for side, oid in enumerate((old_oid, new_oid)):
-                if modes[side] == b'160000':
-                    content = b'Subproject commit ' + oid + b'\n' if set(oid) != {48} else b''
-                    prefix = (b'-', b'+')[side] + b'Subproject commit '
-                    content = next((line[1:] + b'\n' for line in gitlink_patch if line.startswith(prefix)), content)
-                elif set(oid) == {48}:
+                if set(oid) == {48}:
                     content = b''
                     # Zero OIDs also represent deleted sides, which must never read
                     # an unrelated, re-created file from the current working tree.
                     if side == 1 and include_worktree and new_mode != b'000000':
-                        path = repository_root / os.fsdecode(name)
+                        path = Path(os.fsdecode(name))
                         if path.is_symlink():
                             content = os.fsencode(os.readlink(path))
                         elif path.is_file():
@@ -76,7 +79,7 @@ def structural_payload(revisions, executable, env, *, include_worktree):
 
 
 def generate():
-    parser = output_parser('diff-reports', 'Generate an HTML Git and Difftastic report.')
+    parser = output_parser('diff-reports', 'Generate an HTML Git and Difftastic report.', git_project=True)
     parser.add_argument('--base-ref', default=os.environ.get('GIT_BASE_REF', 'main'))
     parser.add_argument('--compare-ref', default=os.environ.get('GIT_COMPARE_REF', 'HEAD'))
     args = parser.parse_args()
@@ -85,7 +88,6 @@ def generate():
     skip = os.environ.get('DIFFTASTIC_SKIP_UNCHANGED', 'true')
     if not re.fullmatch('[1-9][0-9]*', width) or not re.fullmatch('[0-9]+', limit) or skip not in ('true', 'false'):
         parser.error('Invalid Difftastic width, parse error limit or skip-unchanged setting.')
-    git('rev-parse', '--git-dir')
     try:
         base = git('rev-parse', '--verify', '--end-of-options', args.base_ref + '^{commit}').decode().strip()
     except subprocess.CalledProcessError:
@@ -97,9 +99,10 @@ def generate():
     if not include_worktree:
         compare = git('rev-parse', '--verify', '--end-of-options', args.compare_ref + '^{commit}').decode().strip()
         revisions = [base + '...' + compare]
+    comparison = comparison_scope(revisions)
     directory = args.output_dir / 'diff'
     directory.mkdir(parents=True, exist_ok=True)
-    numstat = iter(git('diff', '--no-ext-diff', '--numstat', '-z', *revisions, '--').split(b'\0'))
+    numstat = iter(git('diff', '--no-ext-diff', '--numstat', '-z', *comparison).split(b'\0'))
     entries = []
     for entry in numstat:
         if entry:
@@ -114,7 +117,7 @@ def generate():
                  deletions=sum(int(b) for _, b, _ in entries if b.isdigit()), difftastic_available=bool(executable),
                  difftastic_skip_unchanged=skip == 'true', difftastic_parse_error_limit=int(limit))
     write_json(directory / 'stats.json', stats)
-    patch = git('diff', '--no-ext-diff', '--no-color', *revisions, '--').decode('utf-8', errors='replace')
+    patch = git('diff', '--no-ext-diff', '--no-color', *comparison).decode('utf-8', errors='replace')
     fragments = []
     for line in patch.splitlines():
         kind = 'info' if line.startswith('@@') else 'add' if line.startswith('+') else 'remove' if line.startswith('-') else 'context'
@@ -125,7 +128,7 @@ def generate():
         env = dict(os.environ, DFT_UNSTABLE='yes', DFT_DISPLAY='json', DFT_WIDTH=width,
                    DFT_SKIP_UNCHANGED=skip, DFT_PARSE_ERROR_LIMIT=limit)
         try:
-            payload = structural_payload(revisions, executable, env, include_worktree=include_worktree)
+            payload = structural_payload(comparison, executable, env, include_worktree=include_worktree)
             (directory / 'difftastic.jsonl').write_bytes(payload)
             structural = render(TEMPLATES / 'difftastic-content.html', {'PAYLOAD': b64(payload)}) if payload else '<div class="no-diff">No Difftastic diff available</div>'
         except (OSError, ValueError, subprocess.CalledProcessError) as error:
@@ -145,7 +148,7 @@ def generate():
 
 
 def site():
-    args = output_parser('diff-reports', 'Assemble a static diff site.').parse_args()
+    args = output_parser('diff-reports', 'Assemble a static diff site.', git_project=True).parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     section = 'No diff report generated. Run generate-diff-report.sh first.'
     if (args.output_dir / 'diff/index.html').is_file():

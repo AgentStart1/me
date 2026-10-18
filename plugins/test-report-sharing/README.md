@@ -12,8 +12,9 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 
 `test-report-operator` coordinates the same workflow when Claude agent routing is available.
 
-For an installed plugin, use absolute script paths from its root while staying in
-the tested project's directory. Collection discovers HTML roots and nested JUnit XML
+For an installed plugin, use absolute script paths. Every command accepts
+`--project-dir DIR`, defaulting to the current directory. It is the base for report
+searches, relative custom report directories and the default cache. Collection discovers HTML roots and nested JUnit XML
 up to four directory levels below each search root. Overlapping HTML roots are
 deduplicated; same-named XML from different paths are retained separately and linked
 from the site. Keep the output outside a report being copied.
@@ -23,10 +24,23 @@ also stays local if ngrok is absent or authentication fails. Credentials may com
 from saved configuration or `NGROK_AUTHTOKEN`. Keep the launcher running while using
 its URL; Ctrl+C stops only that launcher's server and tunnel.
 
-The `.sh` files are thin compatibility launchers. Every command also has a same-named `.py` entrypoint, for example `python /path/to/plugin/scripts/start-ngrok.py --local-only`. Run generation and serving from the same project directory to share the default cache.
+The `.sh` files are thin compatibility launchers. Every command also has a same-named `.py` entrypoint, for example `python /path/to/plugin/scripts/start-ngrok.py --local-only`. Use the same `--project-dir` for collection, site assembly and serving to share the default cache.
 
 Default cache keys now use the native Python project path. Regenerate reports
 after upgrading, or pass the same explicit `--output-dir` to reuse an older cache.
+
+```bash
+python /path/to/plugin/scripts/collect-test-results.py --project-dir /path/to/project
+python /path/to/plugin/scripts/generate-report-site.py --project-dir /path/to/project
+python /path/to/plugin/scripts/start-ngrok.py --project-dir /path/to/project --local-only
+```
+
+Explicit relative `--output-dir` and `REPORT_OUTPUT_DIR` paths are resolved from
+the original calling directory. Registered submodule directories are excluded
+from scans and copied report trees, including explicitly supplied search roots.
+Git is required when collecting from Git repositories so registered submodules
+can be identified. Non-Git projects do not require Git. Use a fresh output directory for reports collected by older
+versions that did not exclude submodules.
 
 ## Configuration
 

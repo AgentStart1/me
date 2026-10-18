@@ -12,8 +12,8 @@ Use `test-report-sharing` instead when the task is to collect, preview, or share
 - Generate an HTML diff report for the current branch against `main`, or a user-specified base ref.
 - Prefer Difftastic (`difft`) as the initial renderer when it is available. Offer Git diff as an alternate renderer.
 - When Difftastic is unavailable, make the Git renderer the only usable default and clearly report the missing executable; do not install it automatically.
-- Resolve raw Git paths from the repository root, including when invoked from a subdirectory. Keep committed comparisons isolated from working-tree content; a deleted side must remain empty.
-- Render submodule gitlinks as commit ID differences with Git's short submodule representation using root-anchored, literal path queries; never read gitlink OIDs as parent-repository blobs or fail unrelated file diffs because submodule objects are unavailable.
+- Execute generation, site assembly and serving from the detected Git repository root, regardless of the invocation subdirectory. Use that root for the default cache and all comparison queries. Keep committed comparisons isolated from working-tree content; a deleted side must remain empty.
+- Exclude submodule changes from statistics, Git patches and Difftastic output.
 - Preserve Difftastic's inline and side-by-side layout controls, old/new source context, and changed structural-fragment emphasis.
 - Assemble the generated diff into the static report site, then expose it through ngrok when configured; otherwise return the local server URL.
 - Return the public or local URL, compared refs, renderer used by default, and diff statistics.
@@ -22,7 +22,7 @@ Use `test-report-sharing` instead when the task is to collect, preview, or share
 
 ## Runtime
 
-All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Keep generation and serving in the target project directory, or pass the same explicit `--output-dir` throughout. GNU text utilities and jq are not runtime requirements.
+All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. All commands use the Git root as their working directory and cache identity. Resolve explicit relative output paths from the original calling directory before changing directories. GNU text utilities and jq are not runtime requirements.
 
 ## Quick Start
 

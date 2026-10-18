@@ -7,6 +7,8 @@ description: Use when collecting, previewing, or sharing test reports such as JU
 
 ## Required Behavior
 
+- Accept `--project-dir DIR` on collection, site assembly and serving, defaulting to the calling directory. Resolve report searches and relative custom report directories from that project; use it for cache identity.
+- Exclude registered submodule directories from searches and copied report trees, including explicitly supplied roots.
 - Collect reports from standard project locations (build/reports, test output folders).
 - Assemble the collected artifacts into a static HTML report site.
 - Expose the report site via ngrok if available, otherwise provide a local server URL.
@@ -16,7 +18,7 @@ description: Use when collecting, previewing, or sharing test reports such as JU
 
 ## Runtime
 
-All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Keep generation and serving in the target project directory, or pass the same explicit `--output-dir` throughout. GNU text utilities and jq are not runtime requirements.
+All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Use the same `--project-dir` throughout the workflow. Resolve explicit relative output paths from the original calling directory before entering the project directory. GNU text utilities and jq are not runtime requirements.
 
 ## Quick Start
 
@@ -34,6 +36,8 @@ plugins/test-report-sharing/scripts/start-ngrok.sh
 ```
 
 ## Configuration
+
+- `--project-dir DIR`: Project directory for every command (default: current directory)
 
 - `REPORT_OUTPUT_DIR`: Directory for generated reports (default: `~/.cache/test-reports/<project-hash>`)
 - `TEST_RESULT_DIRS`: Legacy colon-separated directories to scan; `REPORT_DIRS` remains an alias. Prefer repeated `--test-dir DIR` for Windows drive paths

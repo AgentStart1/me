@@ -13,12 +13,39 @@ import threading
 from datetime import datetime, timezone
 
 
-def output_parser(cache, description):
-    parser = argparse.ArgumentParser(description=description)
-    digest = hashlib.md5(str(Path.cwd()).encode()).hexdigest()
-    parser.add_argument('--output-dir', type=Path, default=Path(os.environ.get(
-        'REPORT_OUTPUT_DIR', str(Path.home() / '.cache' / cache / digest))))
-    return parser
+class ReportParser(argparse.ArgumentParser):
+    """Resolve caller output paths, then enter one project directory for the CLI."""
+
+    def __init__(self, cache, description, *, git_project):
+        super().__init__(description=description)
+        self.cache = cache
+        self.git_project = git_project
+        self.add_argument('--output-dir', type=Path, default=os.environ.get('REPORT_OUTPUT_DIR') or None)
+        if not git_project:
+            self.add_argument('--project-dir', type=Path, default=Path.cwd(),
+                              help='Project directory for report searches and cache identity (default: current directory).')
+
+    def parse_args(self, args=None, namespace=None):
+        parsed = super().parse_args(args, namespace)
+        if self.git_project:
+            root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], stderr=subprocess.PIPE)
+            project = Path(os.fsdecode(root.rstrip(b'\r\n'))).resolve()
+        else:
+            project = parsed.project_dir.resolve()
+        if not project.is_dir():
+            self.error(f'Project directory does not exist or is not a directory: {project}')
+        if parsed.output_dir is None:
+            digest = hashlib.md5(str(project).encode()).hexdigest()
+            parsed.output_dir = Path.home() / '.cache' / self.cache / digest
+        else:
+            parsed.output_dir = parsed.output_dir.resolve()
+        parsed.project_dir = project
+        os.chdir(project)
+        return parsed
+
+
+def output_parser(cache, description, *, git_project=False):
+    return ReportParser(cache, description, git_project=git_project)
 
 
 def timestamp():
@@ -65,9 +92,9 @@ def run_cli(action):
         raise SystemExit(f'Error: {error}') from error
 
 
-def serve(cache):
+def serve(cache, *, git_project=False):
     """Own the loopback server and optional tunnel until cancellation or tunnel exit."""
-    parser = output_parser(cache, 'Serve a report on loopback, optionally through ngrok.')
+    parser = output_parser(cache, 'Serve a report on loopback, optionally through ngrok.', git_project=git_project)
     parser.add_argument('--port', type=int, default=os.environ.get('NGROK_PORT', '8080'))
     parser.add_argument('--local-only', action='store_true')
     args = parser.parse_args()

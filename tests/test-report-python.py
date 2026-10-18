@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 import shutil
+import hashlib
 from itertools import product
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +24,11 @@ class ReportTests(unittest.TestCase):
 
     def command(self, plugin, script, *args, env=None, success=True, cwd=None):
         environment = dict(os.environ)
-        environment.update(env or {})
+        for key, value in (env or {}).items():
+            if value is None:
+                environment.pop(key, None)
+            else:
+                environment[key] = value
         result = subprocess.run([sys.executable, str(PLUGINS / plugin / 'scripts' / script), *map(str, args)],
                                 cwd=cwd or self.project, env=environment, capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
@@ -158,8 +163,11 @@ class ReportTests(unittest.TestCase):
         directory.mkdir()
         source = directory / 'example.py'
         source.write_bytes(b'value = 1\n')
-        git('add', 'nested space'); git('commit', '-qm', 'base')
+        outside = self.project / 'outside.py'
+        outside.write_bytes(b'outside = 1\n')
+        git('add', 'nested space', 'outside.py'); git('commit', '-qm', 'base')
         source.write_bytes(b'value = 2\n')
+        outside.write_bytes(b'outside = 2\n')
         for relative in ('false', 'true'):
             with self.subTest(diff_relative=relative):
                 git('config', 'diff.relative', relative)
@@ -167,10 +175,90 @@ class ReportTests(unittest.TestCase):
                 self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output,
                              cwd=directory, env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
                 records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
-                self.assertEqual(len(records), 1)
-                old, new, _ = map(base64.b64decode, records[0].split('\t'))
-                self.assertEqual(old, b'value = 1\n')
-                self.assertEqual(new, b'value = 2\n')
+                pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
+                self.assertEqual(pairs, {(b'value = 1\n', b'value = 2\n'), (b'outside = 1\n', b'outside = 2\n')})
+                self.assertEqual(json.loads((output / 'diff/stats.json').read_text())['files_changed'], 2)
+                patch = (output / 'diff/git-diff-content.html').read_text(encoding='utf-8')
+                self.assertIn('outside.py', patch)
+                self.assertIn('nested space/example.py', patch)
+
+    @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
+    def test_diff_root_cache_and_caller_relative_output(self):
+        git, fake = self.init_structural_fixture()
+        (self.project / 'example.py').write_bytes(b'value = 1\n')
+        git('add', 'example.py'); git('commit', '-qm', 'base')
+        (self.project / 'example.py').write_bytes(b'value = 2\n')
+        nested = self.project / 'nested'
+        nested.mkdir()
+        home = self.project / 'home'
+        environment = {'HOME': str(home), 'USERPROFILE': str(home), 'REPORT_OUTPUT_DIR': None,
+                       'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)}
+        self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', cwd=nested, env=environment)
+        digest = hashlib.md5(str(self.project.resolve()).encode()).hexdigest()
+        output = home / '.cache/diff-reports' / digest
+        self.assertTrue((output / 'diff/stats.json').is_file())
+        self.command('diff-sharing', 'generate-diff-site.py', cwd=self.project, env=environment)
+        self.assertIn('1 file(s) changed', (output / 'index.html').read_text(encoding='utf-8'))
+        self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', 'local-output',
+                     cwd=nested, env=environment)
+        self.assertTrue((nested / 'local-output/diff/stats.json').is_file())
+        self.assertFalse((self.project / 'local-output').exists())
+
+    @unittest.skipIf(PLUGIN == 'diff-sharing', 'Other plugin')
+    def test_explicit_report_project_directory(self):
+        project = self.project / 'target project'
+        reports = project / 'build/test-results'
+        reports.mkdir(parents=True)
+        (reports / 'TEST-default.xml').write_text('<testsuite/>')
+        custom = project / 'custom'
+        custom.mkdir()
+        (custom / 'TEST-custom.xml').write_text('<testsuite/>')
+        self.command('test-report-sharing', 'collect-test-results.py', '--project-dir', 'target project',
+                     '--test-dir', 'custom', '--output-dir', 'caller-output')
+        summary = json.loads((self.project / 'caller-output/reports/summary.json').read_text())
+        self.assertEqual(summary['xml_files'], 2)
+        self.assertFalse((project / 'caller-output').exists())
+        home = self.project / 'home'
+        environment = {'HOME': str(home), 'USERPROFILE': str(home), 'REPORT_OUTPUT_DIR': None}
+        self.command('test-report-sharing', 'collect-test-results.py', '--project-dir', project, env=environment)
+        self.command('test-report-sharing', 'generate-report-site.py', '--project-dir', project, env=environment)
+        digest = hashlib.md5(str(project.resolve()).encode()).hexdigest()
+        output = home / '.cache/test-reports' / digest
+        self.assertEqual((output / 'index.html').read_text(encoding='utf-8').count('(JUnit XML)'), 1)
+        self.command('test-report-sharing', 'collect-test-results.py', '--project-dir', project,
+                     '--output-dir', self.project / 'without-git', env={'PATH': ''})
+        self.command('test-report-sharing', 'collect-test-results.py', '--project-dir', 'missing', success=False)
+        (self.project / 'file').write_text('not a directory')
+        self.command('test-report-sharing', 'generate-report-site.py', '--project-dir', 'file', success=False)
+
+    @unittest.skipIf(PLUGIN == 'diff-sharing', 'Other plugin')
+    def test_collection_excludes_submodules_in_scans_and_copies(self):
+        project = self.project / 'target'
+        project.mkdir()
+        def git(*args):
+            return subprocess.check_output(['git', *args], cwd=project, stderr=subprocess.PIPE)
+        git('init', '-q')
+        (project / 'index.html').write_text('parent report')
+        (project / 'TEST-parent.xml').write_text('<testsuite/>')
+        for name in ('vendor', 'removed-module'):
+            module = project / name
+            module.mkdir()
+            (module / 'index.html').write_text('submodule report')
+            (module / 'TEST-hidden.xml').write_text('<testsuite/>')
+        git('update-index', '--add', '--cacheinfo', f'160000,{"1" * 40},vendor')
+        (project / '.gitmodules').write_text('[submodule "removed"]\n\tpath = removed-module\n', encoding='utf-8')
+        output = self.project / 'output'
+        self.command('test-report-sharing', 'collect-test-results.py', '--project-dir', project, '--test-dir', '.',
+                     '--test-dir', 'vendor', '--test-dir', 'removed-module', '--output-dir', output)
+        summary = json.loads((output / 'reports/summary.json').read_text())
+        self.assertEqual((summary['total_reports'], summary['xml_files']), (1, 1))
+        copied = Path(summary['report_directories'][0])
+        self.assertFalse((copied / 'vendor').exists())
+        self.assertFalse((copied / 'removed-module').exists())
+        self.assertFalse((copied / '.git').exists())
+        self.assertTrue((copied / 'index.html').is_file())
+        self.command('test-report-sharing', 'collect-test-results.py', '--project-dir', project,
+                     '--output-dir', self.project / 'without-git', env={'PATH': ''}, success=False)
 
     @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
     def test_committed_deletion_does_not_capture_worktree_file(self):
@@ -195,7 +283,7 @@ class ReportTests(unittest.TestCase):
                 self.assertNotIn(base64.b64encode(source.read_bytes()).decode(), page)
 
     @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
-    def test_gitlink_add_update_delete_preserve_regular_file_diffs(self):
+    def test_submodule_add_update_delete_are_excluded(self):
         git, fake = self.init_structural_fixture()
         source = self.project / 'example.py'
         source.write_bytes(b'value = 0\n')
@@ -210,21 +298,46 @@ class ReportTests(unittest.TestCase):
                 git('update-index', '--force-remove', 'module')
             source.write_bytes(f'value = {value}\n'.encode())
             git('add', 'example.py'); git('commit', '-qm', tag); git('tag', tag)
-        for base, compare, old, new, value in (
-                ('base', 'added', b'', f'Subproject commit {first}\n'.encode(), 1),
-                ('added', 'updated', f'Subproject commit {first}\n'.encode(), f'Subproject commit {second}\n'.encode(), 2),
-                ('updated', 'deleted', f'Subproject commit {second}\n'.encode(), b'', 3)):
+        for base, compare, value in (('base', 'added', 1), ('added', 'updated', 2), ('updated', 'deleted', 3)):
             with self.subTest(change=compare):
                 output = self.project / ('output-' + compare)
                 self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', base, '--compare-ref', compare,
                              '--output-dir', output, env={'GIT_INCLUDE_UNCOMMITTED': 'false', 'DIFFTASTIC_COMMAND': str(fake)})
                 records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
                 pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
-                self.assertEqual(pairs, {(old, new), (f'value = {value - 1}\n'.encode(), f'value = {value}\n'.encode())})
+                self.assertEqual(pairs, {(f'value = {value - 1}\n'.encode(), f'value = {value}\n'.encode())})
+                self.assertEqual(json.loads((output / 'diff/stats.json').read_text())['files_changed'], 1)
+                self.assertNotIn('module', (output / 'diff/git-diff-content.html').read_text(encoding='utf-8'))
+
                 self.assertNotIn('Difftastic failed to generate', (output / 'diff/index.html').read_text(encoding='utf-8'))
 
     @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
-    def test_gitlink_worktree_commit_and_dirty_state(self):
+    def test_submodule_type_changes_are_excluded(self):
+        git, fake = self.init_structural_fixture()
+        source = self.project / 'example.py'
+        module = self.project / 'module [x]'
+        for tag, value in (('regular', 1), ('gitlink', 2), ('restored', 3)):
+            source.write_bytes(f'value = {value}\n'.encode())
+            git('add', 'example.py')
+            if tag == 'gitlink':
+                module.unlink()
+                git('update-index', '--add', '--cacheinfo', f'160000,{"1" * 40},{module.name}')
+            else:
+                module.write_bytes(b'ordinary content\n')
+                git('add', module.name)
+            git('commit', '-qm', tag); git('tag', tag)
+        for base, compare in (('regular', 'gitlink'), ('gitlink', 'restored')):
+            with self.subTest(base=base, compare=compare):
+                output = self.project / ('output-' + compare)
+                self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', base, '--compare-ref', compare,
+                             '--output-dir', output, env={'GIT_INCLUDE_UNCOMMITTED': 'false', 'DIFFTASTIC_COMMAND': str(fake)})
+                records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
+                self.assertEqual(len(records), 1)
+                self.assertEqual(json.loads((output / 'diff/stats.json').read_text())['files_changed'], 1)
+                self.assertNotIn('module', (output / 'diff/git-diff-content.html').read_text(encoding='utf-8'))
+
+    @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
+    def test_submodule_worktree_changes_are_excluded_from_subdirectories(self):
         git, fake = self.init_structural_fixture()
         module = self.project / 'module [x] space'
         module.mkdir()
@@ -243,7 +356,6 @@ class ReportTests(unittest.TestCase):
         git('config', 'diff.ignoreSubmodules', 'none')
         (module / 'code.py').write_bytes(b'value = 2\n')
         git('-C', str(module), 'add', 'code.py'); git('-C', str(module), 'commit', '-qm', 'second')
-        second = git('-C', str(module), 'rev-parse', 'HEAD').strip()
         source.write_bytes(b'value = 2\n')
         nested = self.project / 'nested'
         nested.mkdir()
@@ -257,9 +369,15 @@ class ReportTests(unittest.TestCase):
                              env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
                 records = (output / 'diff/difftastic.jsonl').read_text().splitlines()
                 pairs = {tuple(map(base64.b64decode, record.split('\t')[:2])) for record in records}
-                self.assertEqual(pairs, {(b'Subproject commit ' + first + b'\n',
-                                         b'Subproject commit ' + second + (b'-dirty' if dirty else b'') + b'\n'),
-                                        (b'value = 1\n', b'value = 2\n')})
+                self.assertEqual(pairs, {(b'value = 1\n', b'value = 2\n')})
+                self.assertEqual(json.loads((output / 'diff/stats.json').read_text())['files_changed'], 1)
+                self.assertNotIn('module', (output / 'diff/git-diff-content.html').read_text(encoding='utf-8'))
+        source.write_bytes(b'value = 1\n')
+        output = self.project / 'only-submodule'
+        self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output,
+                     cwd=nested, env={'GIT_INCLUDE_UNCOMMITTED': 'true', 'DIFFTASTIC_COMMAND': str(fake)})
+        self.assertEqual(json.loads((output / 'diff/stats.json').read_text())['files_changed'], 0)
+        self.assertEqual((output / 'diff/difftastic.jsonl').read_bytes(), b'')
 
 
 if __name__ == '__main__':
