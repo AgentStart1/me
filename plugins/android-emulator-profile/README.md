@@ -65,3 +65,6 @@ metacharacters that cannot be safely quoted; executable tools receive argument
 lists. Use Ctrl+C or native Windows Ctrl+Break for graceful cancellation. Git
 Bash `kill -TERM` forcibly terminates native Windows programs and cannot run
 Python cleanup; inspect any remaining guard before recovery.
+
+Windows environment option names retain their original case, including inherited
+`EMULATOR_FLAG_` and `EMULATOR_VALUE_` suffixes.

@@ -13,6 +13,38 @@ import tempfile
 FORBIDDEN_ARCH = ('ARCH', 'ABI', 'AVD_ARCH', 'AVD_ABI', 'AVDMANAGER_ABI', 'AVDMANAGER_ARCH', 'EMULATOR_ABI', 'EMULATOR_ARCH')
 
 
+def environment_values():
+    """Preserve case-sensitive emulator option suffixes in Windows environment names."""
+    values = dict(os.environ)
+    if os.name != 'nt':
+        return values
+    import ctypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.GetEnvironmentStringsW.restype = ctypes.c_void_p
+    kernel.FreeEnvironmentStringsW.argtypes = [ctypes.c_void_p]
+    pointer = kernel.GetEnvironmentStringsW()
+    if not pointer:
+        raise OSError('Cannot read Windows environment')
+    try:
+        entries = []
+        offset = 0
+        while True:
+            entry = ctypes.wstring_at(pointer + offset * ctypes.sizeof(ctypes.c_wchar))
+            if not entry:
+                break
+            entries.append(entry)
+            offset += len(entry.encode('utf-16-le')) // 2 + 1
+        prefixes = ('EMULATOR_FLAG_', 'EMULATOR_VALUE_', 'EMULATOR_CONFIG_')
+        values = {key: value for key, value in values.items() if not key.startswith(prefixes)}
+        for entry in entries:
+            key, separator, value = entry.partition('=')
+            if separator and key.startswith(prefixes):
+                values[key] = value
+    finally:
+        kernel.FreeEnvironmentStringsW(pointer)
+    return values
+
+
 def native_path(value):
     if os.name == 'nt' and value.startswith('/') and shutil.which('cygpath'):
         return Path(subprocess.check_output(['cygpath', '-w', value], text=True).strip())

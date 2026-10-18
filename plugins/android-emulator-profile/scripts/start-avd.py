@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 from profile_controller import (FORBIDDEN_ARCH, apply_config, arguments, avd_config,
-                                is_true, load_profile, native_path, read_config, resolve_tool, tool_command)
+                                environment_values, is_true, load_profile, native_path, read_config, resolve_tool, tool_command)
 
 
 class Cancelled(Exception):
@@ -35,7 +35,7 @@ def main():
         loaded = load_profile(profile)
         if set(loaded).intersection(FORBIDDEN_ARCH):
             raise ValueError('profile must not define architecture; architecture is detected dynamically')
-        values = {**os.environ, **loaded}
+        values = {**environment_values(), **loaded}
         if not values.get('AVD_NAME'):
             raise ValueError('required profile key AVD_NAME is missing or empty')
         executable = resolve_tool('emulator', values)

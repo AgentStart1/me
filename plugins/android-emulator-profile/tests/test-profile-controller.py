@@ -57,11 +57,11 @@ class ProfileTests(unittest.TestCase):
             profile = root / 'test.profile'
             profile.write_text(f'AVD_NAME=名称\nAVDMANAGER_VALUE_path="{avd}"\nEMULATOR_VALUE_Custom_Value="space value"\n', encoding='utf-8')
             log = root / 'args.json'
-            env = {**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'], 'FIXTURE_LOG': str(log)}
+            env = {**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'], 'FIXTURE_LOG': str(log), 'EMULATOR_VALUE_Inherited_Case': 'inherited value'}
             command = [sys.executable, str(SCRIPTS / 'start-avd.py'), str(profile)]
             result = subprocess.run(command, env={**env, 'FIXTURE_STATUS': '23'}, capture_output=True)
             self.assertEqual(result.returncode, 23, result.stderr)
-            self.assertEqual(json.loads(log.read_text()), ['-avd', '名称', '-Custom-Value', 'space value'])
+            self.assertEqual(json.loads(log.read_text()), ['-avd', '名称', '-Custom-Value', 'space value', '-Inherited-Case', 'inherited value'])
             guard = avd / 'config.ini.profile-start.guard'
             self.assertFalse(guard.exists())
             native_lock = avd / 'hardware-qemu.ini.lock'
