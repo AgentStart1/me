@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -18,7 +18,7 @@ import guest_registry
 import guest_screen
 import guest_seed
 import guest_config
-from macos_install import key_events, text_keys
+from macos_install import key_events, text_keys, press_keys, terminal_ready
 from process_identity import identity
 from windows_image import select as select_windows_image
 spec = importlib.util.spec_from_file_location('guest_vm', ROOT / 'scripts/guest-vm.py')
@@ -78,6 +78,23 @@ class GuestPanelTests(unittest.TestCase):
         self.assertEqual(text_keys('sh /Volumes/GUESTSEED/macos-install.sh\n')[-1], ['ret'])
         with self.assertRaises(ValueError):
             text_keys('$(unsafe)')
+
+    def test_recovery_releases_modifiers_even_when_press_wait_is_interrupted(self):
+        client = Mock()
+        with patch('macos_install.time.sleep', side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                press_keys(client, ['shift', 'a'])
+        pressed = client.execute.call_args_list[0].args[1]['events']
+        released = client.execute.call_args_list[1].args[1]['events']
+        self.assertTrue(all(event['data']['down'] for event in pressed))
+        self.assertTrue(all(not event['data']['down'] for event in released))
+        self.assertEqual([event['data']['key']['data'] for event in released], ['a', 'shift'])
+
+    def test_terminal_window_title_does_not_authorize_installer_handoff(self):
+        self.assertFalse(terminal_ready('Terminal Shell Edit View Window Help'))
+        self.assertFalse(terminal_ready('Terminal — bash — 80x24'))
+        self.assertTrue(terminal_ready('-bash-3.2#'))
+        self.assertTrue(terminal_ready('-bash-3.2 #'))
 
     def test_macos_seed_uses_explicit_target_and_bootstrap_product(self):
         package = self.home / 'bootstrap.pkg'; package.write_bytes(b'fixture package')

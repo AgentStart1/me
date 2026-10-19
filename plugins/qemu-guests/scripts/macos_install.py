@@ -1,6 +1,7 @@
 """Unattended Intel Recovery terminal handoff; no setup-assistant clicking."""
 import json
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import time
@@ -12,6 +13,22 @@ from process_identity import identity, owns_listeners, write_record
 def key_events(keys):
     return [{'type': 'key', 'data': {'down': down, 'key': {'type': 'qcode', 'data': key}}}
             for down in (True, False) for key in (keys if down else list(reversed(keys)))]
+
+
+def press_keys(client, keys):
+    # Recovery's USB keyboard misses releases batched with presses. Allow a
+    # guest poll between transitions and before the following character.
+    events = key_events(keys)
+    try:
+        client.execute('input-send-event', {'events': events[:len(keys)]})
+        time.sleep(0.15)
+    finally:
+        client.execute('input-send-event', {'events': events[len(keys):]})
+    time.sleep(0.15)
+
+
+def terminal_ready(text):
+    return re.search(r'(?:bash|zsh|sh)-[0-9.]+\s*[#%$]', text) is not None
 
 
 def text_keys(text):
@@ -52,15 +69,16 @@ class RecoveryInstaller:
         try:
             text = self.screen_text(client)
             if self.phase == 'waiting-recovery' and ('disk utility' in text or 'restore from time machine' in text):
-                client.execute('input-send-event', {'events': key_events(['shift', 'meta_l', 't'])})
+                press_keys(client, ['shift', 'meta_l', 't'])
                 self.phase = 'waiting-terminal'
-            elif self.phase == 'waiting-terminal' and ('bash-' in text or 'zsh' in text or 'terminal' in text):
+                write_record(self.marker, {'phase': self.phase})
+            elif self.phase == 'waiting-terminal' and terminal_ready(text):
                 # Record the handoff before sending a potentially destructive
                 # installer command. A crash requires inspection, never a blind retry.
                 write_record(self.marker, {'phase': 'installer-started'})
                 self.phase = 'installer-started'
                 for keys in text_keys('sh /Volumes/GUESTSEED/macos-install.sh\n'):
-                    client.execute('input-send-event', {'events': key_events(keys)})
+                    press_keys(client, keys)
                 print('macOS Recovery handed off to unattended startosinstall.', flush=True)
         finally:
             client.close()
