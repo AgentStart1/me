@@ -8,7 +8,10 @@ payload="$1"; output="$2"
 [ ! -e "$output" ] || { echo 'Output already exists; refusing replacement.' >&2; exit 1; }
 staging="$(mktemp -d)"
 trap 'rm -rf -- "$staging"' EXIT
-mkdir -p "$staging/root/opt/qemu-guests" "$staging/root/Library/LaunchDaemons"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+mkdir -p "$staging/root/opt/qemu-guests" "$staging/root/Library/LaunchDaemons" "$staging/scripts"
+cp "$script_dir/../templates/guests/macos-postinstall.sh.tpl" "$staging/scripts/postinstall"
+chmod 755 "$staging/scripts/postinstall"
 chmod 755 "$staging/root" "$staging/root/opt" "$staging/root/opt/qemu-guests" "$staging/root/Library" "$staging/root/Library/LaunchDaemons"
 ditto -xk "$payload" "$staging/root/opt/qemu-guests"
 mv "$staging/root/opt/qemu-guests/macos-firstboot.plist" "$staging/root/Library/LaunchDaemons/com.me.qemu-guests.firstboot.plist"
@@ -16,5 +19,5 @@ chmod 644 "$staging/root/Library/LaunchDaemons/com.me.qemu-guests.firstboot.plis
 chmod 755 "$staging/root/opt/qemu-guests/docker"
 chmod 644 "$staging/root/opt/qemu-guests/environment" "$staging/root/opt/qemu-guests/verify-macos.sh"
 chmod 600 "$staging/root/opt/qemu-guests/backend-key" "$staging/root/opt/qemu-guests/account-password"
-pkgbuild --root "$staging/root" --identifier com.me.qemu-guests.bootstrap --version 1 --ownership recommended "$staging/component.pkg"
+pkgbuild --root "$staging/root" --scripts "$staging/scripts" --identifier com.me.qemu-guests.bootstrap --version 1 --ownership recommended "$staging/component.pkg"
 productbuild --package "$staging/component.pkg" --identifier com.me.qemu-guests.bootstrap --version 1 "$output"
