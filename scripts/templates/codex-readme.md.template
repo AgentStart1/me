@@ -20,7 +20,7 @@ codex plugin add general-coding-practices@me
 codex plugin add client-ui-best-practices@me
 codex plugin add test-report-sharing@me
 codex plugin add diff-sharing@me
-codex plugin add qemu-alpine-docker@me
+codex plugin add qemu-guests@me
 ```
 
 Start a new Codex thread after installation so its plugin skills and MCP tools are loaded.

@@ -1,0 +1,28 @@
+{
+  "name": "ubuntu-work",
+  "os": "ubuntu",
+  "state_dir": "~/.qemu-guests/ubuntu-work",
+  "base_image": "/path/to/ubuntu-server-cloudimg-amd64.img",
+  "media_sha256": "REPLACE_WITH_VERIFIED_SHA256",
+  "disk_size": "64G",
+  "memory": 4096,
+  "cpus": 4,
+  "ssh_port": 2230,
+  "ssh_user": "developer",
+  "access_key": "~/.ssh/qemu-work",
+  "proxy_binary": "~/.local/share/me/docker-proxy/linux-amd64/docker",
+  "backend": {
+    "ssh_port": 2222,
+    "key": "~/.qemu-alpine-docker/id_ed25519",
+    "publish_start": 20000,
+    "publish_end": 20127
+  },
+  "qemu_args": [
+    "-accel",
+    "whpx",
+    "-cpu",
+    "Westmere,-vmx,-svm"
+  ],
+  "timeout": 3600,
+  "graphical": false
+}

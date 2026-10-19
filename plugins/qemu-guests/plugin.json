@@ -1,0 +1,56 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "qemu-guests",
+  "version": "0.7.0-20261019051917",
+  "description": "Concurrent QEMU work guests with unattended provisioning and a shared Alpine Docker backend.",
+  "author": {
+    "name": "QEMU Guests Maintainers",
+    "url": "https://github.com/storytellerF/me"
+  },
+  "homepage": "https://github.com/storytellerF/me",
+  "repository": "https://github.com/storytellerF/me",
+  "license": "UNLICENSED",
+  "keywords": [
+    "qemu",
+    "alpine",
+    "docker",
+    "vm",
+    "windows",
+    "linux",
+    "kvm",
+    "tcg",
+    "ubuntu",
+    "macos",
+    "unattended",
+    "whpx"
+  ],
+  "extensions": {
+    "com.openai.codex": {
+      "skills": "./skills/",
+      "interface": {
+        "displayName": "QEMU Guests",
+        "shortDescription": "Concurrent work VMs with a shared Alpine Docker backend.",
+        "longDescription": "Manages concurrent QEMU work guests alongside one persistent Alpine Docker backend on Windows and in Linux containers. Includes Ubuntu cloud-init, Windows answer files and Intel macOS Recovery automation using prepared Apple media and a bootstrap package. Work guests proxy Docker commands, API access and TCP publish ports to Alpine. The status panel lists work VMs and displays live read-only screens for graphical guests. Windows 11 hosts use a plugin-managed WHPX-only QEMU build for four-vCPU Windows guests and warm reboots.",
+        "developerName": "QEMU Guests Maintainers",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Interactive",
+          "Write"
+        ],
+        "websiteURL": "https://github.com/storytellerF/me",
+        "privacyPolicyURL": "https://github.com/storytellerF/me",
+        "termsOfServiceURL": "https://github.com/storytellerF/me",
+        "defaultPrompt": [
+          "Install an unattended Ubuntu work VM with the shared Alpine Docker backend.",
+          "Start multiple independent work VMs.",
+          "Configure a custom unattended guest installation adapter."
+        ],
+        "brandColor": "#3B82F6"
+      },
+      "mcpServers": "./.mcp.json"
+    },
+    "com.anthropic.claude": {
+      "mcpServers": "./.mcp.json"
+    }
+  }
+}

@@ -18,14 +18,14 @@ with tempfile.TemporaryDirectory() as temporary:
         (output / 'unrelated.txt').write_text('keep')
         build(client, output)
         validation.validate(client, output)
-        for name in ['qemu-alpine-docker', 'android-emulator-profile', 'android-device-lock']:
+        for name in ['qemu-guests', 'android-emulator-profile', 'android-device-lock']:
             plugin = output / 'plugins' / name
             manifest = json.loads((plugin / f'.{client}-plugin/plugin.json').read_text())
             assert manifest['mcpServers'] == './.mcp.json'
             for resource in ['.mcp.json', 'templates/status-panel.html', 'scripts/status-server.py']:
                 assert (plugin / resource).is_file(), f'missing status runtime: {plugin / resource}'
-        assert (output / 'plugins/qemu-alpine-docker/container/Dockerfile').is_file()
-        assert (output / 'plugins/qemu-alpine-docker/skills/qemu-alpine-docker/references/configuration-and-recovery.md').is_file()
+        assert (output / 'plugins/qemu-guests/container/Dockerfile').is_file()
+        assert (output / 'plugins/qemu-guests/skills/qemu-guests/references/configuration-and-recovery.md').is_file()
         before = {p.relative_to(output): p.read_bytes() for p in output.rglob('*') if p.is_file()}
         marketplace_dir = output / ('.agents/plugins' if client == 'codex' else '.claude-plugin')
         (marketplace_dir / 'stale.txt').write_text('stale')
@@ -74,9 +74,9 @@ with tempfile.TemporaryDirectory() as temporary:
     fixture = Path(temporary) / 'source'
     shutil.copytree(ROOT / 'plugins', fixture / 'plugins')
     shutil.copytree(ROOT / 'scripts/templates', fixture / 'scripts/templates')
-    plugin = fixture / 'plugins/qemu-alpine-docker'
+    plugin = fixture / 'plugins/qemu-guests'
     for relative in ['ui/node_modules/dependency/index.js', 'scripts/__pycache__/status.pyc',
-                     'skills/qemu-alpine-docker/node_modules/dependency/index.js']:
+                     'skills/qemu-guests/node_modules/dependency/index.js']:
         artifact = plugin / relative
         artifact.parent.mkdir(parents=True, exist_ok=True)
         artifact.write_text('development artifact')
@@ -88,7 +88,7 @@ with tempfile.TemporaryDirectory() as temporary:
             build(client, output)
             assert not list(output.rglob('node_modules'))
             assert not list(output.rglob('__pycache__'))
-            assert (output / 'plugins/qemu-alpine-docker/templates/status-panel.html').is_file()
+            assert (output / 'plugins/qemu-guests/templates/status-panel.html').is_file()
     finally:
         validation.builder.ROOT = original_root
 print('Status runtime registration and development artifact exclusion passed.')

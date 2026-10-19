@@ -1,0 +1,36 @@
+#!/bin/ash
+set -eu
+exec >/dev/ttyS0 2>&1
+trap 'status=$?; if [ "$status" -ne 0 ]; then echo "Unattended installation failed with status $status"; poweroff -f; fi' EXIT
+
+ip link set eth0 up
+udhcpc -i eth0 -q -n -t 10
+
+ALPINE_BRANCH="$(sed -n '1p' /mirror-config)"
+ALPINE_MIRROR_BASE="$(sed -n '2p' /mirror-config)"
+SELECTED_MIRROR="$(ALPINE_FALLBACK_MIRROR="{{ALPINE_FALLBACK_MIRROR}}" \
+    /usr/local/libexec/select-apk-mirror "$ALPINE_BRANCH" "$ALPINE_MIRROR_BASE" /answers)"
+echo "Selected Alpine mirror: ${SELECTED_MIRROR}"
+apk add docker docker-cli-compose openssh
+rc-update add cgroups default
+rc-update add docker default
+rc-update add sshd default
+rc-update add sysctl boot 2>/dev/null || true
+rc-update add local default
+
+mkdir -p /etc/docker
+cp /docker-daemon.json /etc/docker/daemon.json
+chmod 0644 /etc/docker/daemon.json
+cp /docker-port-range.conf /etc/conf.d/docker
+chmod 0644 /etc/conf.d/docker
+
+touch /etc/qemu-guests-image
+# Do not copy provisioning-only files into the installed system.
+rm -f /etc/local.d/setup.start
+rm -f /docker-daemon.json /docker-port-range.conf /mirror-config /usr/local/libexec/select-apk-mirror
+
+# setup-disk restores lbu's archive; /usr/local is not included by default.
+lbu include /usr/local/libexec/dockerd-with-port-range
+ERASE_DISKS=/dev/vda setup-alpine -e -f /answers
+trap - EXIT
+poweroff

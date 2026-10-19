@@ -1,0 +1,107 @@
+Subject: [LOCAL QEMU 11.1.2] Reset WHPX partition during machine reset
+
+Adapted from Mohamed Mediouni's upstream proposal:
+https://patchew.org/QEMU/20260421205749.55060-1-mohamed@unpredictable.fr/
+
+Apply only to QEMU v11.1.2. Adds bounded reset success/failure diagnostics.
+This local adaptation is not an upstream release or a Windows 10 fix.
+QEMU source and this adaptation are GPL-2.0-or-later.
+
+--- a/accel/accel-system.c
++++ b/accel/accel-system.c
+@@ -76,6 +76,16 @@
+     }
+ }
+ 
++void accel_reset(MachineState *ms)
++{
++    AccelState *accel = ms->accelerator;
++    AccelClass *acc = ACCEL_GET_CLASS(accel);
++
++    if (acc->reset_vm) {
++        acc->reset_vm(accel);
++    }
++}
++
+ /* initialize the arch-independent accel operation interfaces */
+ void accel_init_ops_interfaces(AccelClass *ac)
+ {
+--- a/accel/whpx/whpx-common.c
++++ b/accel/whpx/whpx-common.c
+@@ -231,6 +231,22 @@
+     run_on_cpu(cpu, do_whpx_cpu_synchronize_pre_loadvm, RUN_ON_CPU_NULL);
+ }
+ 
++static void whpx_partition_reset(AccelState *as)
++{
++    HRESULT hr;
++
++    if (!whp_dispatch.WHvResetPartition) {
++        warn_report("WHPX: partition reset API unavailable");
++        return;
++    }
++    hr = whp_dispatch.WHvResetPartition(whpx_global.partition);
++    if (FAILED(hr)) {
++        error_report("WHPX: partition reset failed, hr=%08lx", hr);
++    } else {
++        info_report("WHPX: partition reset completed");
++    }
++}
++
+ static void whpx_pre_resume_vm(AccelState *as, bool step_pending)
+ {
+     whpx_global.step_pending = step_pending;
+@@ -526,6 +542,7 @@
+     ac->name = "WHPX";
+     ac->init_machine = whpx_accel_init;
+     ac->pre_resume_vm = whpx_pre_resume_vm;
++    ac->reset_vm = whpx_partition_reset;
+     ac->allowed = &whpx_allowed;
+ 
+     object_class_property_add(oc, "kernel-irqchip", "on|off|split",
+--- a/include/accel/accel-ops.h
++++ b/include/accel/accel-ops.h
+@@ -35,6 +35,7 @@
+     /* system related hooks */
+     void (*setup_post)(AccelState *as);
+     void (*pre_resume_vm)(AccelState *as, bool step_pending);
++    void (*reset_vm)(AccelState *as);
+     bool (*has_memory)(AccelState *accel, AddressSpace *as,
+                        hwaddr start_addr, hwaddr size);
+ 
+--- a/include/qemu/accel.h
++++ b/include/qemu/accel.h
+@@ -54,6 +54,9 @@
+ 
+ void accel_pre_resume(MachineState *ms, bool step_pending);
+ 
++/* Reset accelerator state with all virtual CPUs stopped. */
++void accel_reset(MachineState *ms);
++
+ /**
+  * accel_cpu_instance_init:
+  * @cpu: The CPU that needs to do accel-specific object initializations.
+--- a/system/runstate.c
++++ b/system/runstate.c
+@@ -569,6 +569,10 @@
+         qapi_event_send_reset(shutdown_caused_by_guest(reason), reason);
+     }
+ 
++    if (current_machine) {
++        accel_reset(current_machine);
++    }
++
+     /*
+      * Some boards use the machine reset callback to point CPUs to the firmware
+      * entry point.  Assume that this is not the case for boards that support
+--- a/target/arm/whpx/whpx-all.c
++++ b/target/arm/whpx/whpx-all.c
+@@ -471,8 +471,6 @@
+             if (arm_cpu->power_state != PSCI_OFF) {
+                 whpx_psci_cpu_off(arm_cpu);
+             }
+-            /* Partition-wide reset, to reset state for reboots to succeed. */
+-            whp_dispatch.WHvResetPartition(whpx->partition);
+             bql_unlock();
+             break;
+         case WHvRunVpExitReasonNone:

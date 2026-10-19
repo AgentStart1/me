@@ -1,6 +1,6 @@
 # me
 
-A portable [Agent Plugins](https://agent-plugins.org) collection. It includes Android tooling, client UI and coding guidance, test report sharing with ngrok tunnel support, plus a persistent QEMU Alpine Docker environment for Linux Docker containers and Windows.
+A portable [Agent Plugins](https://agent-plugins.org) collection. It includes Android tooling, client UI and coding guidance, test report sharing with ngrok tunnel support, plus concurrent QEMU work guests with a shared Alpine Docker backend.
 
 ## What is included
 
@@ -70,6 +70,6 @@ If it is not listening, inspect the interface address, port owner, proxy entry a
 IP Helper service state. Restarting that service interrupts other port proxies;
 use an owned maintenance window instead of a blanket stop/start workaround.
 
-The [QEMU Alpine Docker plugin](plugins/qemu-alpine-docker/README.md#vm--containers-status-panel) includes a read-only VM, service-health, and container status panel for MCP Apps hosts.
+The [QEMU Guests plugin](plugins/qemu-guests/README.md#vm--containers-status-panel) includes a read-only VM, service-health, and container status panel for MCP Apps hosts.
 
 Android tooling also provides [emulator status and on-demand screen previews](plugins/android-emulator-profile/README.md#android-emulators-status-panel) and a [device lease panel](plugins/android-device-lock/README.md#device-leases-status-panel).

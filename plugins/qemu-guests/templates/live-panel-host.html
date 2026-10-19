@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8">
+<iframe id="panel" src="/panel" style="width:100%;height:4000px;border:0"></iframe>
+<script>
+const send = data => document.getElementById('panel').contentWindow.postMessage({jsonrpc:'2.0', ...data}, '*');
+window.addEventListener('message', async ({data}) => {
+  if (data.method === 'ui/initialize') send({id:data.id,result:{protocolVersion:data.params.protocolVersion,hostInfo:{name:'Local live verification',version:'1'},hostCapabilities:{serverTools:{}},hostContext:{theme:'light',displayMode:'inline'}}});
+  else if (data.method === 'ui/notifications/initialized') send({method:'ui/notifications/tool-result',params:{content:[],structuredContent:await(await fetch('/snapshot')).json()}});
+  else if (data.method === 'tools/call') {
+    try {
+      const response = await fetch('/tool', {method:'POST',body:JSON.stringify(data.params)});
+      if (!response.ok) throw new Error('Live verification tool failed');
+      send({id:data.id,result:{content:[],structuredContent:await response.json()}});
+    } catch (error) {send({id:data.id,result:{isError:true,content:[{type:'text',text:error.message}]}});}
+  }
+});
+</script>
