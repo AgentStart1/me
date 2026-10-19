@@ -16,7 +16,7 @@
     "publish_start": 20000,
     "publish_end": 20127
   },
-  "qemu_args": [],
+  "qemu_args": ["-accel", "whpx"],
   "timeout": 3600,
   "installer_iso": "/path/to/adapter-install.iso",
   "graphical": true,
