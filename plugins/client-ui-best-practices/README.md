@@ -9,6 +9,10 @@ asynchronous requests at suspension points. The examples preserve cancellation a
 use request generations to reject superseded completions. Claude agent routing
 applies to generated Claude packages; Codex loads the portable skill guidance.
 
+## Project independence
+
+Applying this guidance creates project-owned UI architecture without a dependency on the AI plugin or its agent. Required UI libraries, compiler plugins and build plugins remain normal project dependencies.
+
 ## Contents
 
 - `plugin.json` declares the portable plugin and client extensions.

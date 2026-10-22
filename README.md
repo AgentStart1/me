@@ -19,6 +19,10 @@ The former `kotlin-coding-practices` plugin is now part of
 Install or update that plugin and replace explicit `kotlin-project-rules` references
 with `code-design-rules`.
 
+## Consuming-project independence
+
+Skills operate through project-owned code, normal tool interfaces and external orchestration. Using an AI plugin does not require adding its installed paths, private profiles or helper commands to the consuming project. Normal dependencies such as Gradle plugins and Appium drivers/extensions remain supported and documented; explicitly requested AI-plugin integrations retain their requested scope.
+
 ## Improvement feedback
 
 Every plugin's skills include an upstream feedback workflow for actionable plugin improvements. Reports target [storytellerF/me](https://github.com/storytellerF/me/issues), check open and closed issues first, and use sanitized or synthetic examples. Posting follows the user's existing authorization; without it, the agent prepares a draft. Installing a plugin alone does not authorize public posting.

@@ -5,6 +5,10 @@ description: Use when creating, reviewing, or refactoring Android RecyclerView c
 
 # Android RecyclerView Best Practice
 
+## Project independence
+
+Use the project's own adapter/state code and normal AndroidX RecyclerView/Paging dependencies. Do not add this AI plugin as a build/runtime prerequisite, copy its installation paths into the project, or require its skill invocation in project documentation. Android Gradle/compiler plugins and other required libraries remain legitimate project dependencies.
+
 ## Core Decision
 
 Always choose an adapter with built-in diffing unless the codebase has a strong existing abstraction that prevents it.

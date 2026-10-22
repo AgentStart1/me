@@ -2,6 +2,10 @@
 
 Generate a Difftastic-first Git diff site and share it through ngrok. Git remains available as a fallback renderer when `difft` is unavailable.
 
+## Project independence
+
+Sharing uses external helpers and a report cache without adding AI-plugin scripts or installation paths to the compared project's build, CI or documentation. Project-owned output or persistent integration can be requested explicitly; ordinary project dependencies remain unchanged.
+
 ## Workflow
 
 ```bash

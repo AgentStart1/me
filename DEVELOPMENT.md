@@ -41,6 +41,12 @@ Use repeated `--test-dir DIR` for platform-independent custom report roots;
 `--test-dirs`, `TEST_RESULT_DIRS`, and `REPORT_DIRS` retain legacy colon separation.
 Use a fresh output directory after upgrading old collected report caches.
 
+## Consuming-project integration rules
+
+The collaboration skill owns the shared independence principle; the documentation skill applies it to README, DEVELOPMENT.md and AGENTS.md. Each project-facing skill also carries a short domain-specific boundary so standalone installation does not depend on the general plugin. Keep routed agent prompts consistent with their owning skills.
+
+Review changes against both sides of the boundary: using a device lock, emulator, report viewer or remote test environment must not insert AI-plugin paths/flags into a project; required Gradle plugins, Appium extensions and reporting libraries must remain declared. Explicitly requested AI-plugin integrations and the plugin's own repository are in scope for their implementation documentation. Validate portable skills independently, then regenerate both clients and validate copied instructions, manifests, routing and package resources. Do not add wording-matching tests for this documentation-only rule.
+
 ## Plugin rule audit
 
 The audit compares rules, agent prompts, examples and README claims with their

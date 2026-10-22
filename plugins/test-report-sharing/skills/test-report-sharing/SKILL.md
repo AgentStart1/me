@@ -5,6 +5,10 @@ description: Use when collecting, previewing, or sharing test reports such as JU
 
 # Test Report Sharing
 
+## Project independence
+
+Consume the project's existing JUnit/XML/HTML outputs without making its build or tests invoke this AI plugin's collector, viewer or tunnel scripts. Keep helper paths, credentials, sharing configuration and server state outside the project, and use the report cache by default. Standard test-report/coverage Gradle plugins remain normal project dependencies. Preserve user-requested output destinations; adding project-owned report generation or persistent sharing integration must be within the requested task.
+
 ## Required Behavior
 
 - Accept `--project-dir DIR` on collection, site assembly and serving, defaulting to the calling directory. Resolve report searches and relative custom report directories from that project; use it for cache identity.

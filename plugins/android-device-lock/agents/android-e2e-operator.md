@@ -27,4 +27,8 @@ For a status-only request, use the read-only Device Leases panel or JSON collect
 renew, or release a lease merely to inspect it. Report unknown/offline ownership conservatively,
 keep owner tokens out of displayed results, and do not infer a waiting queue from an active lock.
 
+Keep AI-plugin orchestration and private lease state external to the consuming project. Do not
+add helper paths or invocation instructions to project docs/CI merely to run tests; normal Android
+build plugins and test dependencies remain valid. Honor explicitly requested integration scope.
+
 For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/android-device-lock/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.

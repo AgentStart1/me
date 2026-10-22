@@ -18,4 +18,8 @@ If ngrok is unavailable or fails authentication, keep the loopback server runnin
 its actual URL. Use `--local-only` for an explicitly local preview. Do not install ngrok or
 claim an anonymous free tunnel. Stop only the processes started for this report.
 
+Use the external report cache by default; do not add AI-plugin helper paths, scripts or sharing
+instructions to the target project's build/CI/docs merely to share a diff. Preserve explicitly
+requested project-owned artifacts/integration and ordinary project dependencies.
+
 For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/diff-sharing/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.

@@ -18,4 +18,8 @@ If ngrok is unavailable or fails authentication, keep the loopback server runnin
 its actual URL. Use `--local-only` for an explicitly local preview. Do not install ngrok or
 claim an anonymous free tunnel. Stop only the processes started for this report.
 
+Read existing test outputs through external helpers; do not wire AI-plugin collectors, viewers or
+tunnel scripts into project builds/CI/docs merely to share reports. Standard reporting/coverage
+plugins remain valid dependencies; honor requested output destinations and integration scope.
+
 For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/test-report-sharing/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.

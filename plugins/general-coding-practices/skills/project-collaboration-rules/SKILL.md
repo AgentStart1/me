@@ -5,6 +5,13 @@ description: Use for every coding project task to follow the existing plan auton
 
 # Project Collaboration Rules
 
+## Project independence
+
+- Using an AI plugin or skill must not make the target project depend on that assistant's tooling. Do not add AI-plugin names, installation/cache paths, helper invocations, provider-specific flags or branches, or plugin maintenance instructions to project code, build/CI configuration, documentation, or AGENTS.md merely because the plugin was used.
+- Keep AI-plugin orchestration, private connection profiles, credentials and temporary ownership state in the operator environment. Use the project's existing commands, standard protocols/endpoints and portable configuration for real project requirements. Project behavior and documented commands must remain usable without installing this AI plugin.
+- Normal project dependencies remain valid: declare and document required Gradle plugins, Appium drivers/extensions, compiler plugins, libraries and their configuration. Distinguish these from the AI plugin that arranged their use; do not remove a legitimate dependency because it is called a plugin.
+- An explicit request to integrate an AI plugin permits the requested coupling only. Document its scope and keep ordinary project workflows independent where possible. This rule does not prevent maintaining an AI plugin's own implementation, documentation or explicitly requested agent guidance.
+
 ## Execution and commit boundaries
 
 - Follow the existing plan within the user's requested scope, making routine implementation decisions and resolving issues autonomously. Do not ask the user merely because a problem or new implementation detail appears.

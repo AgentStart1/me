@@ -2,6 +2,10 @@
 
 This plugin provides profile-driven Android Virtual Device creation and emulator startup for local and Docker-friendly environments.
 
+## Project independence
+
+SDK/AVD preparation stays in the operator environment. Consuming projects retain standard Android tool requirements and test commands without depending on this AI plugin's installation or private provisioning profiles; normal Android build plugins remain supported.
+
 ## Included tooling
 
 - Install Android SDK command-line tools and accept licenses.

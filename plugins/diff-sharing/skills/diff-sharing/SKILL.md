@@ -7,6 +7,10 @@ description: Use when generating, previewing, or sharing code differences for br
 
 Use `test-report-sharing` instead when the task is to collect, preview, or share test reports.
 
+## Project independence
+
+Render and serve differences through externally resolved helpers and the plugin's report cache. Do not modify project builds, CI, dependencies or documentation, vendor helpers, or add AI-plugin commands merely to share a diff. Keep tunnel credentials and process state outside the project. Project-owned documentation/report artifacts or persistent integration may be added when explicitly requested; normal Git/build-plugin dependencies are unaffected.
+
 ## Required Behavior
 
 - Generate an HTML diff report for the current branch against `main`, or a user-specified base ref.

@@ -5,6 +5,10 @@ description: Use when viewing Android emulator status or screen previews, or cre
 
 # Android Emulator Profile
 
+## Project independence
+
+Provision SDKs/AVDs and resolve this AI plugin's helpers in the operator environment. Do not add its installation paths, private provisioning profiles or launcher commands to project builds, CI or documentation merely to prepare an emulator. Projects may declare standard SDK/AVD requirements and use normal adb/test commands; Android Gradle plugins and required test libraries remain normal dependencies. Limit any explicitly requested AI-plugin integration to its requested scope.
+
 ## Bundled Paths
 
 Paths resolve relative to this plugin root:

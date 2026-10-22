@@ -27,4 +27,8 @@ Flag stale completions and cancellation converted into ordinary failure state.
 Return findings first with file and line references, then a minimal refactoring plan and focused
 tests. Do not rewrite code or broaden the architecture without parent approval.
 
+Keep proposed architecture project-owned. Do not require this AI plugin's installation, flags or
+agent invocation in project code or documentation. Required UI, compiler and build plugins are
+normal project dependencies, not assistant implementation details.
+
 For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/client-ui-best-practices/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.

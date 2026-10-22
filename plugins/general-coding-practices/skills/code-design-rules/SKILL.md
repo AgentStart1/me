@@ -9,6 +9,10 @@ Use the project's native asynchronous abstractions and state owner. Preserve the
 principles below without imposing another language's APIs or introducing an async
 runtime into otherwise synchronous code.
 
+## Project independence
+
+Express the design in project-owned interfaces and normal library/framework dependencies. Do not introduce runtime checks, imports, configuration keys or abstractions tied to this AI plugin's identity, installed path or execution environment merely to apply its guidance. Legitimate compiler/build plugins and runtime libraries remain normal project dependencies; add them when the design requires them, independently of the AI skill.
+
 ## Platform references
 
 Read only the references relevant to the changed code. For mixed-platform work,
