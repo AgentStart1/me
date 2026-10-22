@@ -408,3 +408,8 @@ Windows CI also exercises ANSI-default Python text IO. Git Bash path conversion
 and generated UTF-8 report artifacts must specify their encoding explicitly; do
 not rely on the host locale or enable UTF-8 mode merely to hide missing boundaries.
 The native path regression simulates CP1252 while converting a real Unicode path.
+
+The test-environment protocol CI matrix runs provisioning, immutable snapshot,
+transport cleanup, cancellation and worker ownership regressions on Linux and
+Windows. Its fixtures use simulated processes and do not start existing VMs;
+Node tests also verify the guest Appium launcher and macOS auto-login helper.

@@ -136,6 +136,35 @@ jobs:
       - run: bash plugins/qemu-guests/tests/test-sync-workspace.sh
       - run: bash plugins/qemu-guests/tests/test-build-docker-proxy.sh
 
+  test-environments:
+    name: Test environment protocol (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r plugins/qemu-guests/scripts/requirements-guests.txt
+      - run: python plugins/qemu-guests/tests/test-test-environment.py
+      - run: python plugins/qemu-guests/tests/test-test-environment-ownership.py
+      - run: python plugins/qemu-guests/tests/test-linux-transport.py
+      - run: python plugins/qemu-guests/tests/test-desktop-provisioning.py
+      - run: python plugins/qemu-guests/tests/test-project-setup-hooks.py
+      - run: python plugins/qemu-guests/tests/test-environment-owner.py
+      - run: python plugins/qemu-guests/tests/test-initialization-snapshot.py
+      - run: python plugins/qemu-guests/tests/test-transport-cleanup.py
+      - run: python plugins/qemu-guests/tests/test-environment-cli.py
+      - run: python plugins/qemu-guests/tests/test-cancellation.py
+      - run: python plugins/qemu-guests/tests/test-worker-protocol.py
+      - run: node --test plugins/qemu-guests/tests/test-appium-run.cjs plugins/qemu-guests/tests/test-macos-autologin.cjs
+
   windows-msys2-path:
     name: Windows MSYS2 path regression
     runs-on: windows-latest
