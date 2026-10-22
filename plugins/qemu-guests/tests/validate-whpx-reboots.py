@@ -15,6 +15,26 @@ from guest_screen import Qmp
 from process_identity import identity, owns_listeners
 
 
+def wait_appium(ssh, unchanged, deadline):
+    """SSH readiness precedes interactive Appium startup; share the cycle deadline."""
+    command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:/ProgramData/qemu-guests/verify.ps1'
+    while True:
+        unchanged()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError('Post-restart guest Appium acceptance timed out')
+        try:
+            result = ssh(command, min(15, remaining))
+        except subprocess.TimeoutExpired:
+            result = None
+        unchanged()
+        if result is not None and result.returncode == 0:
+            return
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(3, remaining))
+
+
 def validate(config, report, save, cycles, timeout):
     item = next(entry for entry in entries() if entry['state_dir'] == config['state_dir'])
     phase, record = state(item)
@@ -78,17 +98,14 @@ def validate(config, report, save, cycles, timeout):
                 break
             time.sleep(min(3, max(0, timeout - (time.monotonic() - started))))
         processors()
+        wait_appium(ssh, unchanged, started + timeout)
         unchanged()
         report['cycles'].append({'cycle': cycle, 'bootTime': before,
                                  'seconds': round(time.monotonic() - started, 2),
-                                 'sameQemuProcess': True, 'processors': 4})
+                                 'sameQemuProcess': True, 'processors': 4, 'appiumReady': True})
         save()
         print(f'Restart {cycle}/{cycles} passed in the same four-vCPU QEMU process.', flush=True)
-    result = ssh('powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:/ProgramData/qemu-guests/verify.ps1', 60)
-    if result.returncode:
-        raise RuntimeError('Post-restart guest Docker CLI/API acceptance failed')
-    unchanged()
-    report['dockerCliApi'] = True
+    report['appiumReady'] = True
 
 
 def main():

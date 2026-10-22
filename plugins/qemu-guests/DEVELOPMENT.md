@@ -200,7 +200,7 @@ On an idle, already-ready four-vCPU Windows guest, this opt-in command requests 
 python tests/validate-whpx-reboots.py --profile C:/private/windows.json --report C:/private/reboots.json
 ```
 
-It checks the supervised native identity and QMP listener, compares Windows boot times across three `shutdown /r` requests, rejects paused/replaced QEMU processes, confirms four logical processors after every reboot, and finally runs guest Docker CLI/API acceptance. Polling only waits for post-reboot SSH readiness; an unsuccessful cycle is not restarted. Reports belong outside the repository. Separately run `validate-work-guests.py` for concurrent builds and published-port acceptance.
+It checks the supervised native identity and QMP listener, compares Windows boot times across three `shutdown /r` requests, rejects paused/replaced QEMU processes, confirms four logical processors after every reboot, and waits for guest Appium acceptance after each reboot within the same cycle deadline. SSH availability alone does not establish that the interactive Appium service has started; an unsuccessful cycle is not restarted. Reports belong outside the repository. Separately run `validate-work-guests.py` for concurrent builds and published-port acceptance.
 
 For real status-panel verification, keep at least two graphical guests and one headless guest ready and run:
 
