@@ -73,9 +73,10 @@ function renderGuests() {
   setText("work-summary", items.length ? `${items.length} work VMs · shared Alpine Docker backend` : "No work VMs registered yet.");
   for (const guest of items) {
     const card = document.createElement("article"); card.className = "card";
+    card.dataset.guestId = guest.id;
     const title = document.createElement("h2"); title.textContent = guest.name; card.append(title, badge(guest.state));
     const detail = document.createElement("p"); detail.className = "detail";
-    detail.textContent = `${guest.os} · ${guest.graphical ? "Graphical" : "Headless"} · ${guest.cpus} vCPU / ${guest.memory} MiB · SSH ${guest.ssh_port}`;
+    detail.textContent = `${guest.os} · ${guest.graphical ? "Graphical" : "Headless"} · ${guest.cpus} vCPU / ${guest.memory} MiB · SSH ${guest.ssh_port}${guest.appiumEndpoint ? ` · Appium ${guest.appiumEndpoint} (SSH tunnel)` : ""}`;
     card.append(detail);
     if (guest.graphical) {
       const button = document.createElement("button"); button.textContent = "View screen";

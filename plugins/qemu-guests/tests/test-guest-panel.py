@@ -18,7 +18,7 @@ import guest_registry
 import guest_screen
 import guest_seed
 import guest_config
-from macos_install import key_events, text_keys, press_keys, terminal_ready
+from macos_install import RecoveryInstaller, key_events, text_keys, press_keys, terminal_ready
 from process_identity import identity
 from windows_image import select as select_windows_image
 spec = importlib.util.spec_from_file_location('guest_vm', ROOT / 'scripts/guest-vm.py')
@@ -96,17 +96,73 @@ class GuestPanelTests(unittest.TestCase):
         self.assertTrue(terminal_ready('-bash-3.2#'))
         self.assertTrue(terminal_ready('-bash-3.2 #'))
 
+    def test_restarted_recovery_resets_window_state_but_retains_destructive_handoff(self):
+        marker = self.home / 'macos-install.json'
+        for saved, expected in [('waiting-terminal', 'waiting-recovery'),
+                                ('installer-started', 'installer-started')]:
+            with self.subTest(saved=saved):
+                marker.write_text(json.dumps({'phase': saved}))
+                installer = RecoveryInstaller({}, self.home, {})
+                self.assertEqual(installer.phase, expected)
+
     def test_macos_seed_uses_explicit_target_and_bootstrap_product(self):
         package = self.home / 'bootstrap.pkg'; package.write_bytes(b'fixture package')
         config = {**self.config, 'os': 'macos', 'macos': {'bootstrap_package': str(package),
                   'target_disk': '/dev/disk0', 'installer_app': '/Volumes/Install macOS/Install macOS.app'}}
         guest_seed.prepare_seed(config, self.home / 'seed')
         script = (self.home / 'seed/macos-install.sh').read_text()
+        self.assertNotIn(b'\r', (self.home / 'seed/macos-install.sh').read_bytes())
         self.assertIn('target=/dev/disk0', script)
         self.assertIn('--installpackage', script)
         self.assertIn('refusing unattended erase', script)
         self.assertEqual((self.home / 'seed/bootstrap.pkg').read_bytes(), b'fixture package')
         self.assertFalse((self.home / 'seed/payload.zip').exists())
+
+    def test_macos_installer_is_a_readonly_disk_without_bypassing_opencore(self):
+        config = {**self.config, 'os': 'macos', 'qemu_args': ['-accel', 'whpx'],
+                  'installer_iso': 'prepared-macos.img', 'install_reboots': 0,
+                  'cpus': 4, 'memory': 4096}
+        command = vm.arguments(config, self.home, True)
+        media = next(value for value in command if 'file=prepared-macos.img,' in value)
+        self.assertIn('readonly=on', media)
+        self.assertIn('if=none', media)
+        self.assertNotIn('media=cdrom', media)
+        self.assertIn('usb-storage,drive=macos-installer', command)
+        self.assertEqual(command[command.index('-boot') + 1], 'order=c')
+
+    def test_macos_target_serial_selects_its_whole_disk_independently_of_bsd_order(self):
+        import shutil
+        awk = shutil.which('awk')
+        if not awk:
+            self.skipTest('AWK required for the Recovery disk-selector contract')
+        tree = '''+-o ForeignDevice
+  "Device Characteristics" = {"Serial Number"="other"}
+  "BSD Name" = "disk2"
++-o TargetDevice
+  "Device Characteristics" = {"Product Name"="QEMU HARDDISK","Serial Number"="fixture-target   "}
+  "BSD Name" = "disk7"
+  "BSD Name" = "disk7s1"
+'''
+        result = subprocess.run([awk, '-v', 'serial=fixture-target', '-f',
+            str(guest_seed.TEMPLATES / 'macos-target-disk.awk.tpl')], input=tree,
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '/dev/disk7')
+
+    def test_macos_target_serial_refuses_missing_or_ambiguous_disks(self):
+        import shutil
+        awk = shutil.which('awk')
+        if not awk:
+            self.skipTest('AWK required for the Recovery disk-selector contract')
+        duplicate = ''.join(f'+-o Device\n  "Serial Number" = "fixture-target"\n'
+                            f'  "BSD Name" = "disk{i}"\n' for i in [2, 3])
+        for tree in ['', duplicate]:
+            with self.subTest(tree=tree):
+                result = subprocess.run([awk, '-v', 'serial=fixture-target', '-f',
+                    str(guest_seed.TEMPLATES / 'macos-target-disk.awk.tpl')], input=tree,
+                    capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, '')
 
     def test_windows_variant_selection_uses_installation_type_not_display_suffix(self):
         editions = [{'name': 'Windows Server 2025 SERVERSTANDARDCORE', 'type': 'Server Core'},
@@ -129,7 +185,7 @@ class GuestPanelTests(unittest.TestCase):
         config = {**self.config, 'qmp_port': number}
         identifier = guest_registry.register(config, self.home)
         with open(self.home / 'qemu.log', 'wb') as log:
-            child = subprocess.Popen([qemu, '-S', '-accel', 'tcg', '-m', '64', '-display', 'none', '-monitor', 'none',
+            child = subprocess.Popen([qemu, '-S', '-accel', os.environ.get('QEMU_TEST_ACCEL', 'tcg'), '-m', '64', '-display', 'none', '-monitor', 'none',
                                      '-qmp', f'tcp:127.0.0.1:{number},server=on,wait=off'], stdout=log, stderr=log)
             self.addCleanup(lambda: child.poll() is None and child.kill())
             try:

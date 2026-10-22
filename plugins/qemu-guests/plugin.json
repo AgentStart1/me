@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qemu-guests",
-  "version": "0.7.0-20261019111554",
-  "description": "Concurrent QEMU work guests with unattended provisioning and a shared Alpine Docker backend.",
+  "version": "0.7.0-20261022090213",
+  "description": "Concurrent QEMU Appium test guests with unattended provisioning and an independent Alpine Docker backend.",
   "author": {
     "name": "QEMU Guests Maintainers",
     "url": "https://github.com/storytellerF/me"
@@ -22,15 +22,17 @@
     "ubuntu",
     "macos",
     "unattended",
-    "whpx"
+    "whpx",
+    "appium",
+    "testing"
   ],
   "extensions": {
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
         "displayName": "QEMU Guests",
-        "shortDescription": "Concurrent work VMs with a shared Alpine Docker backend.",
-        "longDescription": "Manages concurrent QEMU work guests alongside one persistent Alpine Docker backend on Windows and in Linux containers. Includes Ubuntu cloud-init, Windows answer files and Intel macOS Recovery automation using prepared Apple media and a bootstrap package. Work guests proxy Docker commands, API access and TCP publish ports to Alpine. The status panel lists work VMs and displays live read-only screens for graphical guests. Windows 11 hosts use a plugin-managed WHPX-only QEMU build for four-vCPU Windows guests and warm reboots.",
+        "shortDescription": "Independent Appium test VMs and an Alpine Docker backend.",
+        "longDescription": "Manages concurrent QEMU work guests alongside one persistent Alpine Docker backend on Windows and in Linux containers. Includes Ubuntu cloud-init, Windows answer files and Intel macOS Recovery automation using prepared Apple media and a bootstrap package. Work guests install Appium for host-connected and manual testing, with no guest Docker proxy or backend credentials. The status panel lists work VMs and displays live read-only screens for graphical guests. Windows 11 hosts use a plugin-managed WHPX-only QEMU build for four-vCPU Windows guests and warm reboots. A unified run-test-env.sh entry point selects Docker/Testcontainers and transparent Appium artifact/file/service transport from project environment configuration; compilation stays on the host.",
         "developerName": "QEMU Guests Maintainers",
         "category": "Developer Tools",
         "capabilities": [
@@ -41,7 +43,7 @@
         "privacyPolicyURL": "https://github.com/storytellerF/me",
         "termsOfServiceURL": "https://github.com/storytellerF/me",
         "defaultPrompt": [
-          "Install an unattended Ubuntu work VM with the shared Alpine Docker backend.",
+          "Install an unattended Appium work VM alongside the independent Alpine Docker backend.",
           "Start multiple independent work VMs.",
           "Configure a custom unattended guest installation adapter."
         ],

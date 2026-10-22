@@ -337,7 +337,7 @@ assert_contains "VM_CPUS=4" "$(<"${PLUGIN_DIR}/profiles/dev.profile")" "default 
 is_windows() { return 0; }
 assert_contains "disk.qcow2" "$(qemu_native_path "/tmp/disk.qcow2")" "Windows native path conversion"
 
-testcontainers_source="$(<"${PLUGIN_DIR}/scripts/run-testcontainers.sh")"
+testcontainers_source="$(<"${PLUGIN_DIR}/scripts/run-test-env.sh")"
 metrics_source="$(<"${PLUGIN_DIR}/scripts/collect-resource-metrics.ps1")"
 assert_contains "TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1" "$testcontainers_source" "host override"
 assert_contains "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock" "$testcontainers_source" "Ryuk guest socket"
@@ -409,7 +409,7 @@ if configure_qemu_acceleration "${MOCK_DIR}/bin/qemu-system-x86_64" >/dev/null 2
 fi
 assert_contains "VM_ACCELERATOR must be auto, kvm, whpx, or tcg" "$(<"${MOCK_DIR}/invalid-accelerator")" "invalid accelerator error"
 
-if bash "${PLUGIN_DIR}/scripts/run-testcontainers.sh" >/dev/null 2>"${MOCK_DIR}/usage"; then
+if bash "${PLUGIN_DIR}/scripts/run-test-env.sh" >/dev/null 2>"${MOCK_DIR}/usage"; then
     fail "Testcontainers command required"
 else
     assert_contains "No test command provided" "$(<"${MOCK_DIR}/usage")" "Testcontainers usage"
@@ -423,7 +423,7 @@ TESTCONTAINERS_PORT_START=20000
 TESTCONTAINERS_PORT_END=20002
 TESTCONTAINERS_RESOURCE_METRICS=maybe
 PROFILE
-if bash "${PLUGIN_DIR}/scripts/run-testcontainers.sh" --profile "${MOCK_DIR}/invalid-metrics.profile" -- true >/dev/null 2>"${MOCK_DIR}/invalid-metrics"; then
+if bash "${PLUGIN_DIR}/scripts/run-test-env.sh" --profile "${MOCK_DIR}/invalid-metrics.profile" -- true >/dev/null 2>"${MOCK_DIR}/invalid-metrics"; then
     fail "Invalid metrics switch should fail"
 else
     assert_contains "TESTCONTAINERS_RESOURCE_METRICS must be auto, true, or false" "$(<"${MOCK_DIR}/invalid-metrics")" "invalid metrics switch error"
@@ -437,7 +437,7 @@ TESTCONTAINERS_PORT_START=20000
 TESTCONTAINERS_PORT_END=20002
 TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=0
 PROFILE
-if bash "${PLUGIN_DIR}/scripts/run-testcontainers.sh" --profile "${MOCK_DIR}/invalid-metrics-interval.profile" -- true >/dev/null 2>"${MOCK_DIR}/invalid-metrics-interval"; then
+if bash "${PLUGIN_DIR}/scripts/run-test-env.sh" --profile "${MOCK_DIR}/invalid-metrics-interval.profile" -- true >/dev/null 2>"${MOCK_DIR}/invalid-metrics-interval"; then
     fail "Invalid metrics interval should fail"
 else
     assert_contains "TESTCONTAINERS_RESOURCE_METRICS_INTERVAL must be an integer from 1 to 60" "$(<"${MOCK_DIR}/invalid-metrics-interval")" "invalid metrics interval error"

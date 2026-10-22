@@ -32,35 +32,43 @@ class GuestTests(unittest.TestCase):
         self.registry.start()
         self.addCleanup(self.registry.stop)
         for name, content in [('access', b'private fixture'), ('access.pub', b'ssh-ed25519 AAAA fixture'),
-                              ('backend', b'private fixture'), ('docker', b'proxy fixture'), ('base', b'image fixture')]:
+                              ('runtime.zip', b'runtime fixture'), ('base', b'image fixture')]:
             (self.root / name).write_bytes(content)
         self.profile = self.root / 'guest.json'
+        with zipfile.ZipFile(self.root / 'runtime.zip', 'w') as archive:
+            archive.writestr('runtime.json', json.dumps({'platform': 'linux', 'arch': 'x64'}))
         self.data = {'name': 'work', 'os': 'ubuntu', 'state_dir': 'state', 'base_image': 'base',
                      'media_sha256': hashlib.sha256(b'image fixture').hexdigest(),
-                     'access_key': 'access', 'proxy_binary': 'docker', 'ssh_port': 2230,
-                     'backend': {'ssh_port': 2222, 'key': 'backend', 'publish_start': 20000, 'publish_end': 20002}}
+                     'access_key': 'access', 'ssh_port': 2230,
+                     'appium': {'host_port': 24730, 'runtime_archive': 'runtime.zip', 'sha256': hashlib.sha256((self.root / 'runtime.zip').read_bytes()).hexdigest()}}
 
     def config(self, **changes):
         self.profile.write_text(json.dumps({**self.data, **changes}))
         return guest_config.load(self.profile)
 
-    def test_forwarding_uses_guest_loopback_and_exact_publish_pool(self):
-        args = guest_seed.tunnel_arguments(self.config(), '/key')
-        forwards = [args[index + 1] for index, item in enumerate(args) if item == '-L']
-        self.assertEqual(forwards, ['127.0.0.1:2375:127.0.0.1:2375',
-                                   '127.0.0.1:20000:127.0.0.1:20000',
-                                   '127.0.0.1:20001:127.0.0.1:20001',
-                                   '127.0.0.1:20002:127.0.0.1:20002'])
-        self.assertEqual(args[-1], 'root@10.0.2.2')
+    def test_appium_tunnel_is_authenticated_loopback_only(self):
+        spec = importlib.util.spec_from_file_location('connect_appium', SCRIPTS / 'connect-appium.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        args = module.command(self.config())
+        self.assertEqual(args[args.index('-L') + 1], '127.0.0.1:24730:127.0.0.1:4723')
         self.assertIn('ExitOnForwardFailure=yes', args)
+        self.assertNotIn('StrictHostKeyChecking=no', args)
+        self.assertEqual(args[-1], 'developer@127.0.0.1')
+
+    def test_acceptance_polls_cloud_init_without_orphan_waiters(self):
+        command = vm.acceptance(self.config(), self.root)
+        self.assertNotIn('--wait', command[-1])
+        self.assertIn('status --format=json', command[-1])
+        self.assertIn('StrictHostKeyChecking=accept-new', command)
+        self.assertIn('UserKnownHostsFile=' + str(self.root / 'known_hosts'), command)
 
     def test_unknown_configuration_rejected(self):
         with self.assertRaisesRegex(ValueError, 'Unknown'):
             self.config(typo=True)
 
-    def test_overlapping_api_publish_port_rejected(self):
+    def test_overlapping_appium_ssh_port_rejected(self):
         with self.assertRaisesRegex(ValueError, 'collide'):
-            self.config(backend={**self.data['backend'], 'publish_start': 2375, 'publish_end': 2376})
+            self.config(appium={**self.data['appium'], 'host_port': 2230})
 
     def test_checksum_failure_precedes_disk_creation(self):
         config = self.config(media_sha256='0' * 64)
@@ -72,7 +80,7 @@ class GuestTests(unittest.TestCase):
             run.assert_not_called()
         self.assertFalse((home / 'disk.qcow2').exists())
 
-    def test_ubuntu_seed_iso_contains_cloud_init_and_private_proxy(self):
+    def test_ubuntu_seed_iso_contains_cloud_init_and_appium(self):
         config = self.config()
         seed = self.root / 'seed'
         guest_seed.prepare_seed(config, seed)
@@ -84,8 +92,9 @@ class GuestTests(unittest.TestCase):
         iso.get_file_from_iso_fp(data, joliet_path='/user-data')
         cloud = json.loads(data.getvalue().decode().split('\n', 1)[1])
         self.assertFalse(cloud['ssh_pwauth'])
-        self.assertEqual(cloud['runcmd'], [['bash', '/opt/qemu-guests/bootstrap.sh']])
-        self.assertTrue(any(f['path'].endswith('/docker') for f in cloud['write_files']))
+        self.assertEqual(cloud['runcmd'], [['bash', '/opt/qemu-guests/seed-bootstrap.sh']])
+        self.assertTrue(any(f['path'].endswith('/seed-bootstrap.sh') for f in cloud['write_files']))
+        self.assertFalse(any(f['path'].endswith('/appium-runtime.zip') for f in cloud['write_files']))
         self.assertTrue(all(f['permissions'] == '0600' for f in cloud['write_files']))
 
     def test_windows_seed_contains_unattended_setup_and_bootstrap(self):
@@ -102,8 +111,10 @@ class GuestTests(unittest.TestCase):
             bootstrap = archive.read('bootstrap.ps1').decode()
             self.assertIn('Register-ScheduledTask', bootstrap)
             self.assertIn('Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Enabled True -Profile Any', bootstrap)
-            self.assertIn("'root@10.0.2.2'", bootstrap)
-            self.assertIn('docker.exe', archive.namelist())
+            self.assertIn('-LogonType Interactive', bootstrap)
+            self.assertIn('appium-runtime.zip', archive.namelist())
+            self.assertNotIn('backend-key', archive.namelist())
+            self.assertNotIn('docker.exe', archive.namelist())
         command = vm.arguments(config, self.root, True)
         self.assertIn('order=c,once=d', command)
         self.assertTrue(any('index=2' in arg and 'base' in arg for arg in command))
@@ -214,6 +225,9 @@ class GuestTests(unittest.TestCase):
     def test_multiple_work_vms_are_supervised_independently(self):
         # Real native QEMU processes exercise PID identity, per-guest leases and
         # concurrent stop delivery without downloading or booting an OS image.
+        accelerator = os.environ.get('QEMU_TEST_ACCEL')
+        if not accelerator:
+            self.skipTest('Native QEMU smoke test requires explicit QEMU_TEST_ACCEL opt-in')
         import shutil
         qemu = shutil.which('qemu-system-x86_64')
         image = shutil.which('qemu-img')
@@ -223,7 +237,7 @@ class GuestTests(unittest.TestCase):
         for index in range(2):
             config = self.config(name=f'work{index}', state_dir=f'state{index}', qemu=qemu,
                                  acceptance=[sys.executable, '-c', 'raise SystemExit(0)'],
-                                 qemu_args=['-S', '-accel', 'tcg'], memory=512)
+                                 qemu_args=['-S', '-accel', accelerator], memory=512)
             home = Path(config['state_dir'])
             home.mkdir()
             subprocess.run([image, 'create', '-f', 'qcow2', str(home / 'disk.qcow2'), '64M'], check=True, stdout=subprocess.DEVNULL)

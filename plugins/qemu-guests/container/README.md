@@ -59,7 +59,7 @@ Use this image as a base for your own JDK, build tools, or Codex environment, an
 
 ```bash
 docker exec qemu-dev bash /opt/qemu-guests/scripts/build-docker-proxy.sh
-docker exec qemu-dev bash /opt/qemu-guests/scripts/run-testcontainers.sh -- <test command>
+docker exec qemu-dev bash /opt/qemu-guests/scripts/run-test-env.sh -- <test command>
 ```
 
 Replace `<test command>` with a command available inside the outer container, with the project accessible there. The build script uses Go in the Alpine guest and downloads a Linux amd64/arm64 `docker` executable for the outer container's architecture; the outer container needs no Go installation. Rebuild after proxy source updates. The default helper path is `~/.local/share/me/docker-proxy/docker` under the container user's home; persist that directory or rebuild after replacing the outer container. It is separate from the VM state volume. Use the same `QEMU_DOCKER_PROXY_DIR` override for compilation and test execution.

@@ -18,12 +18,12 @@ def load(path):
     data = json.loads(path.read_text(encoding='utf-8'))
     allowed = {'name', 'os', 'state_dir', 'qemu', 'qemu_img', 'memory', 'cpus',
                'disk_size', 'base_image', 'installer_iso', 'media_sha256', 'ssh_port',
-               'ssh_user', 'access_key', 'backend', 'proxy_binary', 'qemu_args',
+               'ssh_user', 'access_key', 'appium', 'qemu_args',
                'install_args', 'hardware_args', 'timeout', 'windows_image', 'seed_dir', 'acceptance',
                'graphical', 'qmp_port', 'macos', 'install_reboots', 'qemu_runtime'}
     if not isinstance(data, dict) or set(data) - allowed:
         raise ValueError('Unknown guest profile keys')
-    for key in ('name', 'os', 'state_dir', 'ssh_port', 'access_key', 'backend', 'proxy_binary'):
+    for key in ('name', 'os', 'state_dir', 'ssh_port', 'access_key', 'appium'):
         if key not in data:
             raise ValueError(f'Missing guest profile key: {key}')
     if not isinstance(data['name'], str) or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]*', data['name']):
@@ -36,28 +36,26 @@ def load(path):
         raise ValueError('qemu_runtime must be system or whpx-reset')
     if 'base_image' in data and 'installer_iso' in data:
         raise ValueError('Choose base_image or installer_iso, not both')
-    for key in ('state_dir', 'base_image', 'installer_iso', 'access_key', 'proxy_binary', 'seed_dir'):
+    for key in ('state_dir', 'base_image', 'installer_iso', 'access_key', 'seed_dir'):
         if key in data:
             value = Path(data[key]).expanduser()
             data[key] = str((path.parent / value).resolve() if not value.is_absolute() else value.resolve())
-    backend = data['backend']
-    if not isinstance(backend, dict) or set(backend) != {'ssh_port', 'key', 'publish_start', 'publish_end'}:
-        raise ValueError('backend requires ssh_port, key, publish_start and publish_end')
-    key = Path(backend['key']).expanduser()
-    backend['key'] = str((path.parent / key).resolve() if not key.is_absolute() else key.resolve())
+    appium = data['appium']
+    if not isinstance(appium, dict) or set(appium) != {'host_port', 'runtime_archive', 'sha256'}:
+        raise ValueError('appium requires host_port, runtime_archive and sha256')
+    integer(appium['host_port'], 'appium.host_port', 1024, 65535)
+    archive = Path(appium['runtime_archive']).expanduser()
+    appium['runtime_archive'] = str((path.parent / archive).resolve() if not archive.is_absolute() else archive.resolve())
     integer(data['ssh_port'], 'ssh_port', 1, 65535)
     data['graphical'] = data.get('graphical', data['os'] in {'windows', 'macos'})
     if type(data['graphical']) is not bool:
         raise ValueError('graphical must be true or false')
     if data['graphical'] or data['os'] == 'macos':
         integer(data.get('qmp_port'), 'qmp_port (required for graphical guests)', 1024, 65535)
-        if data['qmp_port'] in (data['ssh_port'], backend['ssh_port']):
+        if data['qmp_port'] in (data['ssh_port'], appium['host_port']):
             raise ValueError('QMP/SSH ports collide')
-    integer(backend['ssh_port'], 'backend.ssh_port', 1, 65535)
-    start = integer(backend['publish_start'], 'backend.publish_start', 1024, 65535)
-    end = integer(backend['publish_end'], 'backend.publish_end', start, 65535)
-    if start <= 2375 <= end or start <= backend['ssh_port'] <= end or data['ssh_port'] == backend['ssh_port']:
-        raise ValueError('SSH/API/publish ports collide')
+    if data['ssh_port'] == appium['host_port']:
+        raise ValueError('SSH/Appium ports collide')
     for name, default, low, high in [('memory', 4096, 512, 1048576), ('cpus', 4, 1, 1024), ('timeout', 3600, 1, 86400)]:
         data[name] = integer(data.get(name, default), name, low, high)
     data['disk_size'] = data.get('disk_size', '64G')
@@ -85,8 +83,9 @@ def load(path):
         settings = data.get('macos', {})
         if not isinstance(settings, dict) or set(settings) != {'installer_app', 'target_disk', 'bootstrap_package', 'tesseract'}:
             raise ValueError('macos requires installer_app, target_disk, bootstrap_package and tesseract')
-        if not re.fullmatch(r'/dev/disk[0-9]+', settings['target_disk']):
-            raise ValueError('macos.target_disk must identify one explicit guest disk')
+        if not isinstance(settings['target_disk'], str) or not re.fullmatch(
+                r'/dev/disk[0-9]+|serial:[a-zA-Z0-9_-]{1,64}', settings['target_disk']):
+            raise ValueError('macos.target_disk must identify an explicit BSD disk or serial')
         if not isinstance(settings['installer_app'], str) or not settings['installer_app'].startswith('/Volumes/') or '\n' in settings['installer_app']:
             raise ValueError('macos.installer_app must be a guest /Volumes path')
         package = Path(settings['bootstrap_package']).expanduser()
@@ -103,18 +102,31 @@ def verify_inputs(config):
         if not Path(config['macos']['bootstrap_package']).is_file():
             raise ValueError('Build the macOS bootstrap product package before installation')
         subprocess.run([config['macos']['tesseract'], '--version'], check=True, capture_output=True, timeout=10)
-    for key in ('access_key', 'proxy_binary'):
+    for key in ('access_key',):
         if not Path(config[key]).is_file():
             raise ValueError(f'Missing {key}')
-    if not Path(config['access_key'] + '.pub').is_file() or not Path(config['backend']['key']).is_file():
-        raise ValueError('Missing access public key or backend private key')
+    if not Path(config['access_key'] + '.pub').is_file():
+        raise ValueError('Missing access public key')
+    check_digest(config['appium']['runtime_archive'], config['appium']['sha256'], 'Appium runtime')
+    from test_requirements import verify_runtime, verify_runtime_target
+    if 'runtime_requirements' in config:
+        from initialization_snapshot import record_for
+        verify_runtime(config['appium']['runtime_archive'], record_for(config), config['os'])
+    else:
+        verify_runtime_target(config['appium']['runtime_archive'], config['os'])
     media = config.get('base_image') or config.get('installer_iso')
     expected = config.get('media_sha256', '')
     if not media or not re.fullmatch('[a-fA-F0-9]{64}', expected):
         raise ValueError('A local base_image/installer_iso and media_sha256 are required')
+    check_digest(media, expected, 'Installation media')
+
+
+def check_digest(path, expected, label):
+    if not isinstance(expected, str) or not re.fullmatch('[a-fA-F0-9]{64}', expected):
+        raise ValueError(f'{label} requires sha256')
     digest = hashlib.sha256()
-    with open(media, 'rb') as source:
+    with open(path, 'rb') as source:
         for block in iter(lambda: source.read(1024 * 1024), b''):
             digest.update(block)
     if digest.hexdigest() != expected.lower():
-        raise ValueError('Installation media checksum mismatch')
+        raise ValueError(f'{label} checksum mismatch')

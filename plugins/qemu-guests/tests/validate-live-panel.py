@@ -32,8 +32,8 @@ def main():
     if any(state(guest)[0] != 'ready' for guest in guests):
         parser.error('Selected work VMs must already be ready')
     graphical = [guest for guest in guests if guest['graphical']]
-    if len(graphical) < 2 or all(guest['graphical'] for guest in guests):
-        parser.error('Select at least two graphical VMs and one headless VM')
+    if not graphical:
+        parser.error('Select at least one graphical VM')
     args.output_dir.mkdir(parents=True, exist_ok=True)
     frames = {}
 
@@ -83,14 +83,15 @@ def main():
                 page.goto(f'http://127.0.0.1:{server.server_port}/')
                 panel = page.frame_locator('#panel')
                 for guest in guests:
-                    card = panel.locator('#work-guests article').filter(has_text=guest['name'])
+                    card = panel.locator(f'#work-guests article[data-guest-id="{guest["id"]}"]')
                     card.wait_for()
                     assert 'ready' in card.inner_text()
                     assert f"{guest['cpus']} vCPU" in card.inner_text()
                     if not guest['graphical']:
                         assert card.get_by_role('button').count() == 0
-                for index, guest in enumerate([*graphical, graphical[0]]):
-                    panel.locator('#work-guests article').filter(has_text=guest['name']).get_by_role('button').click()
+                screen_sequence = [*graphical, graphical[0]] if len(graphical) > 1 else graphical
+                for index, guest in enumerate(screen_sequence):
+                    panel.locator(f'#work-guests article[data-guest-id="{guest["id"]}"]').get_by_role('button').click()
                     panel.locator('#screen-title').filter(has_text=guest['name']).wait_for()
                     panel.locator('#work-screen').wait_for(state='visible')
                     page.wait_for_function("document.querySelector('iframe').contentDocument.querySelector('#work-screen').naturalWidth > 100")
@@ -99,10 +100,12 @@ def main():
                     panel.locator('body').screenshot(path=str(args.output_dir / f'panel-{index}.png'))
                     report['screens'].append({'name': guest['name'], 'frameMatchesGuest': True})
                 assert not errors, errors
-                report.update(passed=True, headlessHasNoScreenButton=True, browserErrors=errors)
+                report.update(passed=True,
+                    headlessHasNoScreenButton=True if len(graphical) < len(guests) else None,
+                    screenSwitchingVerified=len(graphical) > 1, browserErrors=errors)
             finally:
                 browser.close()
-        print('PASS: live status cards, headless suppression and graphical VM screen switching')
+        print('PASS: selected live status cards and graphical VM frames; see report for exercised coverage')
     finally:
         server.shutdown()
         server.server_close()

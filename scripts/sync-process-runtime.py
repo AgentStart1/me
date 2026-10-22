@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGINS = ('android-emulator-profile', 'diff-sharing', 'test-report-sharing')
+PLUGINS = ('android-emulator-profile', 'diff-sharing', 'test-report-sharing', 'qemu-guests')
 FILES = ('command_tree.py', 'command-worker.py')
 
 

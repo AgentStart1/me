@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "workspace": ".",
+  "docker": {"profile": "${QEMU_DOCKER_PROFILE}"},
+  "environment": {"APPIUM_DESKTOP_PLATFORM": "Windows"},
+  "appium": {
+    "guest": "${QEMU_WORK_GUEST_PROFILE}",
+    "cleanup_roots": ["build/private-test-runtime"],
+    "launch": {
+      "kind": "java-argfile",
+      "inputs": ["test.session.file"],
+      "outputs": ["test.pid.file", "test.log.file"],
+      "directories": ["test.preferences.dir", "test.temp.dir"],
+      "services": ["test.server.url", "test.websocket.url"]
+    }
+  }
+}

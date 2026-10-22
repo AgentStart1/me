@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Supervised, concurrent work VMs sharing the independent Alpine Docker backend."""
+"""Supervised, concurrent Appium test VMs; the Alpine Docker backend is independent."""
 import argparse
 import json
 import os
@@ -50,10 +50,16 @@ def arguments(config, home, installing, first_boot=True):
             command += ['-no-reboot']
         seed = str(home / 'seed.iso').replace(',', ',,')
         if config.get('installer_iso'):
-            # Use -boot once=d: later installer reboots must select the disk.
             media = config['installer_iso'].replace(',', ',,')
-            command += ['-drive', f'file={media},format=raw,media=cdrom,readonly=on,index=2',
-                        '-boot', 'order=c,once=d' if first_boot else 'order=c']
+            if config['os'] == 'macos':
+                # createinstallmedia/UDTO is a partitioned Apple disk image,
+                # not ISO9660 optical media. OpenCore must remain the bootloader.
+                command += ['-drive', f'file={media},format=raw,if=none,readonly=on,id=macos-installer',
+                            '-device', 'usb-storage,drive=macos-installer', '-boot', 'order=c']
+            else:
+                # Later Windows installer reboots must select the disk.
+                command += ['-drive', f'file={media},format=raw,media=cdrom,readonly=on,index=2',
+                            '-boot', 'order=c,once=d' if first_boot else 'order=c']
         command += ['-drive', f'file={seed},format=raw,media=cdrom,readonly=on,index=3']
         command += [v.replace('{state}', str(home)).replace('{seed}', str(home / 'seed'))
                     for v in config['install_args']]
@@ -67,12 +73,12 @@ def acceptance(config, home):
     if config['os'] == 'macos':
         remote = '/bin/bash /opt/qemu-guests/verify-macos.sh'
     else:
-        remote = ('sudo cloud-init status --wait >/dev/null && '
-              '. /etc/profile.d/qemu-guests.sh && docker version && '
+        remote = ('status=$(sudo cloud-init status --format=json) && printf \'%s\' "$status" | '
+                  'python3 -c "import json,sys; sys.exit(json.load(sys.stdin)[\'status\'] != \'done\')" && '
               'sudo python3 /opt/qemu-guests/verify.py') if config['os'] == 'ubuntu' else (
                   'powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:/ProgramData/qemu-guests/verify.ps1')
-    return ['ssh', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no',
-            '-o', 'UserKnownHostsFile=' + os.devnull, '-o', 'ConnectTimeout=3',
+    return ['ssh', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new',
+            '-o', 'UserKnownHostsFile=' + str(home / 'known_hosts'), '-o', 'ConnectTimeout=3',
             '-i', config['access_key'], '-p', str(config['ssh_port']),
             config['ssh_user'] + '@127.0.0.1', remote]
 
@@ -92,6 +98,9 @@ def initialize(config, home):
     else:
         subprocess.run([image_tool, 'create', '-f', 'qcow2', str(home / 'disk.qcow2'), config['disk_size']], check=True)
     prepare_seed(config, home / 'seed')
+    if 'runtime_requirements' in config:
+        from initialization_snapshot import record_for
+        write_record(home / 'runtime-requirements.json', record_for(config))
     write_record(home / 'installation.json', {'os': config['os'], 'media_sha256': config['media_sha256']})
 
 
@@ -235,7 +244,7 @@ def supervise(config, home, installing):
                                 accepted = True
                                 write_record(home / 'running.json', record)
                                 write_record(home / 'installed.json', {'os': config['os']})
-                                print('Guest ready; Docker CLI/API reach Alpine. Session remains supervised.', flush=True)
+                                print('Guest ready; SSH and Appium acceptance passed. Session remains supervised.', flush=True)
                         except subprocess.TimeoutExpired:
                             pass
                         next_probe = time.monotonic() + 3
@@ -268,9 +277,20 @@ def main(argv=None):
     parser.add_argument('action', choices=['install', 'run', 'stop', 'status', 'plan'])
     parser.add_argument('profile', type=Path)
     parser.add_argument('--force', action='store_true', help='force stop the owned guest process')
+    parser.add_argument('--requirements', type=Path, help='Portable project desktop runtime requirements')
     args = parser.parse_args(argv)
     config = load(args.profile)
     home = Path(config['state_dir'])
+    if args.requirements:
+        from test_requirements import apply
+        config = apply(config, args.requirements)
+        if args.action == 'run':
+            recorded = home / 'runtime-requirements.json'
+            if not recorded.exists() or json.loads(recorded.read_text())['sha256'] != config['runtime_requirements']['sha256']:
+                raise ValueError('Existing VM was not initialized with these runtime requirements; use a new state directory')
+    elif (home / 'runtime-requirements.json').exists():
+        requirements = json.loads((home / 'runtime-requirements.json').read_text())
+        config = {**config, 'desktop': requirements['desktop'], 'runtime_requirements': requirements}
     if args.action == 'plan':
         from whpx_runtime import prepare
         config = prepare(config, build_runtime=False)

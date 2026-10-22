@@ -1,4 +1,4 @@
-"""Render private unattended installation media and guest-local Docker forwarding."""
+"""Render private unattended installation media for Appium test guests."""
 import base64
 import io
 import json
@@ -8,6 +8,7 @@ import re
 import shlex
 import zipfile
 from xml.sax.saxutils import escape
+from initialization_snapshot import record_for
 
 TEMPLATES = Path(__file__).resolve().parents[1] / 'templates' / 'guests'
 
@@ -21,49 +22,47 @@ def render(name, values):
     return content
 
 
-def tunnel_arguments(config, key):
-    backend = config['backend']
-    forwards = ['-L', '127.0.0.1:2375:127.0.0.1:2375']
-    for port in range(backend['publish_start'], backend['publish_end'] + 1):
-        forwards += ['-L', f'127.0.0.1:{port}:127.0.0.1:{port}']
-    return ['-N', '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes',
-            '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
-            '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
-            '-i', key, '-p', str(backend['ssh_port']), *forwards, 'root@10.0.2.2']
-
-
 def payload(config):
     windows = config['os'] == 'windows'
-    home = 'C:/ProgramData/qemu-guests' if windows else '/opt/qemu-guests'
-    args = tunnel_arguments(config, home + ('/backend-tunnel-key' if windows else '/backend-key'))
     # Templates are program text; values here are validated identifiers/integers
     # or JSON/base64 strings rather than shell-interpolated user configuration.
-    files = {
-        'backend-key': Path(config['backend']['key']).read_bytes(),
-        'docker.exe' if windows else 'docker': Path(config['proxy_binary']).read_bytes(),
-    }
+    files = {'appium-runtime.zip': Path(config['appium']['runtime_archive']).read_bytes(),
+             'appium-run.cjs': render('appium-run.cjs.tpl', {}).encode(),
+             'relocate-runtime.cjs': render('relocate-runtime.cjs.tpl', {}).encode()}
     public = Path(config['access_key'] + '.pub').read_text().split()
     if len(public) < 2 or public[0] != 'ssh-ed25519' or not re.fullmatch('[A-Za-z0-9+/=]+', public[1]):
         raise ValueError('access_key must have an Ed25519 public key')
     public_key = ' '.join(public[:2])
-    values = {'SSH_PORT': config['backend']['ssh_port'], 'USER': config['ssh_user'],
-              'PUBLIC_KEY': public_key,
-              'TUNNEL_ARGS': ' '.join(args),
-              'PS_TUNNEL_ARGS': ','.join("'" + a.replace("'", "''") + "'" for a in args),
-              'POOL_START': config['backend']['publish_start'], 'POOL_END': config['backend']['publish_end']}
+    values = {'USER': config['ssh_user'], 'PUBLIC_KEY': public_key}
+    requirements = record_for(config)
+    desktop = requirements['desktop'] if requirements is not None else config.get('desktop')
+    if desktop is not None:
+        files['desktop.json'] = json.dumps(desktop).encode()
+        if requirements is not None:
+            files['runtime-requirements.json'] = json.dumps(requirements['runtime']).encode()
+            snapshot = config.get('initialization_snapshot')
+            if snapshot is None and requirements['hooks']['guest_setup']:
+                raise ValueError('Guest scripts require an initialization snapshot; supply project requirements')
+            if snapshot is not None:
+                files.update(snapshot.guest_files)
+            files['setup-hooks.json'] = snapshot.guest_hooks_json if snapshot is not None else b'[]'
+            files['run-setup-hooks.cjs'] = render('run-setup-hooks.cjs.tpl', {}).encode()
+        files['desktop-session.sh'] = render('desktop-session.sh.tpl', {
+            'WIDTH': desktop['width'], 'HEIGHT': desktop['height']}).encode()
+        files['desktop-setup.ps1'] = render('desktop-setup.ps1.tpl', {
+            'WIDTH': desktop['width'], 'HEIGHT': desktop['height']}).encode()
     if windows:
-        files['backend-tunnel-key'] = files['backend-key']
+        files['account-password'] = ('Qemu!' + secrets.token_urlsafe(24)).encode()
         files['bootstrap.ps1'] = render('bootstrap.ps1.tpl', values).encode()
         files['verify.ps1'] = render('verify.ps1.tpl', values).encode()
+        files['appium.ps1'] = render('appium.ps1.tpl', values).encode()
     else:
-        files['environment'] = render('environment.sh.tpl', values).encode()
-        files['environment.pam'] = render('environment.pam.tpl', values).encode()
-        files['docker-tunnel.service'] = render('docker-tunnel.service.tpl', values).encode()
-        files['docker-tunnel.plist'] = render('docker-tunnel.plist.tpl', {
-            'ARGUMENTS': ''.join('<string>' + escape(v) + '</string>' for v in ['/usr/bin/ssh', *args])}).encode()
         files['bootstrap.sh'] = render('bootstrap.sh.tpl', values).encode()
+        files['appium.service'] = render('appium.service.tpl', values).encode()
+        files['appium.plist'] = render('appium.plist.tpl', values).encode()
         files['verify.py'] = render('verify.py.tpl', values).encode()
         if config['os'] == 'macos':
+            files['macos-autologin.cjs'] = render('macos-autologin.cjs.tpl', {}).encode()
             files['macos-firstboot.sh'] = render('macos-firstboot.sh.tpl', values).encode()
             files['macos-firstboot.plist'] = render('macos-firstboot.plist.tpl', {}).encode()
             files['account-password'] = secrets.token_urlsafe(24).encode()
@@ -81,6 +80,9 @@ def payload_archive(config):
 
 
 def prepare_seed(config, directory):
+    requirements = record_for(config)
+    if requirements is not None:
+        config = {**config, 'desktop': requirements['desktop'], 'runtime_requirements': requirements}
     directory = Path(directory)
     directory.mkdir(mode=0o700)
     files = payload(config) if config['os'] != 'macos' else {}
@@ -91,31 +93,40 @@ def prepare_seed(config, directory):
                 archive.writestr(name, content)
         (directory / 'payload.zip').write_bytes(buffer.getvalue())
     if config['os'] == 'ubuntu':
-        entries = [{'path': '/opt/qemu-guests/' + name, 'encoding': 'b64',
-                    'content': base64.b64encode(content).decode(), 'permissions': '0600'}
-                   for name, content in files.items()]
+        # Binary runtimes live in payload.zip on the seed disk. Feeding hundreds
+        # of MB through YAML/base64 can stall cloud-init before SSH even starts.
+        entries = [{'path': '/opt/qemu-guests/seed-bootstrap.sh', 'encoding': 'b64',
+                    'content': base64.b64encode(render('seed-bootstrap.sh.tpl', {}).encode()).decode(),
+                    'permissions': '0600'}]
         user = {'name': config['ssh_user'], 'shell': '/bin/bash', 'sudo': 'ALL=(ALL) NOPASSWD:ALL',
                 'ssh_authorized_keys': [Path(config['access_key'] + '.pub').read_text().strip()]}
-        cloud = {'users': [user], 'ssh_pwauth': False, 'packages': ['openssh-client', 'openssh-server'],
-                 'write_files': entries, 'runcmd': [['bash', '/opt/qemu-guests/bootstrap.sh']]}
+        cloud = {'users': [user], 'ssh_pwauth': False, 'packages': ['openssh-client', 'openssh-server', 'python3'],
+                 'write_files': entries, 'runcmd': [['bash', '/opt/qemu-guests/seed-bootstrap.sh']]}
         if config.get('graphical'):
             cloud['packages'] += ['xfce4', 'lightdm', 'lightdm-gtk-greeter', 'xserver-xorg']
             cloud['runcmd'].extend([['systemctl', 'set-default', 'graphical.target'], ['systemctl', 'start', 'lightdm']])
+        if 'desktop' in config:
+            from guest_desktop import LINUX_PACKAGES
+            cloud['packages'] += LINUX_PACKAGES + config['desktop']['packages']
+            cloud['write_files'].append({'path': '/etc/lightdm/lightdm.conf.d/60-test-autologin.conf',
+                'permissions': '0644', 'content': '[Seat:*]\nautologin-user=' + config['ssh_user'] + '\nautologin-user-timeout=0\nautologin-session=xfce\nuser-session=xfce\n'})
         (directory / 'user-data').write_text('#cloud-config\n' + json.dumps(cloud), encoding='utf-8')
         (directory / 'meta-data').write_text(json.dumps({'instance-id': config['name'], 'local-hostname': config['name']}), encoding='utf-8')
     elif config['os'] == 'windows':
         image = config.get('windows_image', 'Windows 10 Pro')
         (directory / 'Autounattend.xml').write_text(render('Autounattend.xml.tpl', {
-            'USER': config['ssh_user'], 'PASSWORD': 'Qemu!' + secrets.token_urlsafe(24),
+            'USER': config['ssh_user'], 'PASSWORD': files['account-password'].decode(),
             'IMAGE': escape(image),
         }), encoding='utf-8')
     elif config['os'] == 'macos':
         settings = config['macos']
         (directory / 'bootstrap.pkg').write_bytes(Path(settings['bootstrap_package']).read_bytes())
+        (directory / 'macos-target-disk.awk').write_text(render('macos-target-disk.awk.tpl', {}),
+                                                       encoding='utf-8', newline='\n')
         (directory / 'macos-install.sh').write_text(render('macos-install.sh.tpl', {
             'TARGET_DISK': shlex.quote(settings['target_disk']),
             'INSTALLER_APP': shlex.quote(settings['installer_app']),
-        }), encoding='utf-8')
+        }), encoding='utf-8', newline='\n')
     else:
         for source in Path(config['seed_dir']).iterdir():
             target = directory / source.name

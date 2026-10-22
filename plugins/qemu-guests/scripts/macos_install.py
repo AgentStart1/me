@@ -48,13 +48,19 @@ class RecoveryInstaller:
     def __init__(self, config, home, record):
         self.config, self.home, self.record = config, Path(home), record
         self.marker = self.home / 'macos-install.json'
-        self.phase = json.loads(self.marker.read_text())['phase'] if self.marker.exists() else 'waiting-recovery'
+        saved = json.loads(self.marker.read_text())['phase'] if self.marker.exists() else None
+        # A new QEMU process does not retain Recovery's open Terminal window.
+        self.phase = 'installer-started' if saved == 'installer-started' else 'waiting-recovery'
         self.next_probe = 0
 
     def screen_text(self, client):
         with tempfile.TemporaryDirectory(prefix='recovery-', dir=self.home) as directory:
             image = Path(directory) / 'screen.png'
             client.execute('screendump', {'filename': str(image), 'format': 'png'})
+            from PIL import Image
+            with Image.open(image) as frame:
+                enlarged = frame.resize((frame.width * 3, frame.height * 3))
+                enlarged.save(image)
             result = subprocess.run([self.config['macos']['tesseract'], str(image), 'stdout', '--psm', '11'],
                                     capture_output=True, text=True, timeout=10, check=True)
             return result.stdout.lower()

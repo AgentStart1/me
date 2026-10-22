@@ -1,23 +1,31 @@
 #!/bin/sh
 set -eu
+export TEST_DESKTOP_USER='{{USER}}'
 cd /opt/qemu-guests
-chmod 600 backend-key
-chmod 755 docker
-chown {{USER}} backend-key
 if [ "$(uname -s)" = Darwin ]; then
-    install -m 644 docker-tunnel.plist /Library/LaunchDaemons/com.me.qemu-guests.docker-tunnel.plist
-    launchctl print system/com.me.qemu-guests.docker-tunnel >/dev/null 2>&1 || launchctl bootstrap system /Library/LaunchDaemons/com.me.qemu-guests.docker-tunnel.plist
-    # The unattended macOS adapter must source this file in its login shell setup.
+    ditto -xk appium-runtime.zip appium
 else
-    install -m 644 environment /etc/profile.d/qemu-guests.sh
-    # PAM provides these settings to desktop sessions as well as login shells.
-    # Preserve unrelated environment entries when replacing this plugin's keys.
-    touch /etc/environment
-    awk -F= 'NR==FNR {managed[$1]=1; next} !($1 in managed)' environment.pam /etc/environment > /etc/environment.qemu-guests
-    cat environment.pam >> /etc/environment.qemu-guests
-    chmod 644 /etc/environment.qemu-guests
-    mv /etc/environment.qemu-guests /etc/environment
-    install -m 644 docker-tunnel.service /etc/systemd/system/qemu-guests-docker.service
+    python3 -m zipfile -e appium-runtime.zip appium
+fi
+chmod 755 appium/node
+./appium/node relocate-runtime.cjs
+if [ -f setup-hooks.json ]; then
+    ./appium/node run-setup-hooks.cjs
+fi
+chown -R {{USER}} appium
+chmod 644 appium-run.cjs
+if [ "$(uname -s)" = Darwin ]; then
+    chmod 644 appium-run.cjs
+    install -d -o {{USER}} /Users/{{USER}}/Library/LaunchAgents
+    install -m 644 -o {{USER}} appium.plist /Users/{{USER}}/Library/LaunchAgents/com.me.qemu-guests.appium.plist
+else
+    install -m 644 appium.service /etc/systemd/system/qemu-guests-appium.service
+    if [ -f desktop.json ]; then
+        install -d -o {{USER}} -m 700 /opt/qemu-guests/state
+        install -d /etc/systemd/system/qemu-guests-appium.service.d
+        printf '%s\n' '[Service]' 'ExecStart=' 'ExecStart=/usr/bin/dbus-run-session -- /bin/bash /opt/qemu-guests/desktop-session.sh' > /etc/systemd/system/qemu-guests-appium.service.d/desktop.conf
+        chmod 644 desktop-session.sh desktop.json
+    fi
     systemctl daemon-reload
-    systemctl enable --now qemu-guests-docker.service
+    systemctl enable --now qemu-guests-appium.service
 fi

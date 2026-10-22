@@ -1,8 +1,12 @@
 # QEMU Guests
 
-This plugin runs concurrent QEMU work VMs alongside one persistent Alpine Linux Docker backend, inside Linux containers and on Windows. Work guests have independent disks and unattended installation media. Guest Docker commands, API access and container TCP ports are proxied to the shared Alpine backend.
+This plugin runs concurrent QEMU work VMs alongside one persistent Alpine Linux Docker backend, inside Linux containers and on Windows. Work guests have independent disks and unattended installation media. Work guests are independent test environments with Appium; host-side test runners connect over SSH. The Alpine backend remains available independently for host Docker/Testcontainers.
 
 For Docker-only workflows on ordinary Linux hosts, use Docker directly. The work-guest supervisor also runs on Linux hosts with QEMU and Python installed.
+
+## Project independence
+
+Consuming projects use standard Docker/Appium endpoints and portable artifact/service configuration without depending on this AI plugin's installed launcher path or private VM profiles. Normal Appium drivers/extensions, Gradle plugins and other required project dependencies remain documented prerequisites; operator setup stays outside the project.
 
 ## Concurrent work VMs
 
@@ -10,9 +14,9 @@ The plugin was renamed from `qemu-alpine-docker` to `qemu-guests`. Install the n
 
 | Guest | Unattended provisioning | Requirements |
 | --- | --- | --- |
-| Ubuntu | Official cloud image with NoCloud seed, SSH and Docker proxy bootstrap | Verified amd64 cloud-init qcow2 image |
+| Ubuntu | Official cloud image with NoCloud seed, SSH and Appium bootstrap | Verified amd64 cloud-init qcow2 image |
 | Windows | Bundled Autounattend.xml and PowerShell bootstrap | English amd64 BIOS-compatible ISO, matching image edition and available Windows OpenSSH optional features |
-| macOS | Recovery terminal automation, `startosinstall`, first-boot product package and launchd Docker tunnel | Prepared English Intel macOS installer ISO, matching firmware/OpenCore hardware, Tesseract on the host and a bootstrap product package built on macOS |
+| macOS | Recovery terminal automation, `startosinstall`, first-boot product package and Appium LaunchAgent | Prepared English Intel macOS installer ISO, matching firmware/OpenCore hardware, Tesseract on the host and a bootstrap product package built on macOS |
 | Other | Custom seed and QEMU installation arguments | OS-specific unattended installer and bootstrap |
 
 The Windows template uses BIOS/MBR with IDE storage and an e1000 NIC. It targets compatible Windows 10/Server media; stock Windows 11 TPM/UEFI and arm64 installers are not bundled. Use a custom adapter for other firmware, drivers or installer requirements. The built-in macOS flow targets Intel Recovery installers with `startosinstall --volume --installpackage`; Apple Silicon IPSW restoration is a separate workflow.
@@ -31,40 +35,105 @@ The normal Windows profile needs no executable path or extra DLL PATH setup. Its
 
 Four-vCPU cold startup succeeded with QEMU 11.1.2 and `qemu_args: ["-accel", "whpx", "-cpu", "Westmere,-vmx,-svm"]`. The unmodified executable still failed guest-initiated warm reboot with `Unexpected VP exit code 4`. Switching to Q35, UEFI or masking x2APIC did not resolve the tested failure. Upgrading QEMU alone does not establish compatibility.
 
-The bundled [WHPX partition-reset patch](patches/qemu-11.1.2-whpx-partition-reset.patch) adapts an [upstream proposal](https://patchew.org/QEMU/20260421205749.55060-1-mohamed@unpredictable.fr/) and is not part of the stock release. Four-vCPU Windows Server 2025 warm reboots and guest Docker CLI/API passed on Windows 11. See [build and verification instructions](DEVELOPMENT.md#whpx-four-vcpu-windows-reboots). The reset API requires Windows 11 on x64; Windows 10 and patched UEFI installations are not validated.
+The bundled [WHPX partition-reset patch](patches/qemu-11.1.2-whpx-partition-reset.patch) adapts an [upstream proposal](https://patchew.org/QEMU/20260421205749.55060-1-mohamed@unpredictable.fr/) and is not part of the stock release. Four-vCPU Windows Server 2025 warm reboots passed on Windows 11; the current Appium mode also passed a host-run desktop end-to-end case. See [build and verification instructions](DEVELOPMENT.md#whpx-four-vcpu-windows-reboots). The reset API requires Windows 11 on x64; Windows 10 and patched UEFI installations are not validated.
 
 An experimental CPUID-cache runtime has completed a Sonoma 14.8.9 installation on Windows 11 WHPX with four vCPUs and 4 GiB RAM. Desktop login, SSH version/CPU checks and registered QMP capture passed after repairing first-boot service loading and SSH access-group membership. Docker verification was omitted. This used a private Recovery adapter; it is not end-to-end acceptance of the bundled full-installer ISO flow. See DEVELOPMENT.md for the scope and remaining limitations. The managed Windows runtime remains unchanged. Recovery keyboard input separates presses/releases and waits for a shell prompt before installation handoff.
 
 Public reports match these symptoms: [QEMU #2042](https://gitlab.com/qemu-project/qemu/-/issues/2042) describes four-vCPU WHPX reboot failures, and [#2402](https://gitlab.com/qemu-project/qemu/-/issues/2402) describes Windows/UEFI reboot hangs. The [qemu-virgl-whpx project](https://github.com/Tsuki-Bakery/qemu-virgl-whpx#Windows-guests) provides Windows guest launch examples but also lists reboot failure as a limitation. Linux KVM configurations such as [dockur/windows](https://github.com/dockur/windows) are useful installation references, not evidence of a WHPX reboot fix.
 
-For legacy system-runtime profiles only, `install_reboots: 4` explicitly allows up to four cold boots during Windows installation. QEMU exits instead of resetting internally; after a clean pre-acceptance exit, the supervisor starts it again with the same disk, seed and accelerator, selecting the disk before installer media. Crashes, stop requests, exhausted budgets and the original readiness deadline stop this flow. Acceptance waits for the bootstrap's final reboot. The managed runtime rejects this option because it supports warm reboot directly.
+For legacy system-runtime profiles only, `install_reboots: 4` explicitly allows up to four cold boots during Windows installation. QEMU exits instead of resetting internally; after a clean pre-acceptance exit, the supervisor starts it again with the same disk, seed and accelerator, selecting the disk before installer media. Crashes, stop requests, exhausted budgets and the original readiness deadline stop this flow. Acceptance checks guest bootstrap and Appium readiness. The managed runtime rejects this option because it supports warm reboot directly.
 
-Each work VM has its own `state_dir`, qcow2 disk, supervisor lease and host SSH port. Multiple work VMs can run simultaneously. Assign different host SSH ports and keep them disjoint from Alpine's host forwards. Work guests share the backend's containers, images and volumes; choose project/container/volume names accordingly.
+Each work VM has its own `state_dir`, qcow2 disk, supervisor lease and host SSH port. Multiple work VMs can run simultaneously. Assign different host SSH ports and keep them disjoint from Alpine's host forwards. Work guests do not require Alpine and receive no Docker proxy, backend credential or container-port tunnel.
+
+### Unified test environment entry point
+
+`bash scripts/run-test-env.sh --config /path/to/test-env.json -- <host command>` combines Docker/Testcontainers setup and transparent guest Appium transport. The former `run-testcontainers.sh` remains a thin compatibility entry point; `--profile <alpine.profile>` keeps the original Docker-only behavior, operation lease, CLI proxy, Ryuk, metrics and command exit code.
+
+Test-environment JSON is separate from VM provisioning JSON. `version: 1`, `workspace`, optional `docker.profile`, optional `appium` and optional string `environment` values select services without project-specific code in this plugin. Paths resolve relative to the workspace; the workspace resolves from the config's directory. `${VARIABLE}` expansion is supported for private profile paths; unset variables fail before testing. Operator environment variables `TEST_ENV_DOCKER_PROFILE` and `TEST_ENV_GUEST_PROFILE` supply private connections when the project omits `docker.profile` or `appium.guest`. With no Docker selection, Docker is left unchanged. Project documentation must describe endpoint requirements and ordinary test commands, not AI plugin installation paths or provider-specific setup. See `profiles/test-env-windows.json` for the explicit role schema.
+
+Windows transport sends PowerShell scripts through SSH standard input with UTF-8/base64 framing, keeping remote command arguments bounded for complete suites. PowerShell and native command failures retain their exit status. Forwarding channels use SSH without a remote shell, avoiding idle guest processes across repeated tests. If output collection fails before a new session reaches the client, the proxy deletes that owned session; uncertain cleanup retains the guest lease. The transparent Appium adapter supports Windows host/guest and Windows/Linux host to Linux guest JVM launches through a quoted Java argument file. It transfers updated host-built classpath and Java agent artifacts at session creation, after compilation finishes. Windows also stages the host Java runtime. Linux uses a prepared target JDK and explicit prebuilt native classpath additions from an operator-owned runtime manifest; it never copies a Windows JDK into Linux. Named JVM properties in the config declare private inputs, output files, required directories, additional built `artifacts` (for example diagnostic agent JARs), and HTTP/WebSocket service URLs. The proxy mirrors those files, creates authenticated reverse forwards for loopback services and returns the original WebDriver responses. PID/output files are collected before session creation returns; logs are also collected on page-source requests and session shutdown. Private guest state survives application restarts and is removed only when the host command finishes, within explicitly declared per-case cleanup roots. It never runs a guest compiler or substitutes a local desktop when transport fails.
+
+The runner supplies `APPIUM_DESKTOP_SERVER_URL` to host tests. Native diagnostics belong on the Appium server and return results through Appium; never attach to a guest PID on the host. Client-specific Java property names belong only in that project's configuration. Existing Appium window compatibility extensions remain project prerequisites. Other host/guest combinations and launch formats fail explicitly until a corresponding adapter is implemented. No VM is started or provisioned merely by running this wrapper.
+
+Linux operators set `TEST_ENV_LINUX_RUNTIME` to a private JSON manifest with absolute POSIX `root` (dedicated artifact mirror directory), `java` (existing guest Java executable), `classpath` (host paths to prebuilt Linux native/runtime JARs), and optional `appium_port` (default 4723). For example:
+
+```json
+{
+  "root": "/home/tester/.local/share/test-environments/runtime",
+  "java": "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+  "classpath": ["/operator/prebuilt/linux-native-runtime.jar"],
+  "appium_port": 4727
+}
+```
+
+Initialize the isolated graphical Appium session from project requirements as described below. For previously prepared/custom runtimes, the operator must provide the required Linux driver, D-Bus/AT-SPI and unlocked test keyring before invoking the unified entry point. The relay maps host paths and JVM classpath separators into the dedicated POSIX mirror, forwards the declared host services and retrieves output files to their original host paths. Windows and Linux test-environment JSON use the same `java-argfile` schema; the guest profile selects the transport. Projects declare normal platform, artifact and service requirements only; do not add these operator manifest paths or environment-provider instructions to consuming projects.
+
+### Automatic desktop runtime initialization
+
+Projects may keep portable `version: 1` desktop requirements beside their environment JSON, selected with its `requirements` field. The requirements file contains `desktop` width/height and a `platforms` map (`Windows`, `Linux`): required Java major version, Appium server version and driver/plugin name-to-version maps, optional Linux runtime `packages`, required environment-variable names and prebuilt Maven `classpath` coordinates. It contains no VM profile paths, SSH keys, accelerator selection or AI-plugin entry points. The project owns normal Appium extension source/dependencies and runtime requirements; operators own prebuilt bundles and platform connections.
+
+Use `prepare-appium-runtime.py --base <offline-runtime.zip> --output <new-runtime.zip> --extension <prepared-extension-directory>` to overlay target-compatible local extensions without guest npm/install hooks. `--windows-desktop` compiles the display helper on the Windows host. `--assets <private-assets.json>` bundles prebuilt directories/files and service environment values (`${RUNTIME}` expands to the installed runtime). Its `files` entries contain `source` and relative `destination`; optional `classpath` maps Maven coordinates to bundled `assets/...` JARs. Asset paths, artifact caches and environment values stay outside consuming projects. Supply target-compatible prepared dependencies; never copy a host-native dependency tree into a different guest OS.
+
+Pass `--requirements <project-requirements.json> --platform windows|ubuntu` during runtime preparation to run declared host preparation hooks and check the completed bundle. Then install with `guest-vm.py install <private-guest.json> --requirements <project-requirements.json>`. The VM profile describes hardware, media, WHPX/KVM and connections; desktop dependencies come from the project requirements. Runtime metadata must match the guest system and x64 architecture (Windows win32, Ubuntu linux, Intel macOS darwin). Missing or mismatched platform/architecture metadata fails before disk creation, including installs without project requirements. Legacy bundles without arch metadata must be rebuilt on the host for new preparation/install operations; this does not revalidate, rewrite or stop already installed VMs during normal run/test operations. Host preparation with requirements rejects a foreign base runtime before running host hooks. Missing extensions/versions, native artifacts or required runtime environment values also fail before disk creation. Existing disks are never reset; use a distinct state directory for blank-disk acceptance.
+
+Ubuntu seeds carry only small cloud-init text and extract the offline payload from read-only seed media. Runtime packages are installed as distribution binaries. Initialization creates an isolated Xvfb/Openbox desktop, D-Bus/AT-SPI session, temporary unlocked native keyring and Appium service; LightDM auto-login also enables manual console use. The status panel projects the console framebuffer; the isolated test display is separate. Windows uses a persistent auto-login account, applies 100% DPI, warms reboots under the selected accelerator, sets the configured mode through a host-built assembly and launches Appium in the interactive session. No display helper is compiled in a guest.
+
+Fresh managed guests pin their SSH key to the state directory's `known_hosts` after verifying that the supervised QEMU owns the SSH forwarding listener. Later transport and Appium connections use that pin. Readiness polls cloud-init status without `--wait`; abandoned SSH probes must not leave cloud-init waiters consuming guest memory. Java/runtime checks and real project E2E remain distinct from Appium server readiness.
+
+Linux guests initialized this way provide an existing `/usr/bin/java` and bundled native classpath metadata automatically. `TEST_ENV_LINUX_RUNTIME` remains an optional private override for previously prepared/custom environments. The unified host entry point checks the initialization fingerprint against project requirements before testing.
+
+### Project setup hooks
+
+Each platform's requirements may include `hooks.host_prepare` and `hooks.guest_setup` for dependencies that cannot be expressed declaratively. Host entries contain `command` (literal argv array), `cwd` (relative to the requirements file) and `timeout_seconds`. Guest entries contain a self-contained `script` path relative to the requirements file, `interpreter` (`bash`, `powershell` or preinstalled `python3`), literal `arguments` and `timeout_seconds` (1–3600). Host hooks run during runtime preparation, before tests. Guest scripts are copied into private seed media and run after runtime extraction, before Appium is started. Linux setup runs as the provisioning administrator; Windows runs as the installation test administrator. Guest hooks receive `TEST_DESKTOP_USER` and `TEST_RUNTIME_ASSETS` as opaque runtime context; use these rather than hard-coding a provider username or installation path. Scripts must stay in the foreground and wait for their own tools; detached installers are unsupported.
+
+For example, a Linux platform entry can add project-owned hooks (paths resolve from the requirements file):
+
+```json
+"hooks": {
+  "host_prepare": [
+    {"command": ["python3", "scripts/prepare-runtime.py"], "cwd": ".", "timeout_seconds": 600}
+  ],
+  "guest_setup": [
+    {"script": "scripts/configure-runtime.sh", "interpreter": "bash", "arguments": ["--mode", "test"], "timeout_seconds": 120}
+  ]
+}
+```
+
+A guest hook authorizes runtime configuration and installation of prebuilt dependencies; it does not authorize guest compilation. Keep compilers/build tasks in host hooks. Review project scripts before executing them, retain raw hook logs privately, and stop initialization on nonzero exit or timeout. Project requirements and guest scripts are read into an immutable initialization snapshot once. Preflight, seed generation and the recorded fingerprint use that snapshot, even if the original files are edited or removed during installation. Changes apply to the next capture. Guest script fingerprints include ordered file identifiers and individual content digests. Moving content between scripts invalidates initialization too. Environments recorded before fingerprint v2 require a new isolated initialization for guest-hook configurations. Existing v2 fingerprints remain compatible when inputs are unchanged; configurations without guest hooks retain their existing fingerprint. Existing VM state is never rewritten automatically. Generic engine code must not contain consuming-project package names, paths or test commands.
+
+### Cancellation and cleanup
+
+Configured local, Docker-only and guest Appium runs share the same cleanup and cancellation behavior. Signals record the first cancellation request; execution responds at explicit checkpoints rather than being interrupted in arbitrary instructions. Command and SSH waits check requests in short intervals; startup HTTP readiness remains bounded by its 10-second timeout. Once cleanup begins, further signals cannot interrupt it or replace the execution result. An accepted cancellation keeps its signal exit code even when cleanup fails; clean execution keeps the host command's exit code. Ordinary cleanup failure returns 1. Commands and cleanup are never restarted to publish a result. Worker cleanup failures remain recorded even when an HTTP request converts the exception into an error response or a later retry succeeds. The main thread confirms resource workers have finished and collects their reports before deciding whether the test lease can be released. The CLI reports fixed cleanup categories/counts without exception text, arguments, paths or credentials. Uncertain guest cleanup retains the desktop test lease and prints a manual-recovery hint; local/Docker-only runs acquire no guest desktop lease. Fully confirmed cleanup releases the lease and emits no cleanup warning.
+
+### Uncertain Appium creation
+
+If a session creation response is lost, malformed or lacks a valid session ID, the relay blocks further creation and retains the guest test lease as `cleanup-uncertain`. It preserves private test inputs because the application may still be running. The test environment owner persists retention at each failed resource-cleanup boundary before attempting the remaining cleanup. Later transport or temporary-directory errors cannot release that lease or hide retention. Ordinary test failures still release the lease after all owned resources close successfully. SSH transport attempts to stop every owned tunnel even if another stop fails, then reports the failures together and retains the lease for inspection. Cancellation remains the final outcome even if cleanup fails: the environment owner drains all registered resources, rethrows the original cancellation and attaches the collected cleanup errors. A cancellation with fully confirmed cleanup releases the lease normally. During teardown, handled cancellation signals are deferred until every cleanup result and the lease decision are committed. Repeated signals cannot interrupt failure recording or lock retention; confirmed clean teardown still releases the lease before propagating cancellation. The closed relay rejects delayed requests before they can launch new work. The same applies to interruption while a creation request is in flight. Do not retry by deleting the lease automatically: inspect that guest's Appium sessions/processes and private test diagnostics, confirm the affected application/session has stopped, then explicitly recover only that run's lease. Never bulk-delete unrelated Appium sessions. Confirmed protocol rejection and failures before the remote request allow ordinary cleanup. The default regression suites do not start QEMU; native multi-VM smoke requires an explicit QEMU_TEST_ACCEL opt-in and runs separately.
+
+### Build and test placement
+
+Work VMs are runtime/test environments. Unless the user explicitly requests guest compilation, compile applications, test code, native dependencies and installation hooks on the host or an existing designated build environment, then transfer built artifacts and prebuilt dependencies. Requests to install a guest, configure Appium or run tests do not authorize compiling in the work VM. Never silently fall back to guest compilation or increase its CPU/RAM to accommodate a build; resolve host-side build prerequisites or report the limitation. Work VMs run Appium, applications and tests; ordinary runtime JIT execution is not a build step.
 
 ### Provision and run
 
-1. Provision/start the Alpine backend using the existing commands below. Keep it running while work guests use Docker.
-2. Install media authoring support: `python -m pip install -r scripts/requirements-guests.txt`.
-3. Generate a guest access key: `ssh-keygen -t ed25519 -f ~/.ssh/qemu-work`. This authenticates host access to work guests; a separate backend key authenticates guest Docker access to Alpine.
-4. Build a native proxy for each guest OS. Compilation runs inside Alpine:
+1. Install media authoring support: `python -m pip install -r scripts/requirements-guests.txt`.
+2. Generate a guest access key: `ssh-keygen -t ed25519 -f ~/.ssh/qemu-work`.
+3. Prepare an offline Appium runtime on the same OS and CPU architecture as the target guest. Use a standalone official Node.js distribution and a supported npm first; distro/Homebrew executables linked to private external libraries are not portable guest runtimes. The builder pins Appium 3.2.2 and never starts an application on the preparation desktop. For Windows desktop tests:
 
    ```bash
-   ./scripts/build-docker-proxy.sh --target-os linux --target-arch amd64
-   ./scripts/build-docker-proxy.sh --target-os windows --target-arch amd64
-   ./scripts/build-docker-proxy.sh --target-os darwin --target-arch amd64
+   python scripts/build-appium-runtime.py /private/appium-windows.zip --driver appium-desktop-driver@2.8.0
    ```
 
-   Explicit targets use `<proxy-dir>/<os>-<arch>/`, preserving the host executable. `--profile` selects a non-default Alpine profile.
-5. Copy `profiles/ubuntu.json` or `profiles/windows.json` outside the plugin checkout. Supply local vendor media, its independently verified SHA-256, keys, proxy binary and backend settings. Paths resolve relative to the JSON profile; `~` expands to the host home. Set the exact Windows image edition. Windows generates a random account password in the private seed.
-6. Inspect the plan and install in a dedicated terminal:
+   Repeat `--driver <pinned-npm-package>` for project-required drivers and `--plugin <pinned-npm-package>` for Appium plugins (activated from runtime metadata); omit it for an Appium server without drivers. Driver prerequisites, SDKs, JDKs and application artifacts belong to the consuming project. Linux local drivers and macOS Xcode/accessibility permissions need their platform-specific preparation; installing the server alone does not prove UI automation works.
+4. Copy a sample JSON profile outside the checkout. Supply vendor media and verified SHA-256, guest key, and `appium.runtime_archive` / `appium.sha256` from the builder. `appium.host_port` selects a unique host loopback port for its SSH tunnel. Paths resolve relative to the profile; `~` expands to the host home. Set the exact Windows image edition. Seeds generate private account credentials.
+5. Inspect the plan and install in a dedicated terminal:
 
    ```bash
    python scripts/guest-vm.py plan /path/to/ubuntu.json
    python scripts/guest-vm.py install /path/to/ubuntu.json
    ```
 
-   Installation is unattended and supervised in the foreground. `Guest ready` means acceptance succeeded: SSH plus Docker server access, and cloud-init completion on Ubuntu. The supervisor stays running throughout the guest's lifetime. Start another guest in another terminal. Logs live in `state_dir`.
-7. From another terminal, inspect or stop an individual VM; restart it later with `run`:
+   Installation is unattended and supervised in the foreground. `Guest ready` means acceptance succeeded: authenticated SSH plus a ready guest Appium server, and cloud-init completion on Ubuntu. The supervisor stays running throughout the guest's lifetime. Start another guest in another terminal. Logs live in `state_dir`.
+6. From another terminal, inspect or stop an individual VM; restart it later with `run`:
 
    ```bash
    python scripts/guest-vm.py status /path/to/ubuntu.json
@@ -72,15 +141,24 @@ Each work VM has its own `state_dir`, qcow2 disk, supervisor lease and host SSH 
    python scripts/guest-vm.py run /path/to/ubuntu.json
    ```
 
-   Stop requests ACPI shutdown; the supervising terminal reports completion. `stop --force` terminates only that session's verified native QEMU. Ctrl+C cancels the supervisor and forcibly stops its owned QEMU. Stop work guests before the Alpine backend. If a supervisor was killed, inspect the recorded native process before removing retained locks or process records.
+   Stop requests ACPI shutdown; the supervising terminal reports completion. `stop --force` terminates only that session's verified native QEMU. Ctrl+C cancels the supervisor and forcibly stops its owned QEMU. If a supervisor was killed, inspect the recorded native process before removing retained locks or process records.
 
-Guest terminals receive the proxy on PATH, `DOCKER_HOST=tcp://127.0.0.1:2375` and Testcontainers loopback settings. Ubuntu may need a fresh login shell after bootstrap. Each guest uses its private QEMU user network; `10.0.2.2` reaches the host. SSH tunnels connect to Alpine through the host's existing loopback SSH forward. They bind the API and matching publish-pool ports only to that work guest's `127.0.0.1`. Use identical backend pool bounds in all guest profiles.
+Connect host tests to the guest server in a separate terminal:
 
-Docker CLI builds transfer filtered contexts over SSH. Bind mounts and Testcontainers bind paths refer to Alpine, not the work VM; existing proxy restrictions for `docker cp`, build secrets and unsupported outputs still apply. Published container ports must stay in the pool. Windows guests use Alpine Linux containers, not a Windows container daemon. Large forwarding pools are subject to SSH command-line and descriptor limits.
+```bash
+python scripts/connect-appium.py /path/to/windows.json
+# Point your project's Appium client at http://127.0.0.1:<appium.host_port>
+```
 
-The Windows proxy uses an in-process SSH transport for command input/output; it does not nest a system SSH process for Docker commands. This avoids stdin/output stalls when invoked from a Windows SSH session. Persistent API/port tunnels still use the Windows OpenSSH service tooling. Proxy compilation uses Go 1.26 or later inside Alpine.
+Appium listens only on guest loopback port 4723. OpenSSH authenticates and pins the guest host key; on first connection verify its fingerprint through the guest console or another trusted channel. The tunnel binds only host loopback, refuses occupied ports and ends with its owning process. The status panel displays the configured endpoint, which requires this tunnel. Each guest uses a separate tunnel/host port.
 
-Seeds contain a backend root SSH key and generated Windows credentials. Keep state directories private, outside repositories and shared folders, including on Windows. Never publish seeds, answer files or payload archives. Installation refuses to replace existing disks/seeds. Resume an interrupted install with `run`; media stays attached until acceptance succeeds. Accepted guests boot without installation media.
+Windows Appium runs as the dedicated test user in the interactive guest session, never SSH Session 0. That account automatically logs in after reboot. Do not use personal credentials in this disposable test environment. Manual testing can use an independently configured guest console or remote desktop connection; the status screen remains read-only. Tests must stage their own apps and files on the guest and arrange access to their host/backend services. Changing only an Appium URL does not translate local paths or loopback URLs. The plugin contains no project path, application or test selection.
+
+macOS desktop UI automation requires a project-required Mac2 driver and a compatible full Xcode installation; Command Line Tools alone is insufficient. Verify Apple's signature on supplied Xcode archives, select the installed developer directory and complete license/first-launch initialization. WebDriverAgentMac needs a build prepared on a designated macOS build environment, or an explicit exception authorizing that build in the work VM. Grant the built runner and Xcode Helper Accessibility permission in the dedicated test account. Rebuilds may invalidate that grant. Validate a real session, native source, screenshot and click; server readiness alone is not UI acceptance. See the [Mac2 setup documentation](https://appium.github.io/appium-mac2-driver/v4/getting-started/).
+
+Old work profiles with `backend` / `proxy_binary` are intentionally rejected: remove those keys and add `appium`. Existing disks are never replaced. On Windows, copy the new rendered payload into `C:/ProgramData/qemu-guests` and run its bootstrap to replace the plugin-owned Docker task/environment/credentials. Refresh the private guest auto-logon password from its existing account when migrating an old disk. Ubuntu/macOS operators must remove their old plugin-owned Docker tunnel/service, environment entries and backend key before applying the new Appium bootstrap. Provisioning a new private state directory is the fully unattended path.
+
+Seeds contain generated guest account credentials and SSH authorization. Keep state directories private, outside repositories and shared folders, including on Windows. Never publish seeds, answer files or payload archives. Installation refuses to replace existing disks/seeds. Resume an interrupted install with `run`; media stays attached until acceptance succeeds. Accepted guests boot without installation media.
 
 ### Graphical systems and live screens
 
@@ -93,20 +171,22 @@ Set `graphical` to a JSON boolean. Ubuntu defaults to `false`; Windows and macOS
 
 Ubuntu installs XFCE, Xorg and LightDM when graphical; a headless Ubuntu guest omits them. Accounts use SSH keys; set a desktop login password through your authenticated guest administration session if needed. Windows images are selected using the install WIM/ESD metadata: `graphical` chooses the matching Windows Server desktop or Core variant. Use an edition name from your media; naming conventions differ between releases. Windows client editions do not have a Server Core variant. macOS retains its native graphical OS components even in headless operation; `graphical: false` disables panel screen sharing, while Recovery automation still uses its private QMP connection.
 
+Size the guest desktop for the test suite's largest window at the selected DPI. A basic macOS framebuffer can expose only the boot-selected mode: configure the private OpenCore `UEFI -> Output -> Resolution` (for example `1920x1080` when supported), restart the guest, and verify its actual display mode before testing. Keep the original firmware/configuration available. An SSH disconnect during macOS shutdown can precede kernel halt; wait for guest shutdown before forcing the owned QEMU process to exit.
+
 Starting/installing a VM registers its public status metadata in `~/.qemu-guests/registry`. Stopped VMs remain listed. The panel distinguishes booting, ready, stopping, stopped, unknown and recovery-required states; an orphaned process is not reported ready. Choose **View screen** to switch between graphical guests. Frames refresh about every two seconds while visible. A failed capture retains the previous frame with an explicit error; screenshots are not included in ordinary status snapshots. Runtime capture files are temporary and deleted after every request. The screen tool accepts only a registered guest ID and verifies process identity and ownership of its loopback QMP listener.
 
 ### Unattended Intel macOS installation
 
-Apple provides installer downloads through [its documented channels](https://support.apple.com/102662). The open-source [OpenCore macrecovery tool](https://github.com/acidanthera/OpenCorePkg/tree/master/Utilities/macrecovery) also runs on Windows and downloads Recovery images from Apple servers with chunklist/signature verification. Recovery download does not require an existing Mac. A Recovery image alone does not contain the full installer application and private bootstrap product package required by this adapter, and is not interchangeable with the prepared installer ISO below. The sample selects WHPX explicitly with no TCG fallback; complete the CPU arguments and firmware/OpenCore configuration for the selected macOS release before attempting installation. WHPX macOS boot compatibility has not yet been validated. Linux hosts must select KVM explicitly.
+Apple provides installer downloads through [its documented channels](https://support.apple.com/102662). The open-source [OpenCore macrecovery tool](https://github.com/acidanthera/OpenCorePkg/tree/master/Utilities/macrecovery) also runs on Windows and downloads Recovery images from Apple servers with chunklist/signature verification. Recovery download does not require an existing Mac. A Recovery image alone does not contain the full installer application and private bootstrap product package required by this adapter, and is not interchangeable with the prepared installer ISO below. The sample selects WHPX explicitly with no TCG fallback; complete the CPU arguments and firmware/OpenCore configuration for the selected macOS release before attempting installation. The tested macOS WHPX runtime is the experimental CPUID-cache variant described above; stock QEMU compatibility is not implied. Linux hosts must select KVM explicitly.
 
 1. Prepare a full English Intel-compatible installer application on a macOS preparation machine. Run `scripts/create-macos-media.sh /path/to/Install-macOS.app /absolute/installer.iso`; it uses Apple tools and a newly created dedicated disk image. Record and verify the resulting media checksum.
-2. Complete `profiles/macos-adapter.json` with compatible private firmware/OpenCore configuration, the actual installer app path under `/Volumes/`, an explicit empty guest target disk, target proxy, keys, media checksum, and the host Tesseract executable. Supply USB keyboard support in `hardware_args`. Firmware settings belong to your boot configuration, not the panel.
-3. Export the private first-boot payload with `python scripts/prepare-macos-payload.py /path/to/macos.json /private/payload.zip`. On the preparation Mac, build `scripts/build-macos-bootstrap.sh /private/payload.zip /private/bootstrap.pkg`. Copy that product package to the profile's `macos.bootstrap_package` path. Keep both files private; they contain the backend key and a generated account password.
-4. Run `guest-vm.py install` as for other guests. The controller waits for Recovery using bounded OCR, opens its Terminal with a keyboard shortcut, and hands off to the attached seed's fixed install script. That script refuses a partitioned target, formats only the explicitly configured empty guest disk, and runs `startosinstall` with the bootstrap product package. It never clicks through Setup Assistant or silently retries a destructive handoff after a crash.
+2. Complete `profiles/macos-adapter.json` with compatible private firmware/OpenCore configuration, the actual installer app path under `/Volumes/`, an explicit target serial such as `serial:work-target` matching the disk device's `serial=work-target` (recommended over unstable BSD disk numbers), Appium runtime, access key, media checksum, and the host Tesseract executable. Supply a USB controller/keyboard in `hardware_args`; the GPT installer image is attached as a read-only USB disk so OpenCore can recognize its HFS+ partition. Configure the OpenCore timeout and hide its own EFI entry with `.contentVisibility` to avoid a self-boot loop. Firmware settings belong to your boot configuration, not the panel.
+3. Export the private first-boot payload with `python scripts/prepare-macos-payload.py /path/to/macos.json /private/payload.zip`. On the preparation Mac, build `scripts/build-macos-bootstrap.sh /private/payload.zip /private/bootstrap.pkg`. Copy that product package to the profile's `macos.bootstrap_package` path. Keep both files private; they contain a generated account password.
+4. Run `guest-vm.py install` as for other guests. The controller waits for Recovery using bounded OCR, opens its Terminal with a keyboard shortcut, and hands off to the attached seed's fixed install script. That script refuses a partitioned target, formats only the explicitly configured empty guest disk (matched by serial when selected), and runs `startosinstall` with the bootstrap product package. It never clicks through Setup Assistant or silently retries a destructive handoff after a crash.
 
 The bootstrap product package explicitly loads its first-boot service when installed on the running target; it does not load that service into a preparation or Recovery host. First boot adds the configured user to an existing restricted SSH access group and marks the per-user setup screens complete before the final reboot.
 
-5. The installed package supplies a first-boot LaunchDaemon that creates the guest account, enables SSH, installs the Docker tunnel/environment, completes initial setup and reboots. Final acceptance requires authenticated SSH, the Docker CLI and loopback Docker API. A completed OCR/key handoff alone does not establish installation success.
+5. The installed package supplies a first-boot LaunchDaemon that creates the guest account, enables SSH, installs Appium as a per-user LaunchAgent, completes initial setup and reboots. First boot clears the installer’s one-time login flag and configures persistent loginwindow automatic-login credentials for the dedicated test account, preconfigures the standard QEMU USB keyboard as ANSI, keeps the desktop awake and removes the temporary password file. Other keyboard devices/layouts require their own matching preferences. Appium startup avoids the stock Git shim’s developer-tools installation dialog when no toolchain is selected; it preserves an explicitly configured toolchain and does not install build tools. FileVault must be off; provisioning fails rather than disabling encryption. Final acceptance requires authenticated SSH, the expected console user, the user-session Appium LaunchAgent and a ready loopback Appium server. A completed OCR/key handoff alone does not establish installation success.
 
 Preparation requires Apple tools (`createinstallmedia`, `pkgbuild`, `productbuild`, `hdiutil`). The Windows/Linux runtime can consume the resulting ISO/package but cannot build them with substitute tools. Installer versions, firmware and boot layouts must match; retain incomplete disks and inspect `macos-install.json` after an interrupted handoff. Do not erase a partially installed guest automatically. The bundled rendering/control tests do not replace installation testing with your selected macOS release.
 
@@ -114,11 +194,11 @@ Preparation requires Apple tools (`createinstallmedia`, `pkgbuild`, `productbuil
 
 `os: custom` accepts a supplied unattended installer for other systems. macOS now has the built-in flow above.
 
-- `seed_dir` contains flat automation files. The tool adds `payload.zip` with the target proxy, backend key and systemd/launchd or Windows bootstrap. Custom automation must install the payload, configure guest access and run the bootstrap. macOS must source `/opt/qemu-guests/environment` from login-shell configuration. Other OS families provide their own bootstrap.
+- `seed_dir` contains flat automation files. The tool adds `payload.zip` with the Appium runtime and systemd/launchd or Windows bootstrap. Custom automation must install the payload, configure guest access and run the bootstrap. Other OS families provide their own bootstrap.
 - `hardware_args` optionally replaces default disk/NIC arguments; placeholders are `{disk}`, `{state}` and `{ssh_port}`. Provide loopback SSH forwarding and preserve the user-network gateway or adapt the bootstrap. Defaults are x86-64 IDE/e1000.
 - `qemu_args` applies on every boot, including acceleration and firmware. Managed Windows and the bundled Ubuntu sample select WHPX explicitly; use the system runtime with explicit KVM on Linux. Custom system-runtime profiles must name their accelerator rather than assume QEMU's default is hardware accelerated. Automatic acceleration probing remains a backend feature. Keep monitor/stdin and lifecycle under supervisor ownership.
 - `install_args` applies before first acceptance and supports `{state}` and `{seed}`. It must boot automation that consumes the seed unattended. Generic media attachments use IDE CD-ROM; adapters must supply compatible controllers.
-- `acceptance` is an optional host argument array, without implicit shell expansion, supporting `{state}` and `{ssh_port}`; it is required for custom guests. Return zero only after installation, access, Docker proxy/API and required port forwards work. Probes are repeatable, read-only and bounded to 15 seconds. Never use a successful no-op as installation acceptance.
+- `acceptance` is an optional host argument array, without implicit shell expansion, supporting `{state}` and `{ssh_port}`; it is required for custom guests. Return zero only after installation, access and the required Appium/test services work. Probes are repeatable, read-only and bounded to 15 seconds. Never use a successful no-op as installation acceptance.
 - `timeout` bounds readiness in seconds (default 3600). Failures retain the installation disk/seed. OS/media changes require a new state directory. `media_sha256` is checked before disk creation.
 
 See the vendor formats: [Ubuntu NoCloud](https://canonical-cloud-init.readthedocs-hosted.com/en/latest/reference/datasources/nocloud.html), [Windows unattended installation](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/automate-windows-setup). Apple's [Virtualization framework installer](https://developer.apple.com/documentation/virtualization/installing-macos-on-a-virtual-machine) is a separate platform flow, not a QEMU installer bundled here.
@@ -148,7 +228,7 @@ For Gradle or other test commands that invoke the Docker CLI, compile the native
 
 ```bash
 ./scripts/build-docker-proxy.sh
-./scripts/run-testcontainers.sh -- ./gradlew test
+./scripts/run-test-env.sh -- ./gradlew test
 ```
 
 Start the VM before compiling. The script sends the proxy source over existing SSH,
@@ -226,7 +306,7 @@ Run host tests through the guest Docker API:
 
 ```bash
 ./scripts/build-docker-proxy.sh # once, and after proxy source updates
-./scripts/run-testcontainers.sh -- npm test
+./scripts/run-test-env.sh -- npm test
 ```
 
 The wrapper supplies `DOCKER_HOST`, `TESTCONTAINERS_HOST_OVERRIDE`, and `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` to the test process on both platforms. On Windows it passes them across the MSYS-to-Windows process boundary and restores a writable native temporary directory before launching JVM tests. In a Linux container, the test process runs in the same outer container as QEMU. It keeps Ryuk enabled. Random published ports work when the framework asks Docker to assign a port because guest allocation and host forwards share the configured range.
@@ -498,7 +578,7 @@ For a real acceptance check, provision a fresh isolated VM with its own
 After starting it and building its proxy, run from this plugin root:
 
 ```bash
-bash scripts/run-testcontainers.sh --profile /path/to/isolated.profile -- \
+bash scripts/run-test-env.sh --profile /path/to/isolated.profile -- \
   uv run --script tests/validate-guest-testcontainers.py --pool-start 28000 --pool-end 28015
 ```
 

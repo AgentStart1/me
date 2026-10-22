@@ -193,13 +193,13 @@ printf '{}'
             # A test command holds the VM reservation; shutdown cannot race it.
             ready.touch()
             assert launch("start-vm").wait(timeout=30) == 0
-            guard_command = f'"{(plugin / "scripts/run-testcontainers.sh").as_posix()}"'
+            guard_command = f'"{(plugin / "scripts/run-test-env.sh").as_posix()}"'
             proxy = fixture / "proxy"
             proxy.mkdir()
             proxy_file = proxy / ("docker.exe" if os.name == "nt" else "docker")
             proxy_file.touch()
             proxy_file.chmod(0o755)
-            held = subprocess.Popen([bash, str(plugin / "scripts/run-testcontainers.sh"), "--profile", str(profile),
+            held = subprocess.Popen([bash, str(plugin / "scripts/run-test-env.sh"), "--profile", str(profile),
                                      "--", bash, "-c", '"$1" "$2" && exit 99; sleep 3; exit 23',
                                      "test-command", str(plugin / "scripts/stop-vm.sh"), str(profile)],
                                     env=dict(env, QEMU_DOCKER_PROXY_DIR=str(proxy)), stdout=subprocess.DEVNULL,
@@ -209,7 +209,7 @@ printf '{}'
             assert launch("stop-vm").wait(timeout=15) != 0
             assert held.wait(timeout=15) == 23
             assert not operation.exists()
-            assert subprocess.run([bash, str(plugin / "scripts/run-testcontainers.sh"), "--profile", str(profile),
+            assert subprocess.run([bash, str(plugin / "scripts/run-test-env.sh"), "--profile", str(profile),
                                    "--", bash, "-c", "exit 0"],
                                   env=dict(env, QEMU_DOCKER_PROXY_DIR=str(proxy)),
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15).returncode == 0
