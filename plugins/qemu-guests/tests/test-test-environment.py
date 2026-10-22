@@ -24,7 +24,7 @@ class EnvironmentTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
 
     def test_large_unicode_guest_scripts_are_data_not_remote_command_arguments(self):
         transport = GuestTransport({'os': 'windows', 'ssh_user': 'developer',
