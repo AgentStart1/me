@@ -1,5 +1,6 @@
 """Managed runtime integrity and explicit WHPX configuration contracts."""
 import json
+from dataclasses import FrozenInstanceError
 import importlib.util
 import os
 import shutil
@@ -101,6 +102,141 @@ class RuntimeTests(unittest.TestCase):
         config = guest_config.load(path)
         self.assertEqual((config['cpus'], config['qemu_runtime'], config['install_reboots']), (4, 'whpx-reset', 0))
         self.assertEqual(config['qemu_args'], ['-accel', 'whpx', '-cpu', 'Westmere,-vmx,-svm'])
+
+
+@unittest.skipUnless(os.name == 'nt', 'Windows build orchestration')
+class BuildSnapshotTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.home = Path(temporary.name)
+        self.plugin = self.home / 'plugin'
+        (self.plugin / 'templates').mkdir(parents=True)
+        self.template = self.plugin / 'templates/build-whpx-qemu.sh'
+        self.template.write_bytes(b'original template')
+        self.patches = (self.plugin / 'reset.patch', self.plugin / 'cet.patch')
+        for index, path in enumerate(self.patches):
+            path.write_bytes(f'original patch {index}'.encode())
+        self.archive = self.home / 'source.tar.xz'
+        self.archive.write_bytes(b'verified source')
+        for name, value in [('ROOT', self.plugin), ('PATCHES', self.patches),
+                            ('SOURCE_SHA', runtime.digest(self.archive))]:
+            self.enterContext(patch.object(runtime, name, value))
+        self.snapshot = runtime.BuildSnapshot.capture()
+        self.cache = self.home / 'cache'
+        self.enterContext(patch.object(runtime.ctypes, 'WinDLL'))
+        self.enterContext(patch.object(runtime, 'msys_root', return_value=self.home))
+        self.after_extract = lambda: None
+        self.during_compile = lambda: None
+        self.compile_exit = 0
+        self.probes = 0
+        self.enterContext(patch.object(runtime, 'extract', side_effect=self.extract))
+        self.enterContext(patch.object(runtime, 'bundle', side_effect=self.bundle))
+        self.run = self.enterContext(patch.object(runtime.subprocess, 'run', side_effect=self.execute))
+
+    def extract(self, archive, work):
+        self.assertNotEqual(archive, self.archive)
+        self.assertEqual(archive.read_bytes(), b'verified source')
+        (work / ('qemu-' + self.snapshot.version)).mkdir()
+        self.after_extract()
+
+    def bundle(self, executable, source, stage, msys):
+        for relative in ['bin/qemu-system-x86_64.exe', 'share/qemu/bios-256k.bin', 'share/qemu/vgabios-stdvga.bin']:
+            target = stage / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(executable.read_bytes() if relative.startswith('bin/') else b'firmware')
+
+    def execute(self, args, **kwargs):
+        if '-accel' in args:
+            self.probes += 1
+            self.assertEqual(Path(args[0]).parent.parent, runtime.location(self.cache, self.snapshot) / 'runtime')
+            return subprocess.CompletedProcess(args, 0, 'Accelerators supported in QEMU binary:\nwhpx\n')
+        self.assertNotEqual(Path(args[1]), self.template)
+        self.assertEqual(Path(args[1]).read_bytes(), self.snapshot.template.content)
+        compiled = []
+        for path, captured, original in zip(args[5:], self.snapshot.patches, self.patches):
+            self.assertNotEqual(Path(path), original)
+            self.assertEqual(Path(path).read_bytes(), captured.content)
+            compiled.append(Path(path).read_bytes())
+        self.during_compile()
+        output = Path(args[3])
+        output.mkdir()
+        (output / 'qemu-system-x86_64.exe').write_bytes(b'|'.join(compiled))
+        return subprocess.CompletedProcess(args, self.compile_exit)
+
+    def build(self):
+        return runtime.build(self.cache, archive=self.archive)
+
+    def assert_snapshot_published(self, executable):
+        home = runtime.location(self.cache, self.snapshot)
+        self.assertEqual(executable.parent.parent, home / 'runtime')
+        self.assertEqual(executable.read_bytes(), b'|'.join(item.content for item in self.snapshot.patches))
+        for item in (self.snapshot.template, *self.snapshot.patches):
+            self.assertEqual((home / 'runtime' / item.name).read_bytes(), item.content)
+        manifest = json.loads((home / 'runtime/runtime.json').read_text())
+        self.assertEqual(manifest['recipe'], self.snapshot.recipe())
+        self.assertEqual(manifest['sourceSha256'], self.snapshot.source_sha)
+        self.assertEqual(runtime.verify_files(home / 'runtime', self.snapshot), executable)
+        self.assertEqual(self.probes, 1)
+        self.assertFalse((home / 'build.lock').exists())
+
+    def test_source_edits_before_compilation_do_not_change_captured_build(self):
+        def edit():
+            self.template.write_bytes(b'changed template')
+            for path in self.patches:
+                path.write_bytes(b'changed patch')
+        self.after_extract = edit
+        executable = self.build()
+        self.assert_snapshot_published(executable)
+        self.assertNotEqual(runtime.location(self.cache), executable.parent.parent.parent)
+        with self.assertRaisesRegex(ValueError, 'recipe does not match'):
+            runtime.verify_files(executable.parent.parent)
+
+    def test_input_deletion_during_compile_does_not_change_bundle_or_verification(self):
+        def delete():
+            self.template.unlink()
+            for path in self.patches:
+                path.unlink()
+        self.during_compile = delete
+        self.assert_snapshot_published(self.build())
+
+    def test_operator_archive_change_after_verification_does_not_change_extraction(self):
+        original_extract = self.extract
+        def replace_archive(archive, work):
+            self.archive.write_bytes(b'replaced operator archive')
+            original_extract(archive, work)
+        with patch.object(runtime, 'extract', side_effect=replace_archive):
+            self.assert_snapshot_published(self.build())
+
+    def test_compile_failure_after_input_change_does_not_publish_runtime(self):
+        self.compile_exit = 1
+        self.during_compile = lambda: self.patches[1].write_bytes(b'new CET patch')
+        with self.assertRaisesRegex(RuntimeError, 'build failed'):
+            self.build()
+        home = runtime.location(self.cache, self.snapshot)
+        self.assertFalse((home / 'runtime').exists())
+        self.assertFalse((home / 'build.lock').exists())
+        self.assertTrue(list(home.glob('build-*/inputs/cet.patch')))
+        self.assertEqual(self.probes, 0)
+
+    def test_missing_input_fails_before_cache_or_compiler_side_effects(self):
+        self.patches[1].unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.build()
+        self.run.assert_not_called()
+        self.assertFalse(self.cache.exists())
+
+    def test_build_captures_inputs_once(self):
+        capture = runtime.BuildSnapshot.capture
+        with patch.object(runtime.BuildSnapshot, 'capture', side_effect=capture) as captured:
+            self.assert_snapshot_published(self.build())
+        captured.assert_called_once()
+
+    def test_snapshot_fields_are_immutable(self):
+        with self.assertRaises(FrozenInstanceError):
+            self.snapshot.source_sha = 'changed'
+        with self.assertRaises(FrozenInstanceError):
+            self.snapshot.patches[0].content = b'changed'
 
 
 class CetCpuidTests(unittest.TestCase):

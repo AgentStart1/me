@@ -2,6 +2,7 @@
 import argparse
 import bz2
 import ctypes
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -31,19 +32,47 @@ def digest(path):
         return result.hexdigest()
 
 
-def recipe():
-    patches = b''.join(path.name.encode() + b'\0' + path.read_bytes() for path in PATCHES)
-    return hashlib.sha256(patches + (ROOT / 'templates/build-whpx-qemu.sh').read_bytes()).hexdigest()
+@dataclass(frozen=True)
+class BuildInput:
+    name: str
+    content: bytes
 
 
-def location(cache=None):
+@dataclass(frozen=True)
+class BuildSnapshot:
+    version: str
+    source_url: str
+    source_sha: str
+    template: BuildInput
+    patches: tuple[BuildInput, ...]
+
+    @classmethod
+    def capture(cls):
+        template = ROOT / 'templates/build-whpx-qemu.sh'
+        return cls(VERSION, SOURCE_URL, SOURCE_SHA,
+                   BuildInput(template.name, template.read_bytes()),
+                   tuple(BuildInput(path.name, path.read_bytes()) for path in PATCHES))
+
+    def recipe(self):
+        # Preserve cache identities for unchanged, previously verified inputs.
+        patches = b''.join(item.name.encode() + b'\0' + item.content for item in self.patches)
+        return hashlib.sha256(patches + self.template.content).hexdigest()
+
+
+def recipe(snapshot=None):
+    return (snapshot or BuildSnapshot.capture()).recipe()
+
+
+def location(cache=None, snapshot=None):
+    snapshot = snapshot or BuildSnapshot.capture()
     parent = Path(cache) if cache else Path.home() / '.cache/me/qemu-whpx'
-    return parent / (VERSION + '-' + recipe()[:16])
+    return parent / (snapshot.version + '-' + snapshot.recipe()[:16])
 
 
-def verify_files(runtime):
+def verify_files(runtime, snapshot=None):
+    snapshot = snapshot or BuildSnapshot.capture()
     manifest = json.loads((runtime / 'runtime.json').read_text())
-    if not isinstance(manifest, dict) or manifest.get('recipe') != recipe() or manifest.get('sourceSha256') != SOURCE_SHA:
+    if not isinstance(manifest, dict) or manifest.get('recipe') != snapshot.recipe() or manifest.get('sourceSha256') != snapshot.source_sha:
         raise ValueError('WHPX runtime recipe does not match this plugin')
     files = manifest.get('files')
     if not isinstance(files, dict) or any(not isinstance(name, str) or not isinstance(value, str)
@@ -59,8 +88,8 @@ def verify_files(runtime):
     return runtime / 'bin/qemu-system-x86_64.exe'
 
 
-def verify(runtime):
-    executable = verify_files(runtime)
+def verify(runtime, snapshot=None):
+    executable = verify_files(runtime, snapshot)
     result = subprocess.run([str(executable), '-accel', 'help'], check=True,
                             capture_output=True, text=True, timeout=15)
     if result.stdout.splitlines()[1:] != ['whpx']:
@@ -122,10 +151,11 @@ def build(cache=None, msys2=None, archive=None, jobs=8):
         ctypes.WinDLL('WinHvPlatform.dll').WHvResetPartition
     except (OSError, AttributeError):
         raise ValueError('Windows WHPX partition reset API unavailable; Windows 11 is required') from None
-    home = location(cache)
+    snapshot = BuildSnapshot.capture()
+    home = location(cache, snapshot)
     runtime = home / 'runtime'
     if runtime.exists():
-        return verify(runtime)
+        return verify(runtime, snapshot)
     home.mkdir(parents=True, exist_ok=True)
     lock = home / 'build.lock'
     try:
@@ -135,47 +165,55 @@ def build(cache=None, msys2=None, archive=None, jobs=8):
     try:
         (lock / 'owner.json').write_text(json.dumps({'pid': os.getpid()}))
         msys = msys_root(msys2)
-        archive = Path(archive) if archive else home / f'qemu-{VERSION}.tar.xz'
+        archive = Path(archive) if archive else home / f'qemu-{snapshot.version}.tar.xz'
         if not archive.exists():
             print('Downloading pinned QEMU source.', flush=True)
-            with urllib.request.urlopen(SOURCE_URL, timeout=60) as response, archive.open('xb') as output:
+            with urllib.request.urlopen(snapshot.source_url, timeout=60) as response, archive.open('xb') as output:
                 shutil.copyfileobj(response, output)
-        if digest(archive) != SOURCE_SHA:
-            raise ValueError('QEMU source checksum mismatch; archive retained for inspection')
         # A unique workspace preserves failed builds without reusing partial output.
         work = Path(tempfile.mkdtemp(prefix='build-', dir=home))
+        # Verify and extract the same private copy; the operator's archive can change.
+        private_archive = work / f'qemu-{snapshot.version}.tar.xz'
+        shutil.copyfile(archive, private_archive)
+        if digest(private_archive) != snapshot.source_sha:
+            raise ValueError('QEMU source checksum mismatch; archive retained for inspection')
+        inputs = work / 'inputs'
+        inputs.mkdir()
+        for item in (snapshot.template, *snapshot.patches):
+            (inputs / item.name).write_bytes(item.content)
         print('Extracting verified QEMU source.', flush=True)
-        extract(archive, work)
-        source = work / f'qemu-{VERSION}'
+        extract(private_archive, work)
+        source = work / f'qemu-{snapshot.version}'
         output = work / 'output'
         print('Building WHPX-only QEMU; details: ' + str(home / 'build.log'), flush=True)
         with (home / 'build.log').open('wb') as log:
             # Console cancellation reaches the build's children too. Keep the lock
             # after cancellation until their termination has been inspected.
             result = subprocess.run([str(msys / 'usr/bin/bash.exe'),
-                                     str(ROOT / 'templates/build-whpx-qemu.sh'),
+                                     str(inputs / snapshot.template.name),
                                      str(source), str(output), str(jobs),
-                                     *(str(patch) for patch in PATCHES)],
+                                     *(str(inputs / item.name) for item in snapshot.patches)],
                                     stdout=log, stderr=subprocess.STDOUT)
         if result.returncode:
             raise RuntimeError('WHPX build failed; inspect ' + str(home / 'build.log'))
         stage = work / 'runtime'
         bundle(output / 'qemu-system-x86_64.exe', source, stage, msys)
-        for patch in PATCHES:
-            shutil.copy2(patch, stage / patch.name)
+        for item in (snapshot.template, *snapshot.patches):
+            (stage / item.name).write_bytes(item.content)
         for name in ('COPYING', 'LICENSE'):
             if (source / name).is_file():
                 shutil.copy2(source / name, stage / name)
-        manifest = {'version': VERSION, 'sourceUrl': SOURCE_URL, 'sourceSha256': SOURCE_SHA, 'recipe': recipe(),
+        manifest = {'version': snapshot.version, 'sourceUrl': snapshot.source_url,
+                    'sourceSha256': snapshot.source_sha, 'recipe': snapshot.recipe(),
                     'files': {str(p.relative_to(stage)).replace('\\', '/'): digest(p)
                               for p in stage.rglob('*') if p.is_file()}}
         (stage / 'runtime.json').write_text(json.dumps(manifest, indent=2))
         # Executing a staged PE can leave Windows image/AV handles that deny
         # directory rename. Publish the complete hash-checked tree first; every
         # caller must still pass the final-path accelerator probe before use.
-        verify_files(stage)
+        verify_files(stage, snapshot)
         stage.rename(runtime)
-        executable = verify(runtime)
+        executable = verify(runtime, snapshot)
         print('Verified WHPX-only runtime is ready.', flush=True)
         return executable
     except (KeyboardInterrupt, SystemExit):
