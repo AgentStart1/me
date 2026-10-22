@@ -18,7 +18,7 @@ from test_requirements import apply, verify_runtime, verify_runtime_target
 class DesktopProvisioningTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.requirements = self.root / 'requirements.json'
         self.data = {'version': 1, 'desktop': {'width': 1920, 'height': 1080}, 'platforms': {
             'Linux': {'java': 21, 'packages': ['openjdk-21-jre'], 'appium': {

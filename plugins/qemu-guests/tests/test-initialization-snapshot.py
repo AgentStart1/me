@@ -19,7 +19,7 @@ from test_requirements import apply, load
 class InitializationSnapshotTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.script = self.root / 'setup.sh'; self.script.write_bytes(b'echo original\n')
         self.requirements = self.root / 'requirements.json'
         self.requirements.write_text(json.dumps({'version': 1, 'desktop': {'width': 1920, 'height': 1080},

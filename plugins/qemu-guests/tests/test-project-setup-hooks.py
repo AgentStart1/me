@@ -14,7 +14,7 @@ from test_requirements import load
 class SetupHookTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(); self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
 
     def test_host_preparation_preserves_arguments_and_private_output(self):
         command = [sys.executable, '-c', 'import sys; assert sys.argv[1]=="one two"; print("private fixture")', 'one two']

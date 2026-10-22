@@ -18,7 +18,7 @@ class LinuxTransportTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
-        self.root = Path(self.folder.name)
+        self.root = Path(self.folder.name).resolve()
         self.native = self.root / 'native linux.jar'
         self.native.write_bytes(b'prebuilt')
         runtime = self.root / 'runtime.json'
