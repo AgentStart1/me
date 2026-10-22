@@ -2,6 +2,7 @@
 import json
 import importlib.util
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -37,6 +38,15 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'verification failed'):
                 runtime.verify(self.home)
             run.assert_not_called()
+
+    def test_staged_file_verification_does_not_execute_before_publication(self):
+        self.stage()
+        with patch.object(runtime.subprocess, 'run') as run:
+            runtime.verify_files(self.home)
+            run.assert_not_called()
+            run.return_value = subprocess.CompletedProcess([], 0, 'Accelerators supported in QEMU binary:\nwhpx\n')
+            runtime.verify(self.home)
+            run.assert_called_once()
 
     def test_tcg_capable_binary_is_rejected(self):
         self.stage()
@@ -91,6 +101,59 @@ class RuntimeTests(unittest.TestCase):
         config = guest_config.load(path)
         self.assertEqual((config['cpus'], config['qemu_runtime'], config['install_reboots']), (4, 'whpx-reset', 0))
         self.assertEqual(config['qemu_args'], ['-accel', 'whpx', '-cpu', 'Westmere,-vmx,-svm'])
+
+
+class CetCpuidTests(unittest.TestCase):
+    def test_native_cet_matrix_preserves_model_and_host_bounds(self):
+        compiler = shutil.which('gcc') or shutil.which('clang') or shutil.which('cc')
+        fallback = Path.home() / 'msys2/ucrt64/bin/gcc.exe'
+        compiler = compiler or (str(fallback) if os.name == 'nt' and fallback.exists() else None)
+        if not compiler:
+            self.skipTest('Native C compiler is unavailable')
+        patch = runtime.PATCHES[1].read_text()
+        body = patch.split('+++ b/target/i386/whpx/whpx-cpuid.h\n', 1)[1]
+        header = ''.join(line[1:] + '\n' for line in body.splitlines() if line.startswith('+'))
+        program = r'''#include <assert.h>
+#include "whpx-cpuid.h"
+int main(void) {
+    const uint32_t masks[] = {1u << 7, 1u << 20};
+    for (unsigned k = 0; k < 2; k++) {
+        uint32_t mask = masks[k], unrelated = 0x5aa50a55u & ~mask;
+        for (unsigned model = 0; model < 2; model++)
+        for (unsigned host = 0; host < 2; host++)
+        for (unsigned xsave = 0; xsave < 2; xsave++)
+        for (unsigned xsaves = 0; xsaves < 2; xsaves++) {
+            uint32_t value = whpx_filter_cet_cpuid(
+                unrelated | (model ? mask : 0), host ? mask : 0,
+                mask, xsave, xsaves);
+            assert((value & ~mask) == unrelated);
+            if (!model || !host || !xsave || !xsaves) assert(!(value & mask));
+            if (model && host && xsave && xsaves) assert(value & mask);
+        }
+    }
+    return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'whpx-cpuid.h').write_text(header)
+            source = root / 'matrix.c'; source.write_text(program)
+            executable = root / ('matrix.exe' if os.name == 'nt' else 'matrix')
+            compiled = subprocess.run([compiler, '-std=c11', '-Wall', '-Werror', str(source), '-o', str(executable)],
+                                      capture_output=True, text=True, timeout=30)
+            self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+            subprocess.run([str(executable)], check=True, capture_output=True, timeout=10)
+
+    def test_cet_patch_changes_runtime_cache_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            reset = root / 'reset.patch'; reset.write_bytes(b'reset')
+            cet = root / 'cet.patch'; cet.write_bytes(b'first CET recipe')
+            with patch.object(runtime, 'PATCHES', (reset, cet)):
+                before = runtime.location(root)
+                cet.write_bytes(b'changed CET recipe')
+                after = runtime.location(root)
+            self.assertNotEqual(before, after)
 
 
 class RebootAcceptanceTests(unittest.TestCase):

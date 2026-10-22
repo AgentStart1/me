@@ -20,6 +20,7 @@ VERSION = '11.1.2'
 SOURCE_SHA = '731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016'
 SOURCE_URL = f'https://download.qemu.org/qemu-{VERSION}.tar.xz'
 PATCH = ROOT / f'patches/qemu-{VERSION}-whpx-partition-reset.patch'
+PATCHES = (PATCH, ROOT / f'patches/qemu-{VERSION}-whpx-cet-xsave.patch')
 
 
 def digest(path):
@@ -31,7 +32,8 @@ def digest(path):
 
 
 def recipe():
-    return hashlib.sha256(PATCH.read_bytes() + (ROOT / 'templates/build-whpx-qemu.sh').read_bytes()).hexdigest()
+    patches = b''.join(path.name.encode() + b'\0' + path.read_bytes() for path in PATCHES)
+    return hashlib.sha256(patches + (ROOT / 'templates/build-whpx-qemu.sh').read_bytes()).hexdigest()
 
 
 def location(cache=None):
@@ -39,7 +41,7 @@ def location(cache=None):
     return parent / (VERSION + '-' + recipe()[:16])
 
 
-def verify(runtime):
+def verify_files(runtime):
     manifest = json.loads((runtime / 'runtime.json').read_text())
     if not isinstance(manifest, dict) or manifest.get('recipe') != recipe() or manifest.get('sourceSha256') != SOURCE_SHA:
         raise ValueError('WHPX runtime recipe does not match this plugin')
@@ -54,7 +56,11 @@ def verify(runtime):
         path = (runtime / relative).resolve()
         if not path.is_relative_to(runtime.resolve()) or digest(path) != expected:
             raise ValueError('WHPX runtime file verification failed')
-    executable = runtime / 'bin/qemu-system-x86_64.exe'
+    return runtime / 'bin/qemu-system-x86_64.exe'
+
+
+def verify(runtime):
+    executable = verify_files(runtime)
     result = subprocess.run([str(executable), '-accel', 'help'], check=True,
                             capture_output=True, text=True, timeout=15)
     if result.stdout.splitlines()[1:] != ['whpx']:
@@ -148,13 +154,15 @@ def build(cache=None, msys2=None, archive=None, jobs=8):
             # after cancellation until their termination has been inspected.
             result = subprocess.run([str(msys / 'usr/bin/bash.exe'),
                                      str(ROOT / 'templates/build-whpx-qemu.sh'),
-                                     str(source), str(output), str(PATCH), str(jobs)],
+                                     str(source), str(output), str(jobs),
+                                     *(str(patch) for patch in PATCHES)],
                                     stdout=log, stderr=subprocess.STDOUT)
         if result.returncode:
             raise RuntimeError('WHPX build failed; inspect ' + str(home / 'build.log'))
         stage = work / 'runtime'
         bundle(output / 'qemu-system-x86_64.exe', source, stage, msys)
-        shutil.copy2(PATCH, stage / PATCH.name)
+        for patch in PATCHES:
+            shutil.copy2(patch, stage / patch.name)
         for name in ('COPYING', 'LICENSE'):
             if (source / name).is_file():
                 shutil.copy2(source / name, stage / name)
@@ -162,10 +170,14 @@ def build(cache=None, msys2=None, archive=None, jobs=8):
                     'files': {str(p.relative_to(stage)).replace('\\', '/'): digest(p)
                               for p in stage.rglob('*') if p.is_file()}}
         (stage / 'runtime.json').write_text(json.dumps(manifest, indent=2))
-        executable = verify(stage)
+        # Executing a staged PE can leave Windows image/AV handles that deny
+        # directory rename. Publish the complete hash-checked tree first; every
+        # caller must still pass the final-path accelerator probe before use.
+        verify_files(stage)
         stage.rename(runtime)
+        executable = verify(runtime)
         print('Verified WHPX-only runtime is ready.', flush=True)
-        return runtime / executable.relative_to(stage)
+        return executable
     except (KeyboardInterrupt, SystemExit):
         raise  # Retain build ownership; children may still be shutting down.
     finally:
