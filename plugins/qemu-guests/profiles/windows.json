@@ -1,0 +1,29 @@
+{
+  "name": "windows-work",
+  "os": "windows",
+  "state_dir": "~/.qemu-guests/windows-work",
+  "media_sha256": "REPLACE_WITH_VERIFIED_SHA256",
+  "disk_size": "64G",
+  "memory": 8192,
+  "cpus": 4,
+  "qemu_runtime": "whpx-reset",
+  "ssh_port": 2231,
+  "ssh_user": "developer",
+  "access_key": "~/.ssh/qemu-work",
+  "qemu_args": [
+    "-accel",
+    "whpx",
+    "-cpu",
+    "Westmere,-vmx,-svm"
+  ],
+  "timeout": 3600,
+  "installer_iso": "/path/to/windows-amd64.iso",
+  "windows_image": "Windows 10 Pro",
+  "graphical": true,
+  "qmp_port": 2241,
+  "appium": {
+    "host_port": 4731,
+    "runtime_archive": "/private/appium-windows.zip",
+    "sha256": "REPLACE_WITH_RUNTIME_SHA256"
+  }
+}

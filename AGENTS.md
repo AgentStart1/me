@@ -30,6 +30,11 @@ This repository is the source of truth for the `me` plugin collection and its po
 - Use `MAJOR.MINOR.PATCH-YYYYMMDDHHMMSS` for every plugin version. Keep generated `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions identical to the portable manifest, and do not add environment or tool labels.
 - Upgrade a plugin's semantic version (`MAJOR.MINOR.PATCH`) at most once in the same PR. After that first upgrade, keep the semantic version unchanged for later commits in that PR; make a further semantic version upgrade only in a new PR. The `YYYYMMDDHHMMSS` timestamp suffix is excluded from this restriction and may be refreshed for later plugin changes in the same PR. Keep generated client manifest versions identical to the portable manifest.
 
+## Consuming-project independence
+
+- Every skill that changes or operates on a consuming project must state its applicable project-independence boundary without requiring another installed skill. Keep agent prompts aligned. The shared principle lives in `plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md`; documentation guidance lives in `project-docs-and-rules`.
+- Keep AI-plugin implementation/orchestration details out of consuming projects unless the user requests that integration. Preserve normal project dependencies such as Gradle plugins and Appium drivers/extensions. This repository owns the AI plugins themselves, so documenting their installation and implementation here remains appropriate.
+
 ## Privacy
 
 - Keep prompts privacy-safe and generalized. Never copy raw account conversation content, secrets, or personal identifiers into this repository.

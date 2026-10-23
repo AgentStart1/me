@@ -1,0 +1,71 @@
+--- a/target/i386/whpx/whpx-all.c
++++ b/target/i386/whpx/whpx-all.c
+@@ -41,6 +41,7 @@
+ #include "system/whpx-all.h"
+ #include "system/whpx-common.h"
+ #include "whpx-i386.h"
++#include "whpx-cpuid.h"
+ 
+ #include "emulate/x86_decode.h"
+ #include "emulate/x86_emu.h"
+@@ -2596,19 +2597,21 @@
+             /* Dynamic depending on XCR0 and XSS, so query DefaultResult */
+             if (vcpu->exit_ctx.CpuidAccess.Rax == 0x07
+                 && vcpu->exit_ctx.CpuidAccess.Rcx == 0) {
+-                if (vcpu->exit_ctx.CpuidAccess.DefaultResultRdx
+-                    & CPUID_7_0_EDX_CET_IBT) {
+-                    reg_values[3].Reg32 |= CPUID_7_0_EDX_CET_IBT;
+-                } else {
+-                    reg_values[3].Reg32 &= ~CPUID_7_0_EDX_CET_IBT;
+-                }
+-
+-                if (vcpu->exit_ctx.CpuidAccess.DefaultResultRcx
+-                    & CPUID_7_0_ECX_CET_SHSTK) {
+-                    reg_values[2].Reg32 |= CPUID_7_0_ECX_CET_SHSTK;
+-                } else {
+-                    reg_values[2].Reg32 &= ~CPUID_7_0_ECX_CET_SHSTK;
+-                }
++                bool xsave = env->features[FEAT_1_ECX] & CPUID_EXT_XSAVE;
++                bool xsaves = env->features[FEAT_XSAVE] & CPUID_XSAVE_XSAVES;
++
++                /* CET state needs a guest supervisor-state save/restore path.
++                 * WHPX defaults must not re-enable features excluded by the
++                 * selected CPU model (for example, pre-XSAVE Westmere).
++                 */
++                reg_values[2].Reg32 = whpx_filter_cet_cpuid(
++                    reg_values[2].Reg32,
++                    vcpu->exit_ctx.CpuidAccess.DefaultResultRcx,
++                    CPUID_7_0_ECX_CET_SHSTK, xsave, xsaves);
++                reg_values[3].Reg32 = whpx_filter_cet_cpuid(
++                    reg_values[3].Reg32,
++                    vcpu->exit_ctx.CpuidAccess.DefaultResultRdx,
++                    CPUID_7_0_EDX_CET_IBT, xsave, xsaves);
+ 
+                 if (vcpu->exit_ctx.CpuidAccess.DefaultResultRcx
+                     & CPUID_7_0_ECX_OSPKE) {
+--- /dev/null
++++ b/target/i386/whpx/whpx-cpuid.h
+@@ -0,0 +1,23 @@
++/*
++ * WHPX CPUID capability intersection.
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++#ifndef WHPX_CPUID_H
++#define WHPX_CPUID_H
++
++#include <stdbool.h>
++#include <stdint.h>
++
++/* Preserve unrelated bits; CET requires both guest and WHPX support, plus
++ * the guest XSAVE/XSAVES path used to preserve per-thread CET state.
++ */
++static inline uint32_t whpx_filter_cet_cpuid(uint32_t model, uint32_t host,
++                                           uint32_t cet_mask,
++                                           bool xsave, bool xsaves)
++{
++    uint32_t cet = xsave && xsaves ? model & host & cet_mask : 0;
++
++    return (model & ~cet_mask) | cet;
++}
++
++#endif /* WHPX_CPUID_H */

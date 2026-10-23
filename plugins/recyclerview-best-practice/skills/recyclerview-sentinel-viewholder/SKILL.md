@@ -5,6 +5,10 @@ description: Use when RecyclerView needs a stable start anchor so prepended item
 
 # RecyclerView Sentinel ViewHolder
 
+## Project independence
+
+Implement the sentinel as project-owned UI data/adapter code using normal AndroidX dependencies. Do not make rendering, tests or project instructions depend on this AI plugin's name, files or installation. Required build/compiler plugins and libraries are ordinary project dependencies and may be declared normally.
+
 ## Core Trick
 
 Add a stable sentinel row at the beginning of the adapter data.

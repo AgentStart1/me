@@ -64,7 +64,7 @@ jobs:
           cache-suffix: ${{ github.job }}
           cache-dependency-glob: |
             tests/android-status/test-*.py
-            plugins/qemu-alpine-docker/tests/test-*.py
+            plugins/qemu-guests/tests/test-*.py
       - name: Cache Playwright Chromium
         uses: actions/cache@v4
         with:
@@ -93,44 +93,77 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: plugins/qemu-alpine-docker/ui/package-lock.json
+          cache-dependency-path: plugins/qemu-guests/ui/package-lock.json
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-suffix: ${{ github.job }}
           cache-dependency-glob: |
             tests/android-status/test-*.py
-            plugins/qemu-alpine-docker/tests/test-*.py
+            plugins/qemu-guests/tests/test-*.py
       - name: Cache Playwright Chromium
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-1.62.0
-      - run: npm ci --prefix plugins/qemu-alpine-docker/ui
-      - run: npm run build --prefix plugins/qemu-alpine-docker/ui
-      - run: git diff --exit-code -- plugins/qemu-alpine-docker/templates/status-panel.html
-      - run: npm test --prefix plugins/qemu-alpine-docker/ui
-      - run: uv run --script plugins/qemu-alpine-docker/tests/test-status.py
+      - run: npm ci --prefix plugins/qemu-guests/ui
+      - run: npm run build --prefix plugins/qemu-guests/ui
+      - run: git diff --exit-code -- plugins/qemu-guests/templates/status-panel.html
+      - run: npm test --prefix plugins/qemu-guests/ui
+      - run: uv run --script plugins/qemu-guests/tests/test-status.py
       - run: uv run --with playwright==1.62.0 playwright install --with-deps chromium
-      - run: uv run --script plugins/qemu-alpine-docker/tests/test-status-panel.py
+      - run: uv run --script plugins/qemu-guests/tests/test-status-panel.py
       - run: sudo apt-get update && sudo apt-get install -y qemu-system-x86
       - name: Verify upstream gvproxy lifecycle
         run: |
-          source plugins/qemu-alpine-docker/scripts/vm-utils.sh
+          source plugins/qemu-guests/scripts/vm-utils.sh
           install_gvproxy
           export GVPROXY_BINARY="$(gvproxy_binary)"
-          python3 plugins/qemu-alpine-docker/tests/test-gvproxy-lifecycle.py
-          python3 plugins/qemu-alpine-docker/tests/test-vm-lifecycle.py
-      - run: bash plugins/qemu-alpine-docker/tests/test-port-ranges.sh
-      - run: python3 plugins/qemu-alpine-docker/tests/test-gvproxy-control.py
-      - run: python3 plugins/qemu-alpine-docker/tests/test-vm-state.py
-      - run: python3 plugins/qemu-alpine-docker/tests/test-vm-transitions.py
-      - run: python3 plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py
-      - run: bash plugins/qemu-alpine-docker/tests/test-vm-utils.sh
-      - run: bash plugins/qemu-alpine-docker/tests/test-linux-testcontainers.sh
-      - run: bash plugins/qemu-alpine-docker/tests/test-apk-mirror-selection.sh
-      - run: bash plugins/qemu-alpine-docker/tests/test-sync-workspace.sh
-      - run: bash plugins/qemu-alpine-docker/tests/test-build-docker-proxy.sh
+          python3 plugins/qemu-guests/tests/test-gvproxy-lifecycle.py
+          python3 plugins/qemu-guests/tests/test-vm-lifecycle.py
+      - run: bash plugins/qemu-guests/tests/test-port-ranges.sh
+      - run: python -m pip install -r plugins/qemu-guests/scripts/requirements-guests.txt
+      - run: python3 plugins/qemu-guests/tests/test-work-guests.py
+      - run: python3 plugins/qemu-guests/tests/test-whpx-runtime.py
+      - run: python3 plugins/qemu-guests/tests/test-guest-panel.py
+      - run: python3 plugins/qemu-guests/tests/test-gvproxy-control.py
+      - run: python3 plugins/qemu-guests/tests/test-vm-state.py
+      - run: python3 plugins/qemu-guests/tests/test-vm-transitions.py
+      - run: python3 plugins/qemu-guests/tests/test-vm-shell-handoff.py
+      - run: bash plugins/qemu-guests/tests/test-vm-utils.sh
+      - run: bash plugins/qemu-guests/tests/test-linux-testcontainers.sh
+      - run: bash plugins/qemu-guests/tests/test-apk-mirror-selection.sh
+      - run: bash plugins/qemu-guests/tests/test-sync-workspace.sh
+      - run: bash plugins/qemu-guests/tests/test-build-docker-proxy.sh
+
+  test-environments:
+    name: Test environment protocol (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r plugins/qemu-guests/scripts/requirements-guests.txt
+      - run: python plugins/qemu-guests/tests/test-test-environment.py
+      - run: python plugins/qemu-guests/tests/test-test-environment-ownership.py
+      - run: python plugins/qemu-guests/tests/test-linux-transport.py
+      - run: python plugins/qemu-guests/tests/test-desktop-provisioning.py
+      - run: python plugins/qemu-guests/tests/test-project-setup-hooks.py
+      - run: python plugins/qemu-guests/tests/test-environment-owner.py
+      - run: python plugins/qemu-guests/tests/test-initialization-snapshot.py
+      - run: python plugins/qemu-guests/tests/test-transport-cleanup.py
+      - run: python plugins/qemu-guests/tests/test-environment-cli.py
+      - run: python plugins/qemu-guests/tests/test-cancellation.py
+      - run: python plugins/qemu-guests/tests/test-worker-protocol.py
+      - run: node --test plugins/qemu-guests/tests/test-appium-run.cjs plugins/qemu-guests/tests/test-macos-autologin.cjs
 
   windows-msys2-path:
     name: Windows MSYS2 path regression
@@ -154,7 +187,7 @@ jobs:
           test "$(cygpath -m /usr/bin/bash.exe)" = 'C:/Program Files/Git/usr/bin/bash.exe'
           test -x /c/msys64/usr/bin/bash.exe
           test -x /c/msys64/usr/bin/xorriso.exe
-          bash plugins/qemu-alpine-docker/tests/test-msys2-path.sh
+          bash plugins/qemu-guests/tests/test-msys2-path.sh
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -163,7 +196,7 @@ jobs:
         env:
           BASH_TEST_BINARY: C:\Program Files\Git\bin\bash.exe
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py
+        run: python plugins/qemu-guests/tests/test-vm-shell-handoff.py
 
   windows-runtime:
     name: Windows native ownership and reports
@@ -174,7 +207,11 @@ jobs:
         with:
           python-version: '3.13'
       - run: python plugins/android-emulator-profile/tests/test-command-tree.py
-      - run: python plugins/qemu-alpine-docker/tests/test-vm-state.py
+      - run: python plugins/qemu-guests/tests/test-vm-state.py
+      - run: python -m pip install -r plugins/qemu-guests/scripts/requirements-guests.txt
+      - run: python plugins/qemu-guests/tests/test-work-guests.py
+      - run: python plugins/qemu-guests/tests/test-whpx-runtime.py
+      - run: python plugins/qemu-guests/tests/test-guest-panel.py
       - run: python tests/test-report-python.py
       - run: python tests/test-report-snapshots.py
       - run: python tests/test-report-launchers.py
@@ -194,14 +231,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: plugins/qemu-alpine-docker/scripts/docker-proxy
+        working-directory: plugins/qemu-guests/scripts/docker-proxy
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: plugins/qemu-alpine-docker/scripts/docker-proxy/go.mod
+          go-version-file: plugins/qemu-guests/scripts/docker-proxy/go.mod
           cache: true
-          cache-dependency-path: plugins/qemu-alpine-docker/scripts/docker-proxy/go.sum
+          cache-dependency-path: plugins/qemu-guests/scripts/docker-proxy/go.sum
       - run: go test -race ./...
 
   linux-container:
@@ -213,8 +250,8 @@ jobs:
       - name: Build non-root QEMU runtime
         uses: docker/build-push-action@v6
         with:
-          context: plugins/qemu-alpine-docker
-          file: plugins/qemu-alpine-docker/container/Dockerfile
+          context: plugins/qemu-guests
+          file: plugins/qemu-guests/container/Dockerfile
           tags: qemu-runtime-test
           load: true
           cache-from: type=gha,scope=qemu-runtime
@@ -222,4 +259,4 @@ jobs:
       - name: Verify TCG without privileges, KVM, or a host Docker socket
         run: |
           docker run --rm --init -i --network none --cap-drop=ALL --security-opt=no-new-privileges \
-            qemu-runtime-test bash -s < plugins/qemu-alpine-docker/tests/test-container-runtime.sh
+            qemu-runtime-test bash -s < plugins/qemu-guests/tests/test-container-runtime.sh

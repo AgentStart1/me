@@ -8,6 +8,10 @@ diff positions but does not guarantee visibility or anchoring when offscreen.
 Validate actual layout and state-restoration behavior; Paging headers use
 `ConcatAdapter` or `insertHeaderItem`.
 
+## Project independence
+
+Adapter and sentinel implementations belong to the consuming project and use normal AndroidX dependencies. Neither skill makes the project depend on this AI plugin's installation; required Android/Gradle/compiler plugins remain ordinary dependencies.
+
 ## Contents
 
 - `plugin.json` declares the portable plugin and client extensions.

@@ -2,6 +2,10 @@
 
 Collect test reports, then share a static report site through ngrok.
 
+## Project independence
+
+The collector reads existing reports without making project tests depend on this AI plugin's collection, viewer or tunnel scripts. Ordinary test-report and coverage plugins remain valid dependencies; project-owned reporting or persistent integration is a separately requested change.
+
 ## Workflow
 
 ```bash

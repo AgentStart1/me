@@ -1,0 +1,26 @@
+{
+  "name": "ubuntu-work",
+  "os": "ubuntu",
+  "state_dir": "~/.qemu-guests/ubuntu-work",
+  "base_image": "/path/to/ubuntu-server-cloudimg-amd64.img",
+  "media_sha256": "REPLACE_WITH_VERIFIED_SHA256",
+  "disk_size": "64G",
+  "memory": 4096,
+  "cpus": 4,
+  "ssh_port": 2230,
+  "ssh_user": "developer",
+  "access_key": "~/.ssh/qemu-work",
+  "qemu_args": [
+    "-accel",
+    "whpx",
+    "-cpu",
+    "Westmere,-vmx,-svm"
+  ],
+  "timeout": 3600,
+  "graphical": false,
+  "appium": {
+    "host_port": 4730,
+    "runtime_archive": "/private/appium-ubuntu.zip",
+    "sha256": "REPLACE_WITH_RUNTIME_SHA256"
+  }
+}

@@ -20,7 +20,7 @@ Install plugins from the marketplace:
 /plugin install client-ui-best-practices@me
 /plugin install test-report-sharing@me
 /plugin install diff-sharing@me
-/plugin install qemu-alpine-docker@me
+/plugin install qemu-guests@me
 ```
 
 Run `/reload-plugins` after installation to load the installed plugins in the current Claude Code session.

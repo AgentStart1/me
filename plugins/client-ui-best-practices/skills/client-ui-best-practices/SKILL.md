@@ -7,6 +7,10 @@ description: Use for client UI implementation, review, or refactoring involving 
 
 Keep rendering on the UI thread and put feature behavior in a UI-framework-independent `Host`. The UI observes immutable state, renders it, and invokes Host actions.
 
+## Project independence
+
+Implement Host/state boundaries in the project's own code and existing architecture. Do not add dependencies on this AI plugin, assistant-specific packages/flags, or instructions to invoke its agent in the project's build, runtime or documentation. UI frameworks, compiler/Gradle plugins and testing libraries remain normal dependencies when the implementation needs them.
+
 ## UI boundary
 
 - Reserve the UI or event-loop thread for short callbacks and framework-required rendering or view mutation.

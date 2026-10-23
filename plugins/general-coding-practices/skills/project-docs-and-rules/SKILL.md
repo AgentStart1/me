@@ -13,6 +13,12 @@ Keep project documentation aligned with current behavior, using one canonical fi
 
 Do not create or maintain `CLAUDE.md`, `.cursorrules`, or `.github/copilot-instructions.md`. Put generally applicable AI guidance in `AGENTS.md` instead.
 
+## Project independence
+
+Document the project's supported tools, normal commands, endpoints and portable configuration. Do not write AI-plugin installation paths, cache versions, orchestration helpers, provider-specific environment switches or operator maintenance procedures into a consuming project's README, DEVELOPMENT.md or AGENTS.md merely because a skill was used. Keep those instructions in the owning AI plugin or operator environment. This also applies when saving newly learned project rules.
+
+Preserve documentation for actual project dependencies such as Gradle plugins and Appium drivers/extensions, including required versions and setup. These are distinct from AI assistant plugins. When the user explicitly requests AI-plugin integration, document only that requested scope; the AI plugin's own repository may describe its implementation and installation normally.
+
 ## Locate the canonical guidance
 
 - Inspect existing `README.md`, `DEVELOPMENT.md`, and applicable root or nested `AGENTS.md` files before adding documentation.

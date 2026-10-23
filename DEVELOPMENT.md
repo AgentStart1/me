@@ -41,6 +41,12 @@ Use repeated `--test-dir DIR` for platform-independent custom report roots;
 `--test-dirs`, `TEST_RESULT_DIRS`, and `REPORT_DIRS` retain legacy colon separation.
 Use a fresh output directory after upgrading old collected report caches.
 
+## Consuming-project integration rules
+
+The collaboration skill owns the shared independence principle; the documentation skill applies it to README, DEVELOPMENT.md and AGENTS.md. Each project-facing skill also carries a short domain-specific boundary so standalone installation does not depend on the general plugin. Keep routed agent prompts consistent with their owning skills.
+
+Review changes against both sides of the boundary: using a device lock, emulator, report viewer or remote test environment must not insert AI-plugin paths/flags into a project; required Gradle plugins, Appium extensions and reporting libraries must remain declared. Explicitly requested AI-plugin integrations and the plugin's own repository are in scope for their implementation documentation. Validate portable skills independently, then regenerate both clients and validate copied instructions, manifests, routing and package resources. Do not add wording-matching tests for this documentation-only rule.
+
 ## Plugin rule audit
 
 The audit compares rules, agent prompts, examples and README claims with their
@@ -50,7 +56,7 @@ technical limit. Preserve actual ownership, protocol and resource constraints.
 
 | Plugin | Confirmed findings and resulting behavior |
 | --- | --- |
-| qemu-alpine-docker | The default is now 128 ports (20000–20127) on both platforms. Explicit larger pools remain supported without a count ceiling. Batch registration, actual bind/nofile failures, Docker cache seeding, disjoint outbound ports and lifecycle leases remain necessary. Authorization wording honors existing requests. |
+| qemu-guests | The default is now 128 ports (20000–20127) on both platforms. Explicit larger pools remain supported without a count ceiling. Batch registration, actual bind/nofile failures, Docker cache seeding, disjoint outbound ports and lifecycle leases remain necessary. Authorization wording honors existing requests. |
 | android-emulator-profile | Removed global AVD lock deletion, unqualified ADB shutdown and forced DISPLAY fallback. Per-AVD launch guards protect configuration; native locks require inspection. Existing/custom userdata resize needs explicit wipe permission; fresh AVDs configure size before first data creation. Profiles no longer use eval. AVD name lookup is exact; arm64 is supported as an architecture alias. SDK downloads use temporary storage, keep replaced tools and respect existing ownership. |
 | android-device-lock | Atomic mkdir alone did not serialize expired-lease takeover or token-read/delete races. A device-side guard now covers all mutations and atomic metadata publication. A bundled JSON template renders explicitly JSON-encoded placeholders through the shared metadata helper. Strict JSON/type checks reject corrupt, incomplete, duplicate-key or non-finite records; quoting/control characters round-trip through Python 3. Unknown metadata and interrupted guards are retained; tokens stay out of timeout output. Failed remote deletion retains the recovery token and makes release/run fail without replacing an existing command failure. Fixed leases require bounded commands/manual renewal and the same guarded helper version across participants. |
 | diff-sharing | The documented local fallback now runs when ngrok is absent or authentication fails. Python 3 aliases are verified, loopback binding is explicit, local-only previews are available, and cancellation cleans only owned children. Fixed the agent's incorrect site-generator filename. |
@@ -73,7 +79,7 @@ Codex skills remain unchanged copies of their portable sources.
 Focused audit regressions:
 
 ```bash
-bash plugins/qemu-alpine-docker/tests/test-port-ranges.sh
+bash plugins/qemu-guests/tests/test-port-ranges.sh
 bash plugins/android-device-lock/tests/test-device-lock.sh
 bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
 bash plugins/android-emulator-profile/tests/test-install-sdk.sh
@@ -151,7 +157,7 @@ when changing CI.
 Run shell suites with `bash plugins/<plugin>/tests/test-*.sh` one file at a time,
 UI suites with `npm ci`, `npm run build`, and `npm test` in their UI directory,
 and browser/backend suites with `uv run --script <test.py>`. Run proxy tests
-with `go test -race ./...` in `plugins/qemu-alpine-docker/scripts/docker-proxy`.
+with `go test -race ./...` in `plugins/qemu-guests/scripts/docker-proxy`.
 The container job requires Docker and a Linux runtime; see its workflow steps
 for the build and execution commands.
 
@@ -197,8 +203,8 @@ the same Python registration/termination paths. Native Windows launcher PIDs car
 are not interpreted as MSYS PIDs. Unknown identity inspection returns a distinct
 failure status from a confirmed absent/unrelated QEMU process.
 
-Run `python plugins/qemu-alpine-docker/tests/test-vm-state.py`, the existing
-`test-vm-utils.sh` shell suite, `python plugins/qemu-alpine-docker/tests/test-vm-transitions.py`,
+Run `python plugins/qemu-guests/tests/test-vm-state.py`, the existing
+`test-vm-utils.sh` shell suite, `python plugins/qemu-guests/tests/test-vm-transitions.py`,
 and `test-vm-lifecycle.py` with real QEMU and
 `GVPROXY_BINARY` set to an existing verified helper. The lifecycle fixture uses
 private state, mocked guest IO and an untouched synthetic disk; Windows launches
@@ -291,7 +297,7 @@ forced termination and unconfirmed cleanup still require inspection.
 Nested acquisition by an already-owning Shell is rejected before changing its
 token or traps; other failed requests restore the caller's previous context.
 
-Run `python plugins/qemu-alpine-docker/tests/test-vm-shell-handoff.py` for actual
+Run `python plugins/qemu-guests/tests/test-vm-shell-handoff.py` for actual
 CLI-to-Bash tests with private state. The fixture interpreter injects cancellation
 at metadata/output boundaries, output failure and a nonzero exit after publication.
 Separate barriers hold creation before/after publication; a Shell trap marker proves
@@ -383,7 +389,7 @@ covering inherited values, profile overrides, native paths and empty values.
 
 ### Real Alpine guest acceptance
 
-`plugins/qemu-alpine-docker/tests/validate-guest-testcontainers.py` is an opt-in
+`plugins/qemu-guests/tests/validate-guest-testcontainers.py` is an opt-in
 real-guest check, separate from the deterministic fake-process CI suites. Run it
 through the plugin's Testcontainers wrapper against a freshly provisioned isolated
 VM after building its CLI proxy. It checks cgroup v2 CPU quota and memory limits,
@@ -402,3 +408,8 @@ Windows CI also exercises ANSI-default Python text IO. Git Bash path conversion
 and generated UTF-8 report artifacts must specify their encoding explicitly; do
 not rely on the host locale or enable UTF-8 mode merely to hide missing boundaries.
 The native path regression simulates CP1252 while converting a real Unicode path.
+
+The test-environment protocol CI matrix runs provisioning, immutable snapshot,
+transport cleanup, cancellation and worker ownership regressions on Linux and
+Windows. Its fixtures use simulated processes and do not start existing VMs;
+Node tests also verify the guest Appium launcher and macOS auto-login helper.

@@ -2,6 +2,10 @@
 
 Serialize any Android device tests on physical devices or emulators, regardless of test framework, using the bundled `scripts/adb-device-lock.sh` helper. The device-side directory and token-checked lease remain the source of truth; see `skills/android-device-lock/SKILL.md` for acquisition, renewal, and release workflows.
 
+## Project independence
+
+Device locking remains external to the consuming project, including AI-plugin helper paths and private lease state. Normal Android/Gradle and test-framework dependencies are unaffected; using the skill alone does not add a project integration.
+
 ## Project-independent use
 
 The agent invokes the installed plugin's lock helper by absolute path, runs the project's existing test command unchanged from its project directory, and releases the lease. No plugin scripts, lock dependencies, test wrappers, CI edits, or configuration need to be added to the project. Project integration is a separate explicitly requested task.

@@ -9,7 +9,7 @@ Use this plugin for any Android device test that needs exclusive access, includi
 
 ## Project-independent execution
 
-The plugin manages device access outside the target project. Acquire the lock through the installed plugin, run the project's existing test command unchanged from its original working directory, then release the lock.
+The plugin manages device access outside the target project. Acquire the lock through the installed plugin, run the project's existing test command unchanged from its original working directory, then release the lock. Existing adb, Gradle/Android plugins and test-framework dependencies remain ordinary project requirements; they are distinct from this AI plugin.
 
 - Resolve the installed plugin root from the loaded skill location: this skill is at `<plugin-root>/skills/android-device-lock/SKILL.md`. Use the absolute path to `<plugin-root>/scripts/adb-device-lock.sh`; never assume the project contains a `plugins/` directory.
 - Do not copy, vendor, generate, or reimplement the lock helper in the target project. Do not add lock dependencies, test wrappers, build changes, CI configuration, or project documentation merely to use the plugin. Project integration requires a separate explicit user request.
