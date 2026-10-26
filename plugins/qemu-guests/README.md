@@ -382,7 +382,7 @@ See the vendor formats: [Ubuntu NoCloud](https://canonical-cloud-init.readthedoc
 ## Alpine Docker backend architecture
 
 - Alpine is installed unattended to a persistent qcow2 system disk.
-- Automatic acceleration uses `kvm + host` on Linux with accessible KVM, `whpx + qemu64` on compatible Windows hosts, and `tcg,thread=multi + max` otherwise. KVM requires a compatible x86-64 host CPU; TCG emulates the instruction set on other hosts.
+- Automatic acceleration uses `kvm + host` on Linux with accessible KVM, `whpx + host` on compatible Windows hosts, and `tcg,thread=multi + max` otherwise. Hardware acceleration exposes the host CPU features available through the hypervisor instead of the restricted `qemu64` baseline. Restart an existing backend through its normal owned lifecycle to apply this CPU change; disk recreation is unnecessary. KVM requires a compatible x86-64 host CPU; TCG emulates the instruction set on other hosts.
 - Provisioning configuration is rendered from files under `templates/`; scripts supply explicit placeholder values instead of embedding generated files in heredocs.
 - Shared shell behavior is loaded through `scripts/vm-utils.sh`, which initializes common paths and sources focused modules under `scripts/lib/` for runtime, configuration, templating, QEMU, guest access, Alpine images, and VM state.
 - During first provisioning, Alpine selects the fastest mirror from its official list, upgrades the result to HTTPS, validates it, and falls back to the official HTTPS CDN when needed.

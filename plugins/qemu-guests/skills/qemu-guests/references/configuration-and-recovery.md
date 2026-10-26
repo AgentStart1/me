@@ -38,7 +38,7 @@ Control ports `GVPROXY_QEMU_PORT` (19200) and `GVPROXY_API_PORT` (19201) are loo
 
 ## Acceleration and provisioning
 
-`VM_ACCELERATOR=auto` probes KVM on Linux or WHPX on Windows, otherwise selecting TCG. Set `kvm` or `whpx` to require that accelerator; unavailable explicit accelerators fail instead of falling back. KVM uses `host`, WHPX uses `qemu64`, and TCG uses `max`. KVM requires a compatible x86-64 host and access to `/dev/kvm`; in a Linux container, map that device and grant its group to the container user, without privileged mode. See the plugin-root `container/README.md` for commands.
+`VM_ACCELERATOR=auto` probes KVM on Linux or WHPX on Windows, otherwise selecting TCG. Set `kvm` or `whpx` to require that accelerator; unavailable explicit accelerators fail instead of falling back. KVM uses `host`, WHPX uses `host`, and TCG uses `max`. KVM requires a compatible x86-64 host and access to `/dev/kvm`; in a Linux container, map that device and grant its group to the container user, without privileged mode. See the plugin-root `container/README.md` for commands.
 
 `ALPINE_MIRROR_BASE=auto` selects the fastest official-list mirror during first provisioning, requires the automatically selected mirror to work over HTTPS, and falls back to the official HTTPS CDN. Set an explicit HTTP(S) base URL to disable automatic selection.
 

@@ -47,7 +47,7 @@ probe_whpx() {
     "$qemu_bin" \
         -name qemu-guests-whpx-probe \
         -accel whpx \
-        -cpu qemu64 \
+        -cpu host \
         -machine q35 \
         -m 64 \
         -smp 1 \
@@ -90,7 +90,7 @@ configure_qemu_acceleration() {
         auto)
             if is_windows && qemu_supports_accelerator "$qemu_bin" whpx && probe_whpx "$qemu_bin"; then
                 QEMU_ACCELERATOR="whpx"
-                QEMU_ACCEL_ARGS=(-accel whpx -cpu qemu64)
+                QEMU_ACCEL_ARGS=(-accel whpx -cpu host)
             elif [ "$(platform_tag)" = "linux" ] && qemu_supports_accelerator "$qemu_bin" kvm && probe_kvm "$qemu_bin"; then
                 QEMU_ACCELERATOR="kvm"
                 QEMU_ACCEL_ARGS=(-accel kvm -cpu host)
@@ -109,7 +109,7 @@ configure_qemu_acceleration() {
                 return 1
             }
             QEMU_ACCELERATOR="whpx"
-            QEMU_ACCEL_ARGS=(-accel whpx -cpu qemu64)
+            QEMU_ACCEL_ARGS=(-accel whpx -cpu host)
             ;;
         kvm)
             [ "$(platform_tag)" = "linux" ] || {
