@@ -26,6 +26,7 @@ class EnvironmentCleanupError(RuntimeError):
 class OwnerState(Enum):
     NEW = auto()
     ACTIVE = auto()
+    DRAINED = auto()
     RETAINED = auto()
     RELEASED = auto()
 
@@ -41,6 +42,7 @@ class TestEnvironmentOwner:
         self.cancellation = CancellationRequest() if request is None else request
         self._cooperative = request is not None
         self._cleanup_failures = []
+        self._drained_callback = None
 
     @property
     def cleanup_failures(self):
@@ -162,6 +164,31 @@ class TestEnvironmentOwner:
         self._require_active()
         self._resources.callback(self.cleanup, function, *args, **kwargs)
 
+    def on_drained(self, function):
+        """Publish metadata after all cleanup, while still holding the guest lease.
+
+        The callback receives the terminal error or None, cannot acquire new
+        resources/workers, and runs once. Publication failure retains ownership.
+        """
+        self._require_active()
+        if self._drained_callback is not None:
+            raise RuntimeError('A drained callback is already registered')
+        self._drained_callback = function
+
+    def _notify_drained(self, error):
+        if self.state is OwnerState.ACTIVE:
+            self.state = OwnerState.DRAINED
+        callback, self._drained_callback = self._drained_callback, None
+        if callback is None:
+            return
+        if self.path is not None:
+            record = json.loads((self.path / 'owner.json').read_text())
+            if record['token'] != self.token:
+                self.state = OwnerState.RETAINED
+                raise RuntimeError('Test lease ownership changed; refusing publication')
+        accepted = self.cancellation.accepted
+        self.cleanup(callback, accepted if accepted is not None else error)
+
     def enter_context(self, manager):
         self._require_active()
         with defer_cancellation():
@@ -209,7 +236,7 @@ class TestEnvironmentOwner:
                 except BaseException as cleanup_error:
                     self._observe(cleanup_error, cleanup=True)
                     final_error = cleanup_error
-                    if self.state is OwnerState.ACTIVE:
+                    if self.state in {OwnerState.ACTIVE, OwnerState.DRAINED}:
                         try:
                             self.retain()
                         except BaseException as publication_error:
@@ -236,6 +263,36 @@ class TestEnvironmentOwner:
 
     def _exit_resources(self, kind, error, traceback):
         try:
+            suppressed = self._drain_resources(kind, error, traceback)
+        except BaseException as drain_error:
+            try:
+                self._notify_drained(drain_error)
+            except BaseException as publication_error:
+                raise drain_error from publication_error
+            raise
+        terminal = error if not suppressed else None
+        if self.state is OwnerState.RETAINED and terminal is None:
+            terminal = CleanupUncertain('Test environment cleanup remains unconfirmed; lease retained')
+        self._notify_drained(terminal)
+        if self.state is OwnerState.RETAINED and (suppressed or error is None):
+            if terminal is not None:
+                raise terminal
+            raise CleanupUncertain('Test environment cleanup remains unconfirmed; lease retained')
+        # Release is a positive commit after drain and metadata publication.
+        if self.state is OwnerState.DRAINED:
+            if self.path is not None:
+                path = self.path / 'owner.json'
+                record = json.loads(path.read_text())
+                if record['token'] != self.token or record.get('phase') != 'active':
+                    self.state = OwnerState.RETAINED
+                    raise RuntimeError('Test lease ownership changed; refusing release')
+                path.unlink()
+                self.path.rmdir()
+            self.state = OwnerState.RELEASED
+        return suppressed
+
+    def _drain_resources(self, kind, error, traceback):
+        try:
             if isinstance(error, CleanupUncertain):
                 try:
                     self.retain()
@@ -248,18 +305,4 @@ class TestEnvironmentOwner:
                 suppressed = self._resources.__exit__(kind, error, traceback)
             finally:
                 self._finish_workers()
-        if self.state is OwnerState.RETAINED and (suppressed or error is None):
-            raise CleanupUncertain('Test environment cleanup remains unconfirmed; lease retained')
-        # Release is a positive commit after the complete drain, never a finally
-        # action based solely on a possibly stale ACTIVE state.
-        if self.state is OwnerState.ACTIVE:
-            if self.path is not None:
-                path = self.path / 'owner.json'
-                record = json.loads(path.read_text())
-                if record['token'] != self.token or record.get('phase') != 'active':
-                    self.state = OwnerState.RETAINED
-                    raise RuntimeError('Test lease ownership changed; refusing release')
-                path.unlink()
-                self.path.rmdir()
-            self.state = OwnerState.RELEASED
         return suppressed

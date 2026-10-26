@@ -32,8 +32,10 @@ def load(path):
         raise ValueError('os must be ubuntu, windows, macos or custom')
     data['qemu_runtime'] = data.get('qemu_runtime',
         'whpx-reset' if os.name == 'nt' and data['os'] == 'windows' and not data.get('qemu') else 'system')
-    if data['qemu_runtime'] not in {'system', 'whpx-reset'}:
-        raise ValueError('qemu_runtime must be system or whpx-reset')
+    if data['qemu_runtime'] not in {'system', 'whpx-reset', 'reims-whpx'}:
+        raise ValueError('qemu_runtime must be system, whpx-reset or reims-whpx')
+    if data['qemu_runtime'] == 'reims-whpx' and data['os'] != 'macos':
+        raise ValueError('reims-whpx is reserved for Intel macOS guests')
     if 'base_image' in data and 'installer_iso' in data:
         raise ValueError('Choose base_image or installer_iso, not both')
     for key in ('state_dir', 'base_image', 'installer_iso', 'access_key', 'seed_dir'):
@@ -69,6 +71,9 @@ def load(path):
         raise ValueError('ssh_user must be a simple account name')
     for name in ('qemu_args', 'install_args', 'acceptance', 'hardware_args'):
         default = ['-accel', 'whpx', '-cpu', 'Westmere,-vmx,-svm'] if name == 'qemu_args' and data['qemu_runtime'] == 'whpx-reset' else []
+        if name == 'qemu_args' and data['qemu_runtime'] == 'reims-whpx':
+            from reims_runtime import CPU_ARGS
+            default = CPU_ARGS
         values = data.get(name, default)
         if not isinstance(values, list) or any(not isinstance(v, str) or '\x00' in v for v in values):
             raise ValueError(f'{name} must be an argument array')

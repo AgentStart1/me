@@ -1,0 +1,236 @@
+diff --git a/README.md b/README.md
+index 4c9ce46..a66b828 100644
+--- a/README.md
++++ b/README.md
+@@ -166,3 +166,7 @@ notice and the three texts.
+ 
+ Metal is a trademark of Apple Inc. metal2vulkan is an independent project and is not affiliated
+ with, sponsored by, or endorsed by Apple Inc.
++
++## Experimental native Windows host memory
++
++The runtime can import Vulkan external host memory on Windows. It queries the native page size, exposes the platform-neutral foreign acquirer and texture rotation helpers, and installs the Windows exit guard. DMA-BUF integration remains Unix-only. Native Windows host-memory tests and a shared-section GPU fill/readback were exercised; other platforms and the full runtime suite need regression validation.
+diff --git a/crates/metal2vulkan-runtime/Cargo.toml b/crates/metal2vulkan-runtime/Cargo.toml
+index 364edb4..00676f2 100644
+--- a/crates/metal2vulkan-runtime/Cargo.toml
++++ b/crates/metal2vulkan-runtime/Cargo.toml
+@@ -65,6 +65,9 @@ serde_json.workspace = true
+ # `llvm-as` for the device tests' owned fixture (`tests/pipeline_wait_order.rs`).
+ metal2vulkan-devtools = { path = "../metal2vulkan-devtools" }
+ 
++[target.'cfg(target_os = "windows")'.dependencies]
++windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] }
++
+ # The device tests compile only under the validation crate's GPU safety cfgs (`tests/mod.rs`).
+ [lints.rust]
+ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(m2v_gpu)", "cfg(m2v_cpu_icd)"] }
+diff --git a/crates/metal2vulkan-runtime/src/dma_buf.rs b/crates/metal2vulkan-runtime/src/dma_buf.rs
+index 2e0927d..259d55a 100644
+--- a/crates/metal2vulkan-runtime/src/dma_buf.rs
++++ b/crates/metal2vulkan-runtime/src/dma_buf.rs
+@@ -797,16 +797,6 @@ impl Device {
+         }
+     }
+ 
+-    /// The queue family the first move of an image over dma-buf pages acquires it for: the
+-    /// device's one family, or `VK_QUEUE_FAMILY_IGNORED` where its images are concurrent among
+-    /// several (`sharing.rs`), as Vulkan has an acquire of such an image name it.
+-    pub(super) fn foreign_acquirer(&self) -> u32 {
+-        match &self.shared().queue_families[..] {
+-            [family] => *family,
+-            _ => vk::QUEUE_FAMILY_IGNORED,
+-        }
+-    }
+-
+     /// [`Device::dma_buf_image`]'s image made and checked, unbound, with the request for its
+     /// pages; why not where the device makes none before the source is asked.
+     fn dma_buf_image_unbound(
+diff --git a/crates/metal2vulkan-runtime/src/exit_guard.rs b/crates/metal2vulkan-runtime/src/exit_guard.rs
+index 4406118..c1cc1b3 100644
+--- a/crates/metal2vulkan-runtime/src/exit_guard.rs
++++ b/crates/metal2vulkan-runtime/src/exit_guard.rs
+@@ -1318,7 +1318,10 @@ fn install() {
+ }
+ 
+ /// Register [`exit_handler`] with the C library's exit handlers.
+-#[cfg(all(unix, not(all(target_os = "linux", target_env = "gnu"))))]
++#[cfg(all(
++    any(unix, target_os = "windows"),
++    not(all(target_os = "linux", target_env = "gnu"))
++))]
+ fn install() {
+     INSTALLED.fetch_add(1, Ordering::Relaxed);
+     // SAFETY: `exit_handler` is a function with no arguments that never unwinds. Registration
+@@ -1328,7 +1331,7 @@ fn install() {
+ }
+ 
+ /// Nothing to register: the runtime is built for unix hosts, whose exit order the hook relies on.
+-#[cfg(not(unix))]
++#[cfg(not(any(unix, target_os = "windows")))]
+ fn install() {}
+ 
+ // The GNU C library's `on_exit(3)` (`<stdlib.h>`), which `libc` does not declare: `function` is
+@@ -1363,7 +1366,10 @@ extern "C" fn exit_handler(status: std::ffi::c_int, _: *mut std::ffi::c_void) {
+ 
+ /// The exit handler, where it learns no status (`atexit`): the hook waits at most [`BOUND`], or
+ /// [`MAKING_BOUND`] while a making is in progress, and returns.
+-#[cfg(all(unix, not(all(target_os = "linux", target_env = "gnu"))))]
++#[cfg(all(
++    any(unix, target_os = "windows"),
++    not(all(target_os = "linux", target_env = "gnu"))
++))]
+ extern "C" fn exit_handler() {
+     hook(
+         &GUARD,
+diff --git a/crates/metal2vulkan-runtime/src/host_memory.rs b/crates/metal2vulkan-runtime/src/host_memory.rs
+index 2bd72ce..379de6d 100644
+--- a/crates/metal2vulkan-runtime/src/host_memory.rs
++++ b/crates/metal2vulkan-runtime/src/host_memory.rs
+@@ -383,11 +383,23 @@ pub(super) fn host_page() -> Option<u64> {
+ }
+ 
+ /// The host's page size, where the runtime knows how to ask for it: not on this system.
+-#[cfg(not(unix))]
++#[cfg(not(any(unix, target_os = "windows")))]
+ pub(super) fn host_page() -> Option<u64> {
+     None
+ }
+ 
++/// The native page size Windows permits for external host-memory imports.
++#[cfg(target_os = "windows")]
++pub(super) fn host_page() -> Option<u64> {
++    let mut info = std::mem::MaybeUninit::uninit();
++    // SAFETY: GetSystemInfo fills the complete SYSTEM_INFO output structure.
++    unsafe {
++        windows_sys::Win32::System::SystemInformation::GetSystemInfo(info.as_mut_ptr());
++        let page = u64::from(info.assume_init().dwPageSize);
++        (page > 0).then_some(page)
++    }
++}
++
+ /// The refusal of host memory this device cannot import exactly.
+ pub(super) fn not_importable() -> Error {
+     Error::Unsupported(Unsupported::not_representable(Feature::HostMemory))
+diff --git a/crates/metal2vulkan-runtime/src/rebind.rs b/crates/metal2vulkan-runtime/src/rebind.rs
+index 42243e5..9e447ff 100644
+--- a/crates/metal2vulkan-runtime/src/rebind.rs
++++ b/crates/metal2vulkan-runtime/src/rebind.rs
+@@ -637,6 +637,9 @@ pub(super) enum ImportHold {
+ impl ImportHold {
+     /// Held weakly from now on.
+     fn wait(&mut self) {
++        #[cfg(not(unix))]
++        match *self {}
++        #[cfg(unix)]
+         match self {
+             #[cfg(unix)]
+             ImportHold::Held(held) => *self = ImportHold::Waiting(Arc::downgrade(held)),
+diff --git a/crates/metal2vulkan-runtime/src/sharing.rs b/crates/metal2vulkan-runtime/src/sharing.rs
+index 91d3ed1..18e5da6 100644
+--- a/crates/metal2vulkan-runtime/src/sharing.rs
++++ b/crates/metal2vulkan-runtime/src/sharing.rs
+@@ -10,6 +10,16 @@
+ 
+ use ash::vk;
+ 
++impl crate::Device {
++    /// The acquiring queue family, or IGNORED for resources shared across families.
++    pub(super) fn foreign_acquirer(&self) -> u32 {
++        match &self.shared().queue_families[..] {
++            [family] => *family,
++            _ => vk::QUEUE_FAMILY_IGNORED,
++        }
++    }
++}
++
+ /// The sharing of a device's buffers and images: its queue families, the primary first.
+ #[derive(Clone, Copy, Debug)]
+ pub(crate) struct Sharing<'a> {
+diff --git a/crates/metal2vulkan-runtime/src/tests/degradation.rs b/crates/metal2vulkan-runtime/src/tests/degradation.rs
+index 29f7d34..bfb4df4 100644
+--- a/crates/metal2vulkan-runtime/src/tests/degradation.rs
++++ b/crates/metal2vulkan-runtime/src/tests/degradation.rs
+@@ -248,38 +248,24 @@ fn an_announcement_breaking_d625_item_11_ends_the_process_where_debug_assertions
+     use crate::degradation::{announcement_breach, check_announcement, Degradation, NoticePlace};
+     use crate::exit_guard::spawn;
+     use crate::pipeline::pool::{Joined, Pool};
+-    // First, before this process starts a thread: a child whose one piece, run on its own
+-    // thread as the joined set's first, announces.
+-    // SAFETY: the child runs a piece on its only thread (the joined set's first piece runs on
+-    // the caller's), writes a line and aborts, or exits at once.
+-    let child = unsafe { libc::fork() };
+-    if child == 0 {
++    const CHILD: &str = "M2V_ANNOUNCEMENT_CHILD";
++    if std::env::var_os(CHILD).is_some() {
+         let pieces: Vec<Joined<()>> = vec![Box::new(|| {
+             let place = check_announcement(Degradation::EncodedUseRebound, false);
+-            if place != Some(NoticePlace::PipelinePoolPiece) {
+-                // SAFETY: ends the child at once, telling the parent the answer was wrong.
+-                unsafe { libc::_exit(3) };
+-            }
++            assert_eq!(place, Some(NoticePlace::PipelinePoolPiece));
+         })];
+         drop(Pool::default().join_all(pieces, true, |_, _| {}));
+-        // SAFETY: ends the child at once; the check did not end it.
+-        unsafe { libc::_exit(0) };
++        std::process::exit(0);
+     }
+-    assert!(child > 0, "fork");
+-    let mut status = 0;
+-    // SAFETY: `child` is this process's child.
+-    let reaped = unsafe { libc::waitpid(child, &mut status, 0) };
+-    assert_eq!(reaped, child);
++    let output = std::process::Command::new(std::env::current_exe().unwrap())
++        .args(["--exact", "tests::degradation::an_announcement_breaking_d625_item_11_ends_the_process_where_debug_assertions_are_on", "--nocapture"])
++        .env(CHILD, "1")
++        .output().unwrap();
+     if cfg!(debug_assertions) {
+-        assert!(
+-            libc::WIFSIGNALED(status) && libc::WTERMSIG(status) == libc::SIGABRT,
+-            "the child announcing inside a piece was not aborted: {status}"
+-        );
++        assert!(!output.status.success());
++        assert!(String::from_utf8_lossy(&output.stderr).contains("EncodedUseRebound"));
+     } else {
+-        assert!(
+-            libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0,
+-            "the child announcing inside a piece did not go on, answered as misplaced: {status}"
+-        );
++        assert!(output.status.success());
+     }
+     // The program's thread keeps the rule.
+     assert_eq!(
+diff --git a/crates/metal2vulkan-runtime/src/tests/host_memory.rs b/crates/metal2vulkan-runtime/src/tests/host_memory.rs
+index 4ebb63a..6bf24c4 100644
+--- a/crates/metal2vulkan-runtime/src/tests/host_memory.rs
++++ b/crates/metal2vulkan-runtime/src/tests/host_memory.rs
+@@ -204,14 +204,14 @@ fn imported_memory_is_host_visible_and_coherent_of_the_storage_mode_s_class() {
+     assert!(candidates(&types, 0b10000, MemoryClass::Shared, false).is_empty());
+ }
+ 
+-#[cfg(unix)]
++#[cfg(any(unix, target_os = "windows"))]
+ #[test]
+-fn the_host_page_is_known_on_unix() {
++fn the_host_page_is_known_on_supported_hosts() {
+     let page = host_page().unwrap();
+     assert!(page.is_power_of_two() && page >= 4096, "{page}");
+ }
+ 
+-#[cfg(not(unix))]
++#[cfg(not(any(unix, target_os = "windows")))]
+ #[test]
+ fn the_host_page_is_unknown_elsewhere() {
+     assert_eq!(host_page(), None);
+diff --git a/crates/metal2vulkan-runtime/src/texture.rs b/crates/metal2vulkan-runtime/src/texture.rs
+index 9ad31de..509496a 100644
+--- a/crates/metal2vulkan-runtime/src/texture.rs
++++ b/crates/metal2vulkan-runtime/src/texture.rs
+@@ -155,7 +155,6 @@ pub(super) mod heap_two_planes;
+ pub(crate) mod held_depth;
+ pub(crate) mod host_copy;
+ pub(super) mod kept_image;
+-#[cfg(unix)]
+ mod rotation;
+ mod shared;
+ pub(super) mod signed_depth;

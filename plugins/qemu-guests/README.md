@@ -187,11 +187,184 @@ Apple provides installer downloads through [its documented channels](https://sup
 3. Export the private first-boot payload with `python scripts/prepare-macos-payload.py /path/to/macos.json /private/payload.zip`. On the preparation Mac, build `scripts/build-macos-bootstrap.sh /private/payload.zip /private/bootstrap.pkg`. Copy that product package to the profile's `macos.bootstrap_package` path. Keep both files private; they contain a generated account password.
 4. Run `guest-vm.py install` as for other guests. The controller waits for Recovery using bounded OCR, opens its Terminal with a keyboard shortcut, and hands off to the attached seed's fixed install script. That script refuses a partitioned target, formats only the explicitly configured empty guest disk (matched by serial when selected), and runs `startosinstall` with the bootstrap product package. It never clicks through Setup Assistant or silently retries a destructive handoff after a crash.
 
-The bootstrap product package explicitly loads its first-boot service when installed on the running target; it does not load that service into a preparation or Recovery host. First boot adds the configured user to an existing restricted SSH access group and marks the per-user setup screens complete before the final reboot.
+The bootstrap product package explicitly loads its first-boot service when installed on the running target; it does not load that service into a preparation or Recovery host. First boot adds the configured user to an existing restricted SSH access group and marks the per-user setup screens complete before the final reboot. For Sequoia it also clears the separate Terms cookie left by an installation already invoked with `--agreetolicense`.
+
+For an explicit OS upgrade, prepare a new private bootstrap package using the
+existing test account's credential and SSH authorization, and supply it to
+`startosinstall --installpackage` along with `--agreetolicense --nointeraction`.
+Installing that package on the running target rearms first boot. Retain the
+original disk and validate the upgrade on an independent copy before adoption.
 
 5. The installed package supplies a first-boot LaunchDaemon that creates the guest account, enables SSH, installs Appium as a per-user LaunchAgent, completes initial setup and reboots. First boot clears the installer’s one-time login flag and configures persistent loginwindow automatic-login credentials for the dedicated test account, preconfigures the standard QEMU USB keyboard as ANSI, keeps the desktop awake and removes the temporary password file. Other keyboard devices/layouts require their own matching preferences. Appium startup avoids the stock Git shim’s developer-tools installation dialog when no toolchain is selected; it preserves an explicitly configured toolchain and does not install build tools. FileVault must be off; provisioning fails rather than disabling encryption. Final acceptance requires authenticated SSH, the expected console user, the user-session Appium LaunchAgent and a ready loopback Appium server. A completed OCR/key handoff alone does not establish installation success.
 
 Preparation requires Apple tools (`createinstallmedia`, `pkgbuild`, `productbuild`, `hdiutil`). The Windows/Linux runtime can consume the resulting ISO/package but cannot build them with substitute tools. Installer versions, firmware and boot layouts must match; retain incomplete disks and inspect `macos-install.json` after an interrupted handoff. Do not erase a partially installed guest automatically. The bundled rendering/control tests do not replace installation testing with your selected macOS release.
+
+### Windows macOS GPU runtime
+
+For the qualified Intel macOS 15.8.1 (24H32) experiment on Windows 11 x64,
+use `profiles/macos-reims-whpx.json` as the starting point for a private profile.
+Its `qemu_runtime: "reims-whpx"` builds and verifies a dedicated WHPX-only QEMU,
+the Windows Reims Vulkan library and its option ROM. The plugin contains the
+three external dependency patches and pins their public source commits; it
+does not require a sibling development checkout. Existing Windows guest
+profiles keep their separate `whpx-reset` runtime.
+A native Windows Vulkan driver with compatible `VK_EXT_external_memory_host`
+support is required. This is not the WSL/Dozen path or a general GPU pass-through
+solution; native GPU checks remain necessary on each host.
+
+Install a GNU Rust toolchain (`rustup toolchain install stable-x86_64-pc-windows-gnu`)
+and MSYS2 UCRT64 development tools: GCC toolchain, Git, Clang/LLVM/LLD, CMake,
+Make, Ninja, Python, pkgconf, GLib, pixman and libslirp. Use `QEMU_MSYS2_ROOT`
+when MSYS2 is not in its usual location. Prepare the runtime explicitly with:
+
+```powershell
+python scripts/reims_runtime.py
+```
+
+The clean-source qualification used GNU Rust 1.99.1 and UCRT64 Clang/LLVM 23.1.3;
+new compiler or graphics-driver versions require native qualification again.
+
+The first build downloads pinned sources and Cargo/QEMU build dependencies.
+It retains logs and failed workspaces in `~/.cache/me/reims-whpx`; a verified
+runtime is reused by subsequent launches. Never remove a busy build lock.
+QEMU's build system rejects source paths containing spaces. Set
+`QEMU_REIMS_CACHE` to a private path without spaces, such as `C:/qemu-cache`,
+when the default cache path contains them; this also selects that cache for
+managed profile launches. `--cache-dir` overrides it for a standalone build.
+The executable, dependent DLLs, firmware, license texts and patch recipe are
+bundled together and checksummed. The qualified Windows presentation path is
+headless QMP capture; the launcher selects `REIMS_VGPU_WINDOW=0` for this
+runtime. Native SDL presentation is unqualified. This stack accelerates Metal
+rendering; it does not add VideoToolbox hardware video decoding.
+For cold-boot qualification, request a normal shutdown inside macOS and confirm
+the recorded native QEMU process has exited before relaunching. Do not race an
+ACPI power-button request with a second shutdown over SSH. Sleep/resume remains
+unqualified; preserve a stalled instance for inspection.
+
+This configuration also needs the supplied timing driver. Prepare a new copy
+of an operator-owned OpenCore image before selecting it in the private hardware
+configuration:
+
+```powershell
+uv run scripts/prepare-macos-gpu-boot.py --opencore C:/private/OpenCore.raw --output C:/private/OpenCore-gpu.raw --guest-build 24H32
+```
+
+The tool verifies and installs the bundled PvgTimingFix and pinned Lilu 1.7.2,
+using captured bytes for checksum verification, writing and the final receipt.
+Both the output image and its `.json` receipt must be new paths; neither may
+replace the source. Failed attempts retain their new partial outputs for inspection.
+The preparer
+retains other kexts, disables the interactive boot picker and leaves the source
+image and system volume untouched. The source OpenCore configuration must
+already contain exactly one enabled `Lilu.kext` entry. It assumes a FAT
+partition at byte 1048576;
+use `--fat-offset` for a different known layout. An existing output is never
+overwritten. Unknown guest builds fail before image creation; system updates
+need a new review. Compatible Apple installer media, private OpenCore/OVMF
+hardware configuration, bootstrap credentials and prepared desktop assets
+remain operator prerequisites. The hardware configuration must provide the
+Q35, Apple SMC, USB and SATA devices, OVMF and the newly prepared OpenCore image;
+omit another display device because the example selects `apple-gfx-pci`.
+No Apple OS image or private firmware/credential payload is distributed.
+
+After installation, complete the prepared-desktop recovery sequence below and
+verify actual GPU output before running the project's unchanged tests. Keep
+runtime caches, boot images and private profiles outside consuming projects.
+
+### Prepared macOS desktop recovery
+
+After an unattended installation or an explicitly selected upgrade, use
+`scripts/macos-desktop.py reconcile /private/guest.json --plan /private/desktop.json`.
+Start the private manifest from `profiles/macos-desktop.json`: pin the tested OS
+build, application bundle identifiers and CDHashes, and retain the private
+bootstrap payload ZIP as the credential source. Unknown builds/signatures fail.
+Use Python 3.10 or newer with Pillow installed and the host Tesseract executable
+selected in the guest profile.
+
+Supply Apple-signed Xcode and an already built WebDriverAgentMac bundle from a
+designated preparation environment. Run WDA as a separate user LaunchAgent using
+`xcodebuild test-without-building`; `macos-wda.plist.tpl` supplies the template.
+The controller requires that service and uses `webDriverAgentMacUrl`. It never
+falls back to guest compilation or borrows an Appium-managed WDA process, which
+can be stopped when another driver session claims the server.
+
+The offline Appium runtime must also contain the compatible Mac2 driver and its
+dependencies for the guest CPU. A server-only archive can report ready without
+any drivers. Native qualification imports the prepared Mac2 entry before
+creating a session, so missing or incompatible dependencies fail early.
+
+Optional manifest `files` contain `source`, a safe staging `name`, and `sha256`.
+An optional `setup_script` installs those prepared artifacts and configures the
+runtime. It runs as root with the test account as its first argument and may
+read one credential line from stdin to restore that account's automatic login.
+It must be idempotent and must not silently compile dependencies. Files are
+staged in the account's `.qemu-guests-desktop-inputs` directory. Keep scripts,
+archives, credentials and lifecycle/upgrade orchestration outside consuming
+projects.
+
+Preparation disables the idle screen saver for the dedicated test account;
+password and system security policies remain unchanged. Native qualification
+also checks the actual console lock state, because SSH/Appium can stay ready
+behind a lock screen. `reconcile` can authenticate the dedicated account once
+using the configured private credential, only after verifying its on-console
+identity, the system loginwindow secure-input process and the visible password
+field. The OS clears its own lock state after a successful login; no lock cookie
+is deleted. `verify` never enters a login password and fails if still locked.
+Automatic login recognition is qualified only for the English Sequoia
+1920x1080 console; other locked layouts fail before entering a credential.
+
+Use the root home for privileged toolchain initialization and restore the test
+account's ownership on installed files in its home. Install user LaunchAgents
+for the following automatic login rather than loading them from a root SSH
+session. The prepared-desktop sequence is `prepare`, cold boot, `reconcile`,
+then another cold boot and `verify`.
+
+Recovery first restarts the reviewed WDA runner and tests actual desktop access.
+Working grants remain enabled. Missing access triggers repair of only reviewed
+applications through System Settings' native Accessibility rows and controls.
+It checks typed bundle paths and enabled toggles, then restarts WDA to confirm
+the repaired access. Only a recognized system authentication dialog may
+receive the private account credential. It does not edit TCC databases or
+disable system security policies. The UI adapter currently requires English
+macOS and an ASCII test-account keyboard layout.
+Permission authorization also requires one recognized password field and the
+OS secure-input owner to match a reviewed system authorization process in the test account.
+The prompt and process identity are checked again before typing. Missing or
+ambiguous fields never fall back to the current keyboard focus. OCR authorization
+recognition is qualified for the 1920x1080 Sequoia console.
+
+`prepare` only stages the supplied runtime and session configuration, publishing
+a `prepared` milestone. Use it before a planned cold boot; `reconcile` then reuses
+that immutable prepared manifest instead of transferring the same archives again.
+Setup-script bytes and the captured credential participate in the preparation
+fingerprint, so changing either invalidates the prepared milestone.
+When preparation must run again, matching archive checksums in the private guest
+staging directory avoid redundant transfers. Replaced files must pass the guest
+checksum check before setup proceeds.
+
+`verify` installs nothing and changes no permission grants. Native qualification
+checks the console account, Appium GUI service, text input/readback in a new
+Finder window, two exact window sizes and a PNG screenshot. Only the new window
+and owned sessions are closed. Optional named `checks` run explicit guest
+argument arrays for additional qualification, such as a supplied GPU probe.
+Finder acceptance alone does not certify GPU rendering or a business suite.
+Stable system window numbers track the new window; existing Finder windows and
+their geometry must remain unchanged.
+The bundled transparent `java-argfile` launch relay currently supports Windows
+and Ubuntu. macOS business tests require a separately prepared Appium launch
+adapter; the GPU runtime and prepared-desktop controller do not add that relay.
+
+Only successful qualification and confirmed cleanup publish
+`state_dir/macos-desktop/state.json` as `ready`. Lost session identities or
+unconfirmed deletion retain the guest test lease for inspection. Verify after
+a cold boot, then run the consuming project's unchanged business suite.
+Terminal receipts are published after resource/worker cleanup, while the guest
+reservation is still held. A retained reservation always requires inspection,
+even when a previously written receipt says `ready`.
+Prepared media, firmware and compatible manifests remain prerequisites; this
+command does not select or download arbitrary future macOS releases. Configure
+the supplied firmware to boot the installed volume automatically; a desktop
+permission controller cannot recover a VM waiting in an interactive boot picker.
 
 ### Custom unattended adapters
 

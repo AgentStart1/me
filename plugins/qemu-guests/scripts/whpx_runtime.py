@@ -226,6 +226,9 @@ def build(cache=None, msys2=None, archive=None, jobs=8):
 
 
 def prepare(config, build_runtime=True):
+    if config.get('qemu_runtime') == 'reims-whpx':
+        from reims_runtime import prepare as prepare_gpu
+        return prepare_gpu(config, build_runtime)
     if config.get('qemu_runtime', 'system') != 'whpx-reset':
         return config
     if config.get('qemu'):

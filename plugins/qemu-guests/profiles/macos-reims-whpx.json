@@ -1,0 +1,44 @@
+{
+  "name": "macos-gpu-work",
+  "os": "macos",
+  "state_dir": "~/.qemu-guests/macos-gpu-work",
+  "media_sha256": "REPLACE_WITH_VERIFIED_SHA256",
+  "disk_size": "128G",
+  "memory": 4096,
+  "cpus": 4,
+  "ssh_port": 2232,
+  "ssh_user": "developer",
+  "access_key": "~/.ssh/qemu-work",
+  "timeout": 10800,
+  "installer_iso": "/path/to/adapter-install.iso",
+  "graphical": true,
+  "qmp_port": 2242,
+  "hardware_args": [
+    "-readconfig",
+    "/path/to/macos-hardware.qemu",
+    "-drive",
+    "id=workdisk,file={disk},format=qcow2,if=none",
+    "-device",
+    "ide-hd,bus=sata.4,drive=workdisk,serial=work-target",
+    "-netdev",
+    "user,id=worknet,hostfwd=tcp:127.0.0.1:{ssh_port}-:22",
+    "-device",
+    "vmxnet3,netdev=worknet",
+    "-vga",
+    "none",
+    "-device",
+    "apple-gfx-pci,romfile={reims_rom}"
+  ],
+  "macos": {
+    "installer_app": "/Volumes/Image Volume/Install macOS Sequoia.app",
+    "target_disk": "serial:work-target",
+    "bootstrap_package": "/path/to/bootstrap.pkg",
+    "tesseract": "tesseract"
+  },
+  "appium": {
+    "host_port": 4732,
+    "runtime_archive": "/private/appium-macos.zip",
+    "sha256": "REPLACE_WITH_RUNTIME_SHA256"
+  },
+  "qemu_runtime": "reims-whpx"
+}

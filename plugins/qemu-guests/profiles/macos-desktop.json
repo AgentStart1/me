@@ -1,0 +1,22 @@
+{
+  "expected_build": "REPLACE_WITH_TESTED_BUILD",
+  "wda_url": "http://127.0.0.1:10100",
+  "wda_service": "com.example.prebuilt-wda",
+  "password_archive": "/private/bootstrap-payload.zip",
+  "permissions": [
+    {
+      "name": "WebDriverAgentRunner-Runner",
+      "path": "/private/prebuilt/WebDriverAgentRunner-Runner.app",
+      "bundle_id": "io.appium.WebDriverAgentRunner.xctrunner",
+      "cdhash": "REPLACE_WITH_REVIEWED_CDHASH"
+    },
+    {
+      "name": "Xcode Helper",
+      "path": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/Xcode Helper.app",
+      "bundle_id": "com.apple.dt.Xcode-Helper",
+      "cdhash": "REPLACE_WITH_REVIEWED_CDHASH"
+    }
+  ],
+  "files": [],
+  "checks": []
+}

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "sources": {
+    "reims-vgpu": {
+      "url": "https://github.com/steelbrain/reims-vgpu.git",
+      "revision": "2ce320931917e8a07a00243f53656f8cd11306b2",
+      "patch": "reims-vgpu.patch",
+      "sha256": "9926cace50d45bd8a3c5062b7394b7ff6d4cdecfff934d2ed78f26b15bbde441"
+    },
+    "metal2vulkan": {
+      "url": "https://github.com/steelbrain/metal2vulkan.git",
+      "revision": "62cad6be548f7ebe8d901fdc754edf20acaae1b9",
+      "patched_tree": "845394bbc43ea2e2c9095e3add671bdca8a7af12",
+      "patch": "metal2vulkan.patch",
+      "sha256": "28d19cc7452874a03f12e1103ec8715a403dd9b99f455eb94a672e42e0892237"
+    },
+    "qemu": {
+      "url": "https://github.com/steelbrain/qemu-reims-vgpu.git",
+      "revision": "bd95509aa307f48b13fe8497d8a1b64267cb4c3e",
+      "patched_tree": "7bb16c587941610f17f1fd5d6966931d2b6d83ab",
+      "patch": "qemu.patch",
+      "sha256": "72a1e0149d66f4f8b23a95acda159e8d7c006fccf412ff541dc4906e241e654a"
+    }
+  },
+  "guest": {
+    "build": "24H32",
+    "darwin": "24",
+    "lilu_version": "1.7.2",
+    "lilu_url": "https://github.com/acidanthera/Lilu/releases/download/1.7.2/Lilu-1.7.2-RELEASE.zip",
+    "lilu_sha256": "53967d7dcfaab01023a33df2e969a89522f13d6654a6a56ac4711b62dabf3ab8"
+  }
+}

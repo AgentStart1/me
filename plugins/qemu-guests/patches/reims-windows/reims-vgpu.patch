@@ -1,0 +1,2268 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index c805d20..ebdc3c0 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -243,6 +243,7 @@ dependencies = [
+  "libc",
+  "metal2vulkan",
+  "sha2",
++ "windows-sys",
+ ]
+ 
+ [[package]]
+@@ -481,6 +482,7 @@ dependencies = [
+  "reims-vgpu",
+  "reims-vgpu-core",
+  "tikv-jemallocator",
++ "windows-sys",
+ ]
+ 
+ [[package]]
+@@ -521,6 +523,7 @@ dependencies = [
+  "reims-vgpu-core",
+  "reims-vgpu-metal",
+  "sha2",
++ "windows-sys",
+ ]
+ 
+ [[package]]
+diff --git a/Cargo.toml b/Cargo.toml
+index c35b099..6096014 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -109,3 +109,7 @@ debug-assertions = true
+ # suite's `checked` pass leaves them off, and release has none at all (D36).
+ [profile.checked.package.objc2]
+ debug-assertions = false
++
++[patch."https://github.com/steelbrain/metal2vulkan"]
++metal2vulkan = { path = "../metal2vulkan-windows/crates/metal2vulkan" }
++metal2vulkan-runtime = { path = "../metal2vulkan-windows/crates/metal2vulkan-runtime" }
+diff --git a/README.md b/README.md
+index 5fa2b99..584971a 100644
+--- a/README.md
++++ b/README.md
+@@ -318,3 +318,7 @@ and links statically, among them.
+ 
+ Metal and macOS are trademarks of Apple Inc. reims-vgpu is an independent project and is not
+ affiliated with, sponsored by, or endorsed by Apple Inc.
++
++## Experimental Windows host
++
++See [Windows / WHPX notes](docs/windows.md) for the native Vulkan port, build requirements and validation limits.
+diff --git a/crates/reims-vgpu-c/Cargo.toml b/crates/reims-vgpu-c/Cargo.toml
+index 235b1dd..1fc355e 100644
+--- a/crates/reims-vgpu-c/Cargo.toml
++++ b/crates/reims-vgpu-c/Cargo.toml
+@@ -41,6 +41,9 @@ tikv-jemallocator.workspace = true
+ # `exception::catch` around every call of a host function (`ffi::host_call`, `ffi/catch/macos.rs`).
+ objc2.workspace = true
+ 
++[target.'cfg(target_os = "windows")'.dependencies]
++windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_SystemInformation", "Win32_System_Memory"] }
++
+ [dev-dependencies]
+ reims-vgpu = { workspace = true, features = ["testkit"] }
+ reims-vgpu-core = { workspace = true, features = ["testkit"] }
+diff --git a/crates/reims-vgpu-c/include/reims_vgpu.h b/crates/reims-vgpu-c/include/reims_vgpu.h
+index 52dbb2e..715f93c 100644
+--- a/crates/reims-vgpu-c/include/reims_vgpu.h
++++ b/crates/reims-vgpu-c/include/reims_vgpu.h
+@@ -399,6 +399,14 @@ typedef struct {
+   uint64_t offset;
+ } RvgMemoryRangeFile;
+ 
++// The native Windows section backing one memory-map range.
++typedef struct {
++  // Native HANDLE value; 0 means no section.
++  size_t handle;
++  // Page-aligned offset into the section.
++  uint64_t offset;
++} RvgMemoryRangeSection;
++
+ // The device's config.
+ typedef struct {
+   // sizeof(RvgDeviceConfig) as the host was compiled.
+@@ -448,6 +456,9 @@ typedef struct {
+   // argument-buffer answer follows the same rule, read when the guest asks, since only
+   // isolated tasks serve argument buffers. Without `process_isolation` it changes nothing.
+   bool process_isolation_follows_guest;
++  // Native Windows sections behind memory_map's ranges, or NULL. Mutually exclusive with
++  // memory_files; refused on other hosts. Handles are duplicated before device creation.
++  const RvgMemoryRangeSection *memory_sections;
+ } RvgDeviceConfig;
+ 
+ // Bytes the library allocated; free them with rvg_bytes_free.
+diff --git a/crates/reims-vgpu-c/src/device.rs b/crates/reims-vgpu-c/src/device.rs
+index 2713c0a..87643e3 100644
+--- a/crates/reims-vgpu-c/src/device.rs
++++ b/crates/reims-vgpu-c/src/device.rs
+@@ -7,9 +7,23 @@
+ //! `ffi::host_call`: a host function that raises ends the process at the call.
+ 
+ use std::ffi::c_void;
++#[cfg(unix)]
+ use std::mem::MaybeUninit;
++#[cfg(unix)]
+ use std::num::NonZeroU64;
++#[cfg(unix)]
+ use std::os::fd::{FromRawFd, OwnedFd};
++#[cfg(target_os = "windows")]
++mod sections;
++
++/// Builds a callback-only map on Windows; section-backed devices use the explicit table.
++#[cfg(target_os = "windows")]
++pub(crate) unsafe fn memory_map(
++    map: *const RvgMemoryMap,
++    files: *const RvgMemoryRangeFile,
++) -> Result<Option<MemoryMap>, RvgStatus> {
++    unsafe { sections::memory_map(map, files, std::ptr::null()) }
++}
+ use std::sync::Arc;
+ 
+ use reims_vgpu::{
+@@ -314,6 +328,19 @@ pub struct RvgDeviceConfig {
+     /// argument-buffer answer follows the same rule, read when the guest asks, since only
+     /// isolated tasks serve argument buffers. Without `process_isolation` it changes nothing.
+     pub process_isolation_follows_guest: bool,
++    /// Native Windows sections behind memory_map's ranges, or NULL. Mutually exclusive with
++    /// memory_files; refused on other hosts. Handles are duplicated before device creation.
++    pub memory_sections: *const RvgMemoryRangeSection,
++}
++
++/// The native Windows section backing one memory-map range.
++#[repr(C)]
++#[derive(Clone, Copy)]
++pub struct RvgMemoryRangeSection {
++    /// Native HANDLE value; 0 means no section.
++    pub handle: usize,
++    /// Page-aligned offset into the section.
++    pub offset: u64,
+ }
+ 
+ // SAFETY: repr(C), a u32 first; integers, bools and pointers.
+@@ -353,6 +380,7 @@ pub struct RvgBytes {
+ /// # Safety
+ /// `map` is NULL or a live map whose `ranges` hold `range_count` ranges; `files` is NULL or
+ /// holds `range_count` entries.
++#[cfg(unix)]
+ pub(crate) unsafe fn memory_map(
+     map: *const RvgMemoryMap,
+     files: *const RvgMemoryRangeFile,
+@@ -423,6 +451,7 @@ pub(crate) unsafe fn memory_map(
+ /// below -1, `flags` other than 0, and for an `fd` of 0 or more, a file `fstat` cannot read, one
+ /// holding fewer than `offset + physical_length` bytes, or an `offset` that is not a multiple of
+ /// `page`, in that order.
++#[cfg(unix)]
+ fn file_refusal(r: &RvgMemoryRange, f: &RvgMemoryRangeFile, page: NonZeroU64) -> Option<String> {
+     if f.fd < -1 {
+         return Some(format!("has fd {}, below -1", f.fd));
+@@ -457,6 +486,7 @@ fn file_refusal(r: &RvgMemoryRange, f: &RvgMemoryRangeFile, page: NonZeroU64) ->
+ 
+ /// The host's page size (`sysconf(_SC_PAGESIZE)`, which does not fail): 16 KiB on arm64 macOS,
+ /// 4 KiB on x86-64.
++#[cfg(unix)]
+ fn host_page_size() -> NonZeroU64 {
+     // SAFETY: a query of a constant; it reads and writes no memory of the caller's.
+     let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+@@ -467,6 +497,7 @@ fn host_page_size() -> NonZeroU64 {
+ }
+ 
+ /// The size of the file `fd` names (`fstat`).
++#[cfg(unix)]
+ fn file_size(fd: i32) -> std::io::Result<u64> {
+     let mut st = MaybeUninit::<libc::stat>::zeroed();
+     // SAFETY: `st` is a writable `struct stat`; an `fd` that names no open file is an error the
+@@ -480,6 +511,7 @@ fn file_size(fd: i32) -> std::io::Result<u64> {
+ }
+ 
+ /// A duplicate of `fd`, close-on-exec (`fcntl(F_DUPFD_CLOEXEC)`), which the map holds.
++#[cfg(unix)]
+ fn duplicate(fd: i32) -> std::io::Result<OwnedFd> {
+     // SAFETY: `fcntl` reads and writes no memory of the caller's; an `fd` that names no open
+     // file is an error the call returns.
+@@ -638,7 +670,16 @@ pub unsafe extern "C" fn rvg_device_create(
+             return refuse(RVG_ERR_INVALID_ARGUMENT);
+         }
+         // SAFETY: the config's contract: NULL or a live map, and NULL or its files.
+-        let memory_map = match unsafe { memory_map(c.memory_map, c.memory_files) } {
++        #[cfg(unix)]
++        let mapped = if c.memory_sections.is_null() {
++            unsafe { memory_map(c.memory_map, c.memory_files) }
++        } else {
++            Err(RVG_ERR_INVALID_ARGUMENT)
++        };
++        #[cfg(target_os = "windows")]
++        let mapped =
++            unsafe { sections::memory_map(c.memory_map, c.memory_files, c.memory_sections) };
++        let memory_map = match mapped {
+             Ok(m) => m,
+             Err(s) => return refuse(s),
+         };
+diff --git a/crates/reims-vgpu-c/src/device/sections.rs b/crates/reims-vgpu-c/src/device/sections.rs
+new file mode 100644
+index 0000000..73240ba
+--- /dev/null
++++ b/crates/reims-vgpu-c/src/device/sections.rs
+@@ -0,0 +1,98 @@
++//! Validate and duplicate native section handles at the Windows host boundary.
++use super::*;
++use std::os::windows::io::{FromRawHandle, OwnedHandle};
++use windows_sys::Win32::Foundation::{DUPLICATE_SAME_ACCESS, DuplicateHandle};
++use windows_sys::Win32::System::Memory::{FILE_MAP_READ, MapViewOfFile, UnmapViewOfFile};
++use windows_sys::Win32::System::Threading::GetCurrentProcess;
++
++/// The host guarantees all counted structures and mapped ranges remain valid for this call.
++pub(super) unsafe fn memory_map(
++    map: *const RvgMemoryMap,
++    files: *const RvgMemoryRangeFile,
++    sections: *const RvgMemoryRangeSection,
++) -> Result<Option<MemoryMap>, RvgStatus> {
++    if !files.is_null() {
++        return Err(RVG_ERR_INVALID_ARGUMENT);
++    }
++    let Some(map) = (unsafe { map.as_ref() }) else {
++        return if sections.is_null() {
++            Ok(None)
++        } else {
++            Err(RVG_ERR_INVALID_ARGUMENT)
++        };
++    };
++    if map.range_count > 0 && map.ranges.is_null() {
++        return Err(RVG_ERR_INVALID_ARGUMENT);
++    }
++    let ranges = if map.range_count == 0 {
++        &[]
++    } else {
++        unsafe { std::slice::from_raw_parts(map.ranges, map.range_count) }
++    };
++    let mut result = MemoryMap::new();
++    for (i, range) in ranges.iter().enumerate() {
++        let section = if sections.is_null() {
++            None
++        } else {
++            let entry = unsafe { &*sections.add(i) };
++            if entry.handle == 0 {
++                None
++            } else {
++                let mut info = std::mem::MaybeUninit::uninit();
++                unsafe {
++                    windows_sys::Win32::System::SystemInformation::GetSystemInfo(info.as_mut_ptr());
++                }
++                let page = u64::from(unsafe { info.assume_init() }.dwPageSize);
++                if entry.offset % page != 0 {
++                    return Err(RVG_ERR_INVALID_ARGUMENT);
++                }
++                let size = entry
++                    .offset
++                    .checked_add(range.physical_length)
++                    .and_then(|v| usize::try_from(v).ok())
++                    .filter(|&v| v > 0)
++                    .ok_or(RVG_ERR_INVALID_ARGUMENT)?;
++                let mut duplicate = std::ptr::null_mut();
++                // SAFETY: DuplicateHandle validates the borrowed native handle and gives this
++                // process an independent, non-inheritable reference with the same rights.
++                if unsafe {
++                    DuplicateHandle(
++                        GetCurrentProcess(),
++                        entry.handle as *mut c_void,
++                        GetCurrentProcess(),
++                        &mut duplicate,
++                        0,
++                        0,
++                        DUPLICATE_SAME_ACCESS,
++                    )
++                } == 0
++                {
++                    return Err(RVG_ERR_INVALID_ARGUMENT);
++                }
++                let owned = unsafe { OwnedHandle::from_raw_handle(duplicate) };
++                // The temporary view checks both object type and section bounds. No bytes are
++                // read, and it is gone before a device or GPU import is created.
++                let checked = unsafe { MapViewOfFile(duplicate, FILE_MAP_READ, 0, 0, size) };
++                if checked.Value.is_null() {
++                    return Err(RVG_ERR_INVALID_ARGUMENT);
++                }
++                if unsafe { UnmapViewOfFile(checked) } == 0 {
++                    return Err(RVG_ERR_INVALID_ARGUMENT);
++                }
++                Some(MemoryFile {
++                    section: Arc::new(owned),
++                    offset: entry.offset,
++                })
++            }
++        };
++        unsafe {
++            result.push_with_file(
++                range.physical_address,
++                range.physical_length,
++                range.host_address.cast(),
++                section,
++            );
++        }
++    }
++    Ok(Some(result))
++}
+diff --git a/crates/reims-vgpu-c/src/ffi/catch.rs b/crates/reims-vgpu-c/src/ffi/catch.rs
+index 599c7a0..6bdbdaf 100644
+--- a/crates/reims-vgpu-c/src/ffi/catch.rs
++++ b/crates/reims-vgpu-c/src/ffi/catch.rs
+@@ -1,12 +1,12 @@
+ //! The catch around a call of a host function ([`super::host_call`]), in one file per OS with the
+ //! same function: `catch(f)` runs `f` and answers its value, or `Err(())` for what the host threw.
+ 
+-#[cfg(target_os = "linux")]
++#[cfg(any(target_os = "linux", target_os = "windows"))]
+ mod linux;
+ #[cfg(target_os = "macos")]
+ mod macos;
+ 
+-#[cfg(target_os = "linux")]
++#[cfg(any(target_os = "linux", target_os = "windows"))]
+ pub(super) use linux::catch;
+ #[cfg(target_os = "macos")]
+ pub(super) use macos::catch;
+diff --git a/crates/reims-vgpu-core/src/platform/os/vm.rs b/crates/reims-vgpu-core/src/platform/os/vm.rs
+index 81a21de..c92e258 100644
+--- a/crates/reims-vgpu-core/src/platform/os/vm.rs
++++ b/crates/reims-vgpu-core/src/platform/os/vm.rs
+@@ -63,6 +63,12 @@ pub trait HostVm: Send + Sync {
+     fn page_shift(&self) -> u32;
+     /// `mach_vm_allocate(task, &a, len, VM_FLAGS_ANYWHERE)`: a fresh zero-filled range.
+     fn allocate_anywhere(&self, len: u64) -> Result<HostAddr, KernReturn>;
++    /// Reserves address space which the caller immediately protects with NONE before mapping
++    /// guest pages into it. Platforms with commit-accounted allocation may reserve without
++    /// backing pages. Other platforms keep their ordinary allocation behavior.
++    fn reserve_anywhere(&self, len: u64) -> Result<HostAddr, KernReturn> {
++        self.allocate_anywhere(len)
++    }
+     /// The same call, [`HostVm::allocate_anywhere`], for a range core then names in address
+     /// ranges, which the platform maps again as an alias of its pages (the detach heap's
+     /// temporary). On Mach any range can be aliased; a platform whose fresh ranges cannot be
+diff --git a/crates/reims-vgpu-core/src/tasks/mapping_task.rs b/crates/reims-vgpu-core/src/tasks/mapping_task.rs
+index 5e29293..ae0df04 100644
+--- a/crates/reims-vgpu-core/src/tasks/mapping_task.rs
++++ b/crates/reims-vgpu-core/src/tasks/mapping_task.rs
+@@ -40,7 +40,7 @@ impl<P: Platform> MappingTask<P> {
+             platform,
+         };
+         let vm = task.platform.vm();
+-        match vm.allocate_anywhere(size) {
++        match vm.reserve_anywhere(size) {
+             Ok(a) => task.base_address = a,
+             // The base is still NULL, so the drop frees nothing
+             Err(_) => return None,
+diff --git a/crates/reims-vgpu-vulkan/Cargo.toml b/crates/reims-vgpu-vulkan/Cargo.toml
+index bbd5218..0b617f6 100644
+--- a/crates/reims-vgpu-vulkan/Cargo.toml
++++ b/crates/reims-vgpu-vulkan/Cargo.toml
+@@ -33,6 +33,9 @@ libc.workspace = true
+ [build-dependencies]
+ sha2.workspace = true
+ 
++[target.'cfg(target_os = "windows")'.dependencies]
++windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Memory", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_System_SystemServices", "Win32_System_WindowsProgramming"] }
++
+ [dev-dependencies]
+ reims-vgpu-core = { workspace = true, features = ["testkit"] }
+ 
+diff --git a/crates/reims-vgpu-vulkan/src/os.rs b/crates/reims-vgpu-vulkan/src/os.rs
+index 1f2b589..2670d9e 100644
+--- a/crates/reims-vgpu-vulkan/src/os.rs
++++ b/crates/reims-vgpu-vulkan/src/os.rs
+@@ -18,6 +18,12 @@ mod linux;
+ #[cfg(target_os = "macos")]
+ mod macos;
+ mod surface;
++#[cfg(any(target_os = "linux", target_os = "windows"))]
++mod surface_standin;
++#[cfg(target_os = "windows")]
++mod windows;
++#[cfg(target_os = "windows")]
++use windows as host_os;
+ mod wsi;
+ 
+ #[cfg(target_os = "linux")]
+@@ -25,7 +31,10 @@ use linux as host_os;
+ #[cfg(target_os = "macos")]
+ use macos as host_os;
+ 
++#[cfg(unix)]
+ use std::os::fd::OwnedFd;
++#[cfg(target_os = "windows")]
++use std::os::windows::io::OwnedHandle;
+ use std::sync::Arc;
+ 
+ pub(crate) use host_os::{
+@@ -58,7 +67,11 @@ pub struct GuestRamFile {
+     /// The range's length in bytes.
+     pub length: u64,
+     /// The file.
++    #[cfg(unix)]
+     pub fd: Arc<OwnedFd>,
++    /// The Windows section supplying these pages.
++    #[cfg(target_os = "windows")]
++    pub section: Arc<OwnedHandle>,
+     /// The file offset of the range's first byte.
+     pub offset: u64,
+ }
+diff --git a/crates/reims-vgpu-vulkan/src/os/linux.rs b/crates/reims-vgpu-vulkan/src/os/linux.rs
+index 23d893a..7248238 100644
+--- a/crates/reims-vgpu-vulkan/src/os/linux.rs
++++ b/crates/reims-vgpu-vulkan/src/os/linux.rs
+@@ -8,28 +8,32 @@
+ mod budget;
+ mod clock;
+ mod dma_buf;
+-mod files;
++pub(super) mod files;
+ mod hints;
+ mod import;
+-mod surface;
++
+ mod threads;
+-mod vm;
++pub(super) mod vm;
+ 
+ use std::ffi::CStr;
+ 
+ use ash::vk;
+ use metal2vulkan_runtime as rt;
+ 
++pub use super::surface_standin::{
++    StandInSurface as LinuxSurface, StandInSurfaces as LinuxSurfaces,
++};
+ pub use clock::LinuxClock;
+ pub use files::{GuestMemoryLease, lease_guest_memory};
+-pub use surface::{LinuxSurface, LinuxSurfaces};
+ pub use threads::LinuxThreads;
+ pub use vm::LinuxVm;
+ 
++pub(crate) use super::surface_standin::{
++    plane_at, plane_shape, recorded_mut, surface_memory_hold, ycbcr_matrix,
++};
+ pub(crate) use import::{
+     TWINS_READ_ONLY, allocate_zeros, dma_buf_refusal, host_memory, import_view, shown_at,
+ };
+-pub(crate) use surface::{plane_at, plane_shape, recorded_mut, surface_memory_hold, ycbcr_matrix};
+ pub(crate) use vm::allocate_aliasable;
+ #[cfg(test)]
+ pub(crate) use vm::tests::{PAGE, mapped, writable};
+@@ -133,3 +137,17 @@ pub fn default_registry_id() -> Option<u64> {
+ pub fn default_gpu_core_count() -> Option<u64> {
+     None
+ }
++
++/// The host's usable physical memory, as Linux reports it.
++pub(super) fn physical_memory() -> u64 {
++    // SAFETY: these sysconf calls read constants.
++    let (pages, page) = unsafe {
++        (
++            libc::sysconf(libc::_SC_PHYS_PAGES),
++            libc::sysconf(libc::_SC_PAGESIZE),
++        )
++    };
++    u64::try_from(pages)
++        .unwrap_or(0)
++        .saturating_mul(u64::try_from(page).unwrap_or(0))
++}
+diff --git a/crates/reims-vgpu-vulkan/src/os/linux/surface.rs b/crates/reims-vgpu-vulkan/src/os/surface_standin.rs
+similarity index 93%
+rename from crates/reims-vgpu-vulkan/src/os/linux/surface.rs
+rename to crates/reims-vgpu-vulkan/src/os/surface_standin.rs
+index 4d7b56e..22ff74b 100644
+--- a/crates/reims-vgpu-vulkan/src/os/linux/surface.rs
++++ b/crates/reims-vgpu-vulkan/src/os/surface_standin.rs
+@@ -1,7 +1,7 @@
+ //! IOSurface's stand-in on Linux: what `IOSurfaceCreate` and `[[IOSurface alloc]
+ //! initWithProperties:]` answer on macOS, over memory a view can be made of.
+ //!
+-//! - **References.** A [`LinuxSurface`] is one reference: `clone_ref` is a retain, `Drop` a
++//! - **References.** A [`StandInSurface`] is one reference: `clone_ref` is a retain, `Drop` a
+ //!   release, and the retain count, which the guest sees, is the number of references to the
+ //!   object. Its ID is the object's address, unique among live surfaces. A lookup
+ //!   (`lookup_by_port`) is another object over the same memory, with a count of its own, as
+@@ -10,7 +10,7 @@
+ //!   backing table ([`super::vm::OwnMemory`]), so a view can be made of it (an alias of its
+ //!   allocation, a buffer over it) and no `deallocate` frees it. One over the guest's pages
+ //!   (`kIOSurfaceClientAddressRanges`) of one range is that range, its base address its offset
+-//!   into it; one of several ranges is a view of them ([`super::vm::LinuxVm`]), read-only for
++//!   into it; one of several ranges is a view of them ([`super::vm::OsVm`]), read-only for
+ //!   the CPU where it is read-only for the GPU (`kIOSurfaceClientDirection` 2), as IOSurface maps
+ //!   it on macOS. A protected surface (protection options other than 0) has no memory the CPU
+ //!   reaches: its base address is NULL.
+@@ -66,7 +66,8 @@ use reims_vgpu_core::platform::os::vm::{HostVm as _, KernReturn, VmProt};
+ use reims_vgpu_core::platform::{Handle, ObjId};
+ use reims_vgpu_core::sync::Mutex;
+ 
+-use super::vm::{LinuxVm, OwnMemory};
++use super::OsVm;
++use super::host_os::vm::OwnMemory;
+ use crate::os::{MadeOver, READ_ONLY_DIRECTION, page_runs};
+ use crate::platform::VulkanPlatform;
+ 
+@@ -82,7 +83,7 @@ const BACKING_ROW_ALIGNMENT: u64 = 128;
+ 
+ /// One reference to an IOSurface stand-in (module docs).
+ #[derive(Debug)]
+-pub struct LinuxSurface(Arc<Object>);
++pub struct StandInSurface(Arc<Object>);
+ 
+ /// An object over a surface: the one made, or a lookup of it.
+ #[derive(Debug)]
+@@ -132,7 +133,7 @@ impl Drop for Memory {
+     /// Frees the view the surface made, and its own memory.
+     fn drop(&mut self) {
+         if let Some((first, length)) = self.view {
+-            let _ = LinuxVm::new().deallocate(HostPtr::from_addr(first.to_usize()), length);
++            let _ = OsVm::new().deallocate(HostPtr::from_addr(first.to_usize()), length);
+         }
+         drop(self.own.take());
+     }
+@@ -142,7 +143,7 @@ impl Drop for Memory {
+ /// or not, and counts no reference of the surface; for one over a single range of the guest's
+ /// pages, which maps nothing, an unmap hold on that range, which defers nothing for a range of
+ /// the host's own RAM, the only one core makes such a surface over (module docs).
+-pub(crate) fn surface_memory_hold(surface: &LinuxSurface) -> impl Send + 'static {
++pub(crate) fn surface_memory_hold(surface: &StandInSurface) -> impl Send + 'static {
+     let data = surface.data();
+     let memory = &data.memory;
+     let cores_unmap = (memory.own.is_none() && memory.view.is_none())
+@@ -156,10 +157,10 @@ pub(crate) fn surface_memory_hold(surface: &LinuxSurface) -> impl Send + 'static
+     (Arc::clone(memory), cores_unmap)
+ }
+ 
+-impl LinuxSurface {
++impl StandInSurface {
+     /// A new surface: one reference to a new object over `data`.
+-    fn new(data: Data) -> LinuxSurface {
+-        LinuxSurface(Arc::new(Object(Arc::new(data))))
++    fn new(data: Data) -> StandInSurface {
++        StandInSurface(Arc::new(Object(Arc::new(data))))
+     }
+ 
+     /// The surface the object is over.
+@@ -168,9 +169,9 @@ impl LinuxSurface {
+     }
+ }
+ 
+-impl Handle for LinuxSurface {
++impl Handle for StandInSurface {
+     fn clone_ref(&self) -> Self {
+-        LinuxSurface(Arc::clone(&self.0))
++        StandInSurface(Arc::clone(&self.0))
+     }
+ 
+     fn id(&self) -> ObjId {
+@@ -178,7 +179,7 @@ impl Handle for LinuxSurface {
+     }
+ }
+ 
+-impl Surface for LinuxSurface {
++impl Surface for StandInSurface {
+     fn retain_count(&self) -> i64 {
+         i64::try_from(Arc::strong_count(&self.0)).unwrap_or(i64::MAX)
+     }
+@@ -234,20 +235,20 @@ impl Surface for LinuxSurface {
+     }
+ 
+     fn lookup_by_port(&self) -> Option<Self> {
+-        Some(LinuxSurface(Arc::new(Object(Arc::clone(&self.0.0)))))
++        Some(StandInSurface(Arc::new(Object(Arc::clone(&self.0.0)))))
+     }
+ }
+ 
+ /// Plane `plane` of `surface`: its offset from the base address and its bytes per row, as the
+ /// spec gave them; `None` for a plane the surface lacks.
+-pub(crate) fn plane_at(surface: &LinuxSurface, plane: u64) -> Option<(u64, u64)> {
++pub(crate) fn plane_at(surface: &StandInSurface, plane: u64) -> Option<(u64, u64)> {
+     let p = surface.data().planes.get(usize::try_from(plane).ok()?)?;
+     Some((p.offset, p.bytes_per_row))
+ }
+ 
+ /// The width, height and bytes per element of plane `plane` of `surface`; `None` for a plane it
+ /// lacks.
+-pub(crate) fn plane_shape(surface: &LinuxSurface, plane: u64) -> Option<(u64, u64, u64)> {
++pub(crate) fn plane_shape(surface: &StandInSurface, plane: u64) -> Option<(u64, u64, u64)> {
+     let p = surface.data().planes.get(usize::try_from(plane).ok()?)?;
+     Some((p.width, p.height, p.bytes_per_element))
+ }
+@@ -255,14 +256,14 @@ pub(crate) fn plane_shape(surface: &LinuxSurface, plane: u64) -> Option<(u64, u6
+ /// The YCbCr matrix `surface` names (`kIOSurfaceYCbCrMatrix`): none, as the stand-in holds no
+ /// values and nothing sets one.
+ pub(crate) fn ycbcr_matrix(
+-    _surface: &LinuxSurface,
++    _surface: &StandInSurface,
+ ) -> Option<metal2vulkan_runtime::SurfaceYCbCrMatrix> {
+     None
+ }
+ 
+ /// What `surface` was made over, `change` given it: every stand-in holds its own record.
+ pub(crate) fn recorded_mut<T>(
+-    surface: &LinuxSurface,
++    surface: &StandInSurface,
+     change: impl FnOnce(&mut MadeOver) -> T,
+ ) -> Option<T> {
+     Some(change(&mut surface.data().made.lock()))
+@@ -301,21 +302,12 @@ fn extent(
+ /// The host's usable memory, in bytes, as Linux counts it (`MemTotal`): the largest allocation
+ /// the stand-in makes, as macOS's IOSurface makes none past `hw.memsize_usable` (module docs).
+ fn physical_memory() -> u64 {
+-    // SAFETY: sysconf reads a system value.
+-    let (pages, page) = unsafe {
+-        (
+-            libc::sysconf(libc::_SC_PHYS_PAGES),
+-            libc::sysconf(libc::_SC_PAGESIZE),
+-        )
+-    };
+-    u64::try_from(pages)
+-        .unwrap_or(0)
+-        .saturating_mul(u64::try_from(page).unwrap_or(0))
++    super::host_os::physical_memory()
+ }
+ 
+ /// The host's page size.
+ fn page_size() -> u64 {
+-    LinuxVm::new().page_size()
++    OsVm::new().page_size()
+ }
+ 
+ /// The planes of `spec`, checked against its allocation (module docs); `None` where IOSurface
+@@ -389,7 +381,7 @@ fn checked_ranges(ranges: &[PhysicalMemoryRange], alloc_size: u64) -> Option<()>
+ /// its first byte, or `None` where a range has no file behind it or the host gives no address
+ /// space, nothing left mapped.
+ fn view(ranges: &[PhysicalMemoryRange], length: u64, read_only: bool) -> Option<u64> {
+-    let vm = LinuxVm::new();
++    let vm = OsVm::new();
+     let at = vm.allocate_anywhere(length).ok()?;
+     let mut offset = 0u64;
+     for r in ranges {
+@@ -422,17 +414,17 @@ fn view(ranges: &[PhysicalMemoryRange], length: u64, read_only: bool) -> Option<
+ 
+ /// IOSurface's creation on Linux (module docs).
+ #[derive(Debug, Default)]
+-pub struct LinuxSurfaces;
++pub struct StandInSurfaces;
+ 
+-impl LinuxSurfaces {
++impl StandInSurfaces {
+     /// The process's IoSurfaces.
+-    pub fn new() -> LinuxSurfaces {
+-        LinuxSurfaces
++    pub fn new() -> StandInSurfaces {
++        StandInSurfaces
+     }
+ }
+ 
+-impl IoSurfaces<VulkanPlatform> for LinuxSurfaces {
+-    fn create(&self, spec: &SurfaceSpec) -> Option<LinuxSurface> {
++impl IoSurfaces<VulkanPlatform> for StandInSurfaces {
++    fn create(&self, spec: &SurfaceSpec) -> Option<StandInSurface> {
+         if !matches!(
+             spec.client_direction,
+             None | Some(READ_ONLY_DIRECTION | WRITABLE_DIRECTION)
+@@ -484,7 +476,7 @@ impl IoSurfaces<VulkanPlatform> for LinuxSurfaces {
+                 (own.first(), Some(own), None)
+             }
+         };
+-        Some(LinuxSurface::new(Data {
++        Some(StandInSurface::new(Data {
+             pixel_format: spec.pixel_format,
+             width: spec.width,
+             height: spec.height,
+@@ -502,7 +494,7 @@ impl IoSurfaces<VulkanPlatform> for LinuxSurfaces {
+         }))
+     }
+ 
+-    fn create_backing(&self, spec: &BackingSurfaceSpec) -> Option<LinuxSurface> {
++    fn create_backing(&self, spec: &BackingSurfaceSpec) -> Option<StandInSurface> {
+         let (width, height) = (u64::from(spec.width), u64::from(spec.height));
+         if width == 0 || height == 0 {
+             return None;
+@@ -529,7 +521,7 @@ impl IoSurfaces<VulkanPlatform> for LinuxSurfaces {
+             return None;
+         }
+         let own = OwnMemory::new(alloc_size)?;
+-        Some(LinuxSurface::new(Data {
++        Some(StandInSurface::new(Data {
+             pixel_format: spec.pixel_format,
+             width,
+             height,
+@@ -553,13 +545,13 @@ impl IoSurfaces<VulkanPlatform> for LinuxSurfaces {
+     }
+ }
+ 
+-#[cfg(test)]
++#[cfg(all(test, target_os = "linux"))]
+ mod tests {
+     use reims_vgpu_core::platform::os::surface::BackingPlaneSpec;
+ 
+-    use super::super::vm::allocate_aliasable;
+-    use super::super::vm::tests::mapped;
+     use super::*;
++    use crate::os::linux::vm::allocate_aliasable;
++    use crate::os::linux::vm::tests::mapped;
+ 
+     const BGRA: u32 = u32::from_be_bytes(*b"BGRA");
+ 
+@@ -602,7 +594,7 @@ mod tests {
+ 
+     /// The range `s` mapped, its first byte and length: its own memory's whole pages, or its
+     /// view.
+-    fn mapped_range(s: &LinuxSurface) -> Option<(u64, u64)> {
++    fn mapped_range(s: &StandInSurface) -> Option<(u64, u64)> {
+         let data = s.data();
+         let own = data.memory.own.as_ref().map(|own| {
+             let length = data.alloc_size.next_multiple_of(page_size());
+@@ -612,7 +604,7 @@ mod tests {
+     }
+ 
+     fn free(at: u64, length: u64) {
+-        let vm = LinuxVm::new();
++        let vm = OsVm::new();
+         assert!(
+             vm.deallocate(HostPtr::from_addr(at.to_usize()), length)
+                 .is_success()
+@@ -628,7 +620,7 @@ mod tests {
+     /// freed with its last object
+     #[test]
+     fn a_surface_answers_its_spec_and_counts_its_references() {
+-        let s = LinuxSurfaces::new().create(&host_only()).unwrap();
++        let s = StandInSurfaces::new().create(&host_only()).unwrap();
+         assert_eq!(s.retain_count(), 1);
+         assert_eq!((s.pixel_format(), s.width(), s.height()), (BGRA, 16, 16));
+         assert_eq!((s.bytes_per_element(), s.bytes_per_row()), (4, 64));
+@@ -650,7 +642,7 @@ mod tests {
+     /// memory outlives the object made while the lookup lives
+     #[test]
+     fn a_lookup_is_another_object() {
+-        let s = LinuxSurfaces::new().create(&host_only()).unwrap();
++        let s = StandInSurfaces::new().create(&host_only()).unwrap();
+         let t = s.lookup_by_port().unwrap();
+         assert_ne!(s.id(), t.id());
+         let held = t.clone_ref();
+@@ -679,7 +671,7 @@ mod tests {
+             ..host_only()
+         };
+         for spec in [host_only(), several] {
+-            let s = LinuxSurfaces::new().create(&spec).unwrap();
++            let s = StandInSurfaces::new().create(&spec).unwrap();
+             let base = s.base_address();
+             let hold = surface_memory_hold(&s);
+             assert_eq!(s.retain_count(), 1);
+@@ -694,7 +686,7 @@ mod tests {
+     /// The layouts IOSurface refuses are refused (module docs), and those at its limits made
+     #[test]
+     fn refused_layouts_are_none() {
+-        let surfaces = LinuxSurfaces::new();
++        let surfaces = StandInSurfaces::new();
+         let refused = [
+             SurfaceSpec {
+                 width: u64::MAX,
+@@ -777,7 +769,7 @@ mod tests {
+             alloc_size: 2048,
+             ..host_only()
+         };
+-        let s = LinuxSurfaces::new().create(&spec).unwrap();
++        let s = StandInSurfaces::new().create(&spec).unwrap();
+         let first = mapped_range(&s).unwrap().0;
+         assert_eq!(s.base_address().addr().to_u64(), first + 0x40);
+         assert_eq!(recorded_mut(&s, |made| made.offset).unwrap(), 0x40);
+@@ -808,7 +800,7 @@ mod tests {
+             bytes_per_row: 16,
+             ..host_only()
+         };
+-        let surfaces = LinuxSurfaces::new();
++        let surfaces = StandInSurfaces::new();
+         let s = surfaces.create(&two(0x101, 16, 0x1000)).unwrap();
+         assert_eq!(s.plane_count(), 2);
+         assert_eq!(plane_at(&s, 1), Some((0x101, 16)));
+@@ -832,7 +824,7 @@ mod tests {
+             protection_options: 4,
+             ..host_only()
+         };
+-        let s = LinuxSurfaces::new().create(&spec).unwrap();
++        let s = StandInSurfaces::new().create(&spec).unwrap();
+         assert_eq!(s.protection_options(), 7);
+         assert!(s.base_address().is_null());
+     }
+@@ -843,7 +835,7 @@ mod tests {
+     fn surfaces_over_the_guests_pages() {
+         let page = page_size();
+         let (at, ranges) = guest_pages(4);
+-        let surfaces = LinuxSurfaces::new();
++        let surfaces = StandInSurfaces::new();
+         let over = |ranges: &[PhysicalMemoryRange], alloc_size, offset, direction| SurfaceSpec {
+             alloc_size,
+             offset,
+@@ -868,7 +860,7 @@ mod tests {
+         assert!(recorded_mut(&several, |made| made.gpu_read_only).unwrap());
+         let (view, length) = mapped_range(&several).unwrap();
+         assert_eq!((view, length), (base - 0x40, 3 * page));
+-        let pieces = super::super::files::pieces(view, length).unwrap();
++        let pieces = crate::os::linux::files::pieces(view, length).unwrap();
+         assert!(pieces.iter().all(|p| p.prot == libc::PROT_READ));
+         assert_eq!(
+             recorded_mut(&several, |made| made.pages.clone()).unwrap(),
+@@ -904,7 +896,7 @@ mod tests {
+     /// A surface over pages no file is behind is refused, nothing left mapped
+     #[test]
+     fn pages_without_a_file_are_refused() {
+-        let vm = LinuxVm::new();
++        let vm = OsVm::new();
+         let page = page_size();
+         let at = vm.allocate_anywhere(2 * page).unwrap().addr().to_u64();
+         let ranges: Vec<_> = (0..2)
+@@ -918,7 +910,7 @@ mod tests {
+             client_address_ranges: Some(ranges),
+             ..host_only()
+         };
+-        assert!(LinuxSurfaces::new().create(&spec).is_none());
++        assert!(StandInSurfaces::new().create(&spec).is_none());
+         free(at, 2 * page);
+     }
+ 
+@@ -949,7 +941,7 @@ mod tests {
+             width: 17,
+             height: 16,
+         };
+-        let surfaces = LinuxSurfaces::new();
++        let surfaces = StandInSurfaces::new();
+         let s = surfaces.create_backing(&spec).unwrap();
+         let end = 0x5000 + 7 * 16 + 16;
+         assert_eq!(s.alloc_size(), u64::next_multiple_of(end, page_size()));
+diff --git a/crates/reims-vgpu-vulkan/src/os/windows.rs b/crates/reims-vgpu-vulkan/src/os/windows.rs
+new file mode 100644
+index 0000000..66cbb16
+--- /dev/null
++++ b/crates/reims-vgpu-vulkan/src/os/windows.rs
+@@ -0,0 +1,69 @@
++//! Native Windows clocks, threads, shared section memory and Vulkan presentation.
++mod import;
++mod services;
++pub(super) mod vm;
++
++use super::GuestRamFile;
++pub use super::surface_standin::{StandInSurface as OsSurface, StandInSurfaces as OsSurfaces};
++pub(crate) use super::surface_standin::{
++    plane_at, plane_shape, recorded_mut, surface_memory_hold, ycbcr_matrix,
++};
++pub(crate) use import::{
++    TWINS_READ_ONLY, allocate_zeros, dma_buf_refusal, host_memory, import_view, shown_at,
++};
++use metal2vulkan_runtime as rt;
++pub use services::{WindowsClock as OsClock, WindowsThreads as OsThreads};
++use std::ffi::CStr;
++pub(crate) use vm::allocate_aliasable;
++pub use vm::{GuestMemoryLease, WindowsVm as OsVm};
++
++/// Holds each guest section until its device has completed teardown.
++pub fn lease_guest_memory(ranges: impl IntoIterator<Item = GuestRamFile>) -> GuestMemoryLease {
++    vm::register_guest_memory(
++        ranges
++            .into_iter()
++            .map(|r| (r.host, r.length, r.section, r.offset)),
++    )
++}
++pub(crate) const WINDOW_SURFACE_EXTENSIONS: [&CStr; 1] = [ash::khr::win32_surface::NAME];
++pub(crate) const WINDOW_DEVICE_EXTENSIONS: [&CStr; 0] = [];
++pub(crate) fn open_loader() -> Result<ash::Entry, ash::LoadingError> {
++    // SAFETY: the Vulkan loader is retained with the returned entry.
++    unsafe { ash::Entry::load() }
++}
++#[derive(Clone, Copy, Debug)]
++pub(crate) enum Drawables {}
++impl Drawables {
++    pub(crate) fn load(_: &rt::Device) -> Option<Self> {
++        None
++    }
++    pub(crate) unsafe fn fetch(&self, _: ash::vk::Image) -> bool {
++        match *self {}
++    }
++}
++/// No process-wide limit changes are needed for section-backed memory.
++pub fn install_process_services() {}
++/// The same Metal feature level used by the native Linux Vulkan platform.
++pub const METAL_LEVEL: Option<rt::MetalLevel> = Some(rt::MetalLevel::MacOS26_7);
++/// Windows has no Metal device registry to consult.
++pub fn default_registry_id() -> Option<u64> {
++    None
++}
++/// The runtime supplies the device's core count.
++pub fn default_gpu_core_count() -> Option<u64> {
++    None
++}
++pub(super) fn physical_memory() -> u64 {
++    let mut status = windows_sys::Win32::System::SystemInformation::MEMORYSTATUSEX {
++        dwLength: size_of::<windows_sys::Win32::System::SystemInformation::MEMORYSTATUSEX>() as u32,
++        ..Default::default()
++    };
++    // SAFETY: the structure has the required size and is writable.
++    if unsafe { windows_sys::Win32::System::SystemInformation::GlobalMemoryStatusEx(&mut status) }
++        == 0
++    {
++        0
++    } else {
++        status.ullTotalPhys
++    }
++}
+diff --git a/crates/reims-vgpu-vulkan/src/os/windows/import.rs b/crates/reims-vgpu-vulkan/src/os/windows/import.rs
+new file mode 100644
+index 0000000..7d26116
+--- /dev/null
++++ b/crates/reims-vgpu-vulkan/src/os/windows/import.rs
+@@ -0,0 +1,120 @@
++//! Writable aliases for read-only imported pages. GPU writes through such an alias are refused.
++use super::vm::{self, WindowsVm};
++use metal2vulkan_runtime as rt;
++use reims_vgpu_core::platform::os::vm::{HostAddr, HostVm, KernReturn, VmProt};
++use reims_vgpu_core::sync::Mutex;
++use std::collections::BTreeMap;
++use std::ptr::NonNull;
++
++pub(crate) const TWINS_READ_ONLY: bool = true;
++static TWINS: Mutex<BTreeMap<u64, (u64, u64)>> = Mutex::new(BTreeMap::new());
++pub(crate) fn allocate_zeros(length: u64) -> Result<HostAddr, KernReturn> {
++    vm::allocate_aliasable(length)
++}
++#[derive(Debug)]
++struct Twin {
++    first: u64,
++    length: u64,
++}
++impl Drop for Twin {
++    fn drop(&mut self) {
++        TWINS.lock().remove(&self.first);
++        let _ = WindowsVm::new().deallocate(HostAddr::from_addr(self.first as usize), self.length);
++    }
++}
++#[derive(Debug)]
++pub(crate) struct ImportView {
++    at: NonNull<u8>,
++    twin: Option<Twin>,
++}
++struct SendPtr(NonNull<u8>);
++// SAFETY: only passed to the original deallocator after the import has completed.
++unsafe impl Send for SendPtr {}
++impl SendPtr {
++    fn get(&self) -> NonNull<u8> {
++        self.0
++    }
++}
++impl ImportView {
++    pub(crate) fn at(&self) -> NonNull<u8> {
++        self.at
++    }
++    pub(crate) fn writes_kept(&self) -> bool {
++        self.twin.is_some()
++    }
++    pub(crate) fn release(
++        self,
++        original: NonNull<u8>,
++        inner: Option<rt::Deallocator>,
++    ) -> (Option<rt::Deallocator>, Option<rt::KeepAlive>) {
++        let Some(twin) = self.twin else {
++            return (inner, None);
++        };
++        let original = SendPtr(original);
++        let inner = inner.map(|inner| -> rt::Deallocator {
++            Box::new(move |_, length| inner(original.get(), length))
++        });
++        (inner, Some(Box::new(twin)))
++    }
++}
++pub(crate) fn import_view(at: NonNull<u8>, length: u64) -> ImportView {
++    let plain = ImportView { at, twin: None };
++    let page = WindowsVm::new().page_size();
++    let start = at.as_ptr() as u64;
++    let first = start & !(page - 1);
++    let Some(end) = start
++        .checked_add(length.max(1))
++        .and_then(|v| v.checked_next_multiple_of(page))
++    else {
++        return plain;
++    };
++    let Some(pieces) = vm::pieces(first, end - first) else {
++        return plain;
++    };
++    if pieces
++        .iter()
++        .all(|p| p.backing.prot.raw() & VmProt::WRITE.raw() != 0)
++    {
++        return plain;
++    }
++    let Ok(base) = WindowsVm::new().allocate_anywhere(end - first) else {
++        return plain;
++    };
++    if vm::writable_alias(base, first, end - first).is_err() {
++        let _ = WindowsVm::new().deallocate(base, end - first);
++        return plain;
++    }
++    let twin = Twin {
++        first: base.addr() as u64,
++        length: end - first,
++    };
++    TWINS.lock().insert(twin.first, (twin.length, first));
++    ImportView {
++        at: NonNull::new(std::ptr::with_exposed_provenance_mut(
++            (twin.first + start - first) as usize,
++        ))
++        .unwrap_or(at),
++        twin: Some(twin),
++    }
++}
++pub(crate) unsafe fn host_memory(at: NonNull<u8>) -> rt::HostMemory {
++    // SAFETY: the caller retains writable mapped pages for the import's lifetime.
++    unsafe { rt::HostMemory::new(at) }
++}
++pub(crate) fn shown_at(at: NonNull<u8>) -> NonNull<u8> {
++    let address = at.as_ptr() as u64;
++    let twins = TWINS.lock();
++    let Some((&base, &(length, source))) = twins.range(..=address).next_back() else {
++        return at;
++    };
++    if address >= base + length {
++        return at;
++    }
++    NonNull::new(std::ptr::with_exposed_provenance_mut(
++        (source + address - base) as usize,
++    ))
++    .unwrap_or(at)
++}
++pub(crate) fn dma_buf_refusal() -> Option<String> {
++    None
++}
+diff --git a/crates/reims-vgpu-vulkan/src/os/windows/services.rs b/crates/reims-vgpu-vulkan/src/os/windows/services.rs
+new file mode 100644
+index 0000000..b8e234b
+--- /dev/null
++++ b/crates/reims-vgpu-vulkan/src/os/windows/services.rs
+@@ -0,0 +1,112 @@
++//! Clocks include host sleep; detached threads retain the platform's timing contract.
++use reims_vgpu_core::platform::os::{
++    Clock, Deadline, MonoTime, Threads, TimedOut, TimerClock, WallTime,
++};
++use reims_vgpu_core::raise::death::{DeathId, DeathKind, fatal};
++use reims_vgpu_core::sync::{Condvar, MutexGuard};
++use std::sync::Arc;
++use std::time::Duration;
++
++/// Precise Win32 interrupt time and Unix-epoch wall time.
++#[derive(Debug, Default)]
++pub struct WindowsClock;
++impl WindowsClock {
++    /// The process's clock.
++    pub fn new() -> Self {
++        Self
++    }
++    fn remaining(&self, d: Deadline) -> Duration {
++        match d {
++            Deadline::Mono(t) => t.saturating_duration_since(self.now_mono()),
++            Deadline::Wall(t) => t.saturating_duration_since(self.now_wall()),
++        }
++    }
++}
++impl Clock for WindowsClock {
++    fn now_mono(&self) -> MonoTime {
++        let mut ticks = 0;
++        // SAFETY: the system fills this 100-nanosecond interrupt-time counter.
++        unsafe {
++            windows_sys::Win32::System::WindowsProgramming::QueryInterruptTimePrecise(&mut ticks);
++        }
++        MonoTime::from_nanos(ticks.saturating_mul(100))
++    }
++    fn now_wall(&self) -> WallTime {
++        let mut time = windows_sys::Win32::Foundation::FILETIME::default();
++        // SAFETY: the system fills a FILETIME, measured from 1601 in 100-nanosecond ticks.
++        unsafe {
++            windows_sys::Win32::System::SystemInformation::GetSystemTimePreciseAsFileTime(
++                &mut time,
++            );
++        }
++        let ticks = (u64::from(time.dwHighDateTime) << 32) | u64::from(time.dwLowDateTime);
++        WallTime::from_nanos(
++            ticks
++                .saturating_sub(116_444_736_000_000_000)
++                .saturating_mul(100),
++        )
++    }
++    fn wait_until<T>(
++        &self,
++        cv: &Condvar,
++        g: &mut MutexGuard<'_, T>,
++        deadline: Deadline,
++    ) -> TimedOut {
++        let remaining = self.remaining(deadline);
++        if remaining.is_zero() {
++            return TimedOut(true);
++        }
++        cv.wait_for(g, remaining);
++        TimedOut(deadline.reached(self))
++    }
++    fn wait<T>(&self, cv: &Condvar, g: &mut MutexGuard<'_, T>) {
++        cv.wait(g);
++    }
++    fn sleep_until(&self, deadline: Deadline) {
++        loop {
++            let d = self.remaining(deadline);
++            if d.is_zero() {
++                return;
++            }
++            std::thread::sleep(d);
++        }
++    }
++}
++
++/// Native Rust threads, with no change to the host process's scheduling policy.
++#[derive(Debug, Default, Clone, Copy)]
++pub struct WindowsThreads;
++impl WindowsThreads {
++    /// The process's thread service.
++    pub fn new() -> Self {
++        Self
++    }
++    /// Windows does not install the Linux FIFO scheduling hints.
++    pub fn without_hints() -> Self {
++        Self
++    }
++}
++impl Threads for WindowsThreads {
++    fn spawn(&self, name: &'static str, stack_size: usize, body: Box<dyn FnOnce() + Send>) {
++        if std::thread::Builder::new()
++            .name(name.to_owned())
++            .stack_size(stack_size)
++            .spawn(body)
++            .is_err()
++        {
++            fatal(DeathId::Platform {
++                kind: DeathKind::Abort,
++                call: "CreateThread",
++            });
++        }
++    }
++    fn spawn_worker(&self, label: &'static str, body: Box<dyn FnOnce() + Send>) {
++        self.spawn(label, reims_vgpu_core::rt::queue::WORKER_STACK, body);
++    }
++    fn handle(&self) -> Arc<dyn Threads> {
++        Arc::new(*self)
++    }
++    fn timer_clock(&self) -> Option<Arc<dyn TimerClock>> {
++        Some(Arc::new(WindowsClock::new()))
++    }
++}
+diff --git a/crates/reims-vgpu-vulkan/src/os/windows/vm.rs b/crates/reims-vgpu-vulkan/src/os/windows/vm.rs
+new file mode 100644
+index 0000000..c25bc09
+--- /dev/null
++++ b/crates/reims-vgpu-vulkan/src/os/windows/vm.rs
+@@ -0,0 +1,836 @@
++//! Shared section views implementing the guest's Mach-style memory operations on Windows.
++//!
++//! A section, rather than its first mapping, owns the pages. Every view keeps its section
++//! handle alive. Replacing part of a view preserves the other parts through placeholders.
++
++use std::collections::BTreeMap;
++use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
++use std::sync::{Arc, LazyLock};
++
++use reims_vgpu_core::platform::os::vm::{HostAddr, HostVm, KernReturn, VmProt};
++use reims_vgpu_core::sync::Mutex;
++use windows_sys::Win32::Foundation::{GetLastError, INVALID_HANDLE_VALUE};
++use windows_sys::Win32::System::Memory::*;
++use windows_sys::Win32::System::SystemInformation::{GetSystemInfo, SYSTEM_INFO};
++use windows_sys::Win32::System::SystemServices::MEM_COALESCE_PLACEHOLDERS;
++use windows_sys::Win32::System::Threading::GetCurrentProcess;
++
++const INVALID_ADDRESS: KernReturn = KernReturn(1);
++const INVALID_ARGUMENT: KernReturn = KernReturn(4);
++const FAILURE: KernReturn = KernReturn(5);
++
++/// A section-backed range, including the offset and current access rights of its pages.
++#[derive(Clone, Debug)]
++pub(crate) struct Backing {
++    pub(crate) section: Arc<OwnedHandle>,
++    pub(crate) offset: u64,
++    pub(crate) prot: VmProt,
++}
++
++#[derive(Clone, Debug)]
++struct View {
++    end: u64,
++    backing: Option<Backing>,
++}
++
++#[derive(Default)]
++struct Table {
++    views: BTreeMap<u64, View>,
++    registered: Vec<(u64, u64, Backing, u64)>,
++    next_registration: u64,
++}
++
++static TABLE: LazyLock<Mutex<Table>> = LazyLock::new(|| Mutex::new(Table::default()));
++
++/// One contiguous piece of a range, resolved to its section independently of its source view.
++#[derive(Clone, Debug)]
++pub(crate) struct Piece {
++    pub(crate) at: u64,
++    pub(crate) length: u64,
++    pub(crate) backing: Backing,
++}
++
++fn page_size() -> u64 {
++    let mut info = std::mem::MaybeUninit::<SYSTEM_INFO>::uninit();
++    // SAFETY: a writable SYSTEM_INFO structure.
++    unsafe {
++        GetSystemInfo(info.as_mut_ptr());
++        u64::from(info.assume_init().dwPageSize)
++    }
++}
++
++fn ptr(at: u64) -> *mut std::ffi::c_void {
++    std::ptr::with_exposed_provenance_mut(at as usize)
++}
++
++fn error(call: &str) -> KernReturn {
++    // SAFETY: reads this thread's last error, immediately after the failed call.
++    let code = unsafe { GetLastError() };
++    log::error!(target: "reims_vgpu_vulkan::os", "{call} failed: Win32 error {code}");
++    FAILURE
++}
++
++fn bounds(at: HostAddr, length: u64) -> Result<(u64, u64), KernReturn> {
++    let page = page_size();
++    let first = at.addr() as u64 & !(page - 1);
++    let end = (at.addr() as u64)
++        .checked_add(length)
++        .and_then(|v| v.checked_next_multiple_of(page))
++        .ok_or(INVALID_ARGUMENT)?;
++    Ok((first, end - first))
++}
++
++fn protection(prot: VmProt) -> u32 {
++    match prot.raw() & 3 {
++        0 => PAGE_NOACCESS,
++        1 => PAGE_READONLY,
++        _ => PAGE_READWRITE,
++    }
++}
++
++fn section(length: u64) -> Result<Arc<OwnedHandle>, KernReturn> {
++    // SAFETY: a pagefile-backed section, not a file or another process's handle.
++    let handle = unsafe {
++        CreateFileMappingW(
++            INVALID_HANDLE_VALUE,
++            std::ptr::null(),
++            PAGE_READWRITE,
++            (length >> 32) as u32,
++            length as u32,
++            std::ptr::null(),
++        )
++    };
++    if handle.is_null() {
++        return Err(error("CreateFileMappingW"));
++    }
++    // SAFETY: the new handle has one owner.
++    Ok(Arc::new(unsafe { OwnedHandle::from_raw_handle(handle) }))
++}
++
++fn reserve(length: u64) -> Result<u64, KernReturn> {
++    // SAFETY: reserves unused address space in this process.
++    let at = unsafe {
++        VirtualAlloc2(
++            GetCurrentProcess(),
++            std::ptr::null(),
++            length as usize,
++            MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
++            PAGE_NOACCESS,
++            std::ptr::null_mut(),
++            0,
++        )
++    };
++    if at.is_null() {
++        Err(error("VirtualAlloc2"))
++    } else {
++        Ok(at as u64)
++    }
++}
++
++fn split(first: u64, length: u64) -> Result<(), KernReturn> {
++    // SAFETY: the caller owns this placeholder; splitting keeps the whole reservation.
++    if unsafe {
++        VirtualFree(
++            ptr(first),
++            length as usize,
++            MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER,
++        )
++    } == 0
++    {
++        Err(error("VirtualFree(split)"))
++    } else {
++        Ok(())
++    }
++}
++
++fn map(first: u64, length: u64, backing: &Backing) -> Result<(), KernReturn> {
++    // SAFETY: the exact owned placeholder is replaced with a shared section view. This flag
++    // permits page-size offsets instead of MapViewOfFile's 64 KiB allocation granularity.
++    let mapped = unsafe {
++        MapViewOfFile3(
++            backing.section.as_raw_handle(),
++            GetCurrentProcess(),
++            ptr(first),
++            backing.offset,
++            length as usize,
++            MEM_REPLACE_PLACEHOLDER,
++            protection(backing.prot),
++            std::ptr::null_mut(),
++            0,
++        )
++    };
++    if mapped.Value.is_null() {
++        Err(error("MapViewOfFile3"))
++    } else {
++        Ok(())
++    }
++}
++
++fn unmap(first: u64) -> Result<(), KernReturn> {
++    // SAFETY: a complete view owned by the table, replaced by an equal placeholder.
++    if unsafe {
++        UnmapViewOfFile2(
++            GetCurrentProcess(),
++            MEMORY_MAPPED_VIEW_ADDRESS { Value: ptr(first) },
++            MEM_PRESERVE_PLACEHOLDER,
++        )
++    } == 0
++    {
++        Err(error("UnmapViewOfFile2"))
++    } else {
++        Ok(())
++    }
++}
++
++impl Table {
++    fn pieces(&self, first: u64, length: u64) -> Option<Vec<Piece>> {
++        let end = first.checked_add(length)?;
++        let mut at = first;
++        let mut result = Vec::new();
++        while at < end {
++            let own = self
++                .views
++                .range(..=at)
++                .next_back()
++                .filter(|(_, v)| v.end > at)
++                .and_then(|(&start, v)| v.backing.as_ref().map(|backing| (start, v.end, backing)));
++            let (start, limit, backing) = own.or_else(|| {
++                self.registered
++                    .iter()
++                    .find(|(a, b, _, _)| *a <= at && at < *b)
++                    .map(|(a, b, s, _)| (*a, *b, s))
++            })?;
++            let next = end.min(limit);
++            let mut backing = backing.clone();
++            backing.offset += at - start;
++            result.push(Piece {
++                at: at - first,
++                length: next - at,
++                backing,
++            });
++            at = next;
++        }
++        Some(result)
++    }
++
++    fn snapshot(&self, first: u64, length: u64) -> Option<Vec<(u64, u64, Option<Backing>)>> {
++        let end = first.checked_add(length)?;
++        let mut at = first;
++        let mut result = Vec::new();
++        while at < end {
++            let (&base, view) = self
++                .views
++                .range(..=at)
++                .next_back()
++                .filter(|(_, v)| at < v.end)?;
++            let to = view.end.min(end);
++            let backing = view.backing.clone().map(|mut b| {
++                b.offset += at - base;
++                b
++            });
++            result.push((at - first, to - at, backing));
++            at = to;
++        }
++        Some(result)
++    }
++
++    /// Splits an owned section view or placeholder without changing its pages.
++    fn cut(&mut self, at: u64) -> Result<(), KernReturn> {
++        let Some((&first, view)) = self
++            .views
++            .range(..at)
++            .next_back()
++            .filter(|(_, v)| at < v.end)
++        else {
++            return Ok(());
++        };
++        let view = view.clone();
++        if view.backing.is_some() {
++            unmap(first)?;
++        }
++        if let Err(why) = split(first, at - first) {
++            if let Some(b) = &view.backing {
++                map(first, view.end - first, b)?;
++            }
++            return Err(why);
++        }
++        let right = view.backing.clone().map(|mut b| {
++            b.offset += at - first;
++            b
++        });
++        if let Some(backing) = &view.backing {
++            if let Err(why) = map(first, at - first, backing) {
++                if unsafe {
++                    VirtualFree(
++                        ptr(first),
++                        (view.end - first) as usize,
++                        MEM_RELEASE | MEM_COALESCE_PLACEHOLDERS,
++                    )
++                } == 0
++                {
++                    std::process::abort();
++                }
++                if map(first, view.end - first, backing).is_err() {
++                    std::process::abort();
++                }
++                return Err(why);
++            }
++            if let Err(why) = map(at, view.end - at, right.as_ref().unwrap()) {
++                if unmap(first).is_err() {
++                    std::process::abort();
++                }
++                if unsafe {
++                    VirtualFree(
++                        ptr(first),
++                        (view.end - first) as usize,
++                        MEM_RELEASE | MEM_COALESCE_PLACEHOLDERS,
++                    )
++                } == 0
++                {
++                    std::process::abort();
++                }
++                if map(first, view.end - first, backing).is_err() {
++                    std::process::abort();
++                }
++                return Err(why);
++            }
++        }
++        self.views.insert(
++            first,
++            View {
++                end: at,
++                backing: view.backing,
++            },
++        );
++        self.views.insert(
++            at,
++            View {
++                end: view.end,
++                backing: right,
++            },
++        );
++        Ok(())
++    }
++
++    fn replace(&mut self, first: u64, length: u64, pieces: &[Piece]) -> Result<(), KernReturn> {
++        let end = first.checked_add(length).ok_or(INVALID_ARGUMENT)?;
++        // Validate ownership before touching any address, including every page of the target.
++        let old = self.snapshot(first, length).ok_or(INVALID_ADDRESS)?;
++        if self
++            .registered
++            .iter()
++            .any(|(a, b, _, _)| *a < end && first < *b)
++        {
++            return Err(INVALID_ARGUMENT);
++        }
++        self.cut(first)?;
++        self.cut(end)?;
++        for p in pieces {
++            self.cut(first + p.at)?;
++            self.cut(first + p.at + p.length)?;
++        }
++        let keys: Vec<u64> = self.views.range(first..end).map(|(&k, _)| k).collect();
++        for key in &keys {
++            if self.views[key].backing.is_some() {
++                unmap(*key)?;
++            }
++            self.views.remove(key);
++        }
++        // The cuts leave exactly the same intervals as the source pieces only where those
++        // boundaries also existed in the old mapping. Coalesce all placeholders first.
++        if unsafe {
++            VirtualFree(
++                ptr(first),
++                length as usize,
++                MEM_RELEASE | MEM_COALESCE_PLACEHOLDERS,
++            )
++        } == 0
++            && keys.len() > 1
++        {
++            return Err(error("VirtualFree(coalesce)"));
++        }
++        let mut done = Vec::new();
++        for (i, p) in pieces.iter().enumerate() {
++            let at = first + p.at;
++            if i + 1 < pieces.len() {
++                split(at, p.length)?;
++            }
++            if let Err(why) = map(at, p.length, &p.backing) {
++                // Preserve the reservation and restore the old pages before returning.
++                for address in &done {
++                    unmap(*address)?;
++                    self.views.remove(address);
++                }
++                if unsafe {
++                    VirtualFree(
++                        ptr(first),
++                        length as usize,
++                        MEM_RELEASE | MEM_COALESCE_PLACEHOLDERS,
++                    )
++                } == 0
++                    && pieces.len() > 1
++                {
++                    return Err(error("VirtualFree(rollback)"));
++                }
++                for (j, (offset, length, backing)) in old.iter().enumerate() {
++                    let at = first + offset;
++                    if j + 1 < old.len() {
++                        split(at, *length)?;
++                    }
++                    if let Some(backing) = backing {
++                        map(at, *length, backing)?;
++                    }
++                    self.views.insert(
++                        at,
++                        View {
++                            end: at + length,
++                            backing: backing.clone(),
++                        },
++                    );
++                }
++                return Err(why);
++            }
++            self.views.insert(
++                at,
++                View {
++                    end: at + p.length,
++                    backing: Some(p.backing.clone()),
++                },
++            );
++            done.push(at);
++        }
++        Ok(())
++    }
++}
++
++/// Resolves a view into independently owned section pieces.
++pub(crate) fn pieces(first: u64, length: u64) -> Option<Vec<Piece>> {
++    TABLE.lock().pieces(first, length)
++}
++
++/// Maps the same section pages writable for a read-only import's protected twin.
++pub(crate) fn writable_alias(target: HostAddr, source: u64, length: u64) -> Result<(), KernReturn> {
++    let mut table = TABLE.lock();
++    let mut pieces = table.pieces(source, length).ok_or(INVALID_ADDRESS)?;
++    for piece in &mut pieces {
++        piece.backing.prot = VmProt::READ | VmProt::WRITE;
++    }
++    table.replace(target.addr() as u64, length, &pieces)
++}
++
++/// The registration lease keeps the host's section open without taking ownership of its view.
++#[derive(Debug)]
++pub struct GuestMemoryLease(Vec<u64>);
++
++impl Drop for GuestMemoryLease {
++    fn drop(&mut self) {
++        let mut t = TABLE.lock();
++        t.registered.retain(|(_, _, _, id)| !self.0.contains(id));
++    }
++}
++
++/// Registers guest ranges until the returned lease is released.
++pub fn register_guest_memory(
++    ranges: impl IntoIterator<Item = (u64, u64, Arc<OwnedHandle>, u64)>,
++) -> GuestMemoryLease {
++    let mut t = TABLE.lock();
++    let mut ids = Vec::new();
++    for (first, length, section, offset) in ranges {
++        let end = first.checked_add(length).expect("validated guest range");
++        t.next_registration += 1;
++        let id = t.next_registration;
++        t.registered.push((
++            first,
++            end,
++            Backing {
++                section,
++                offset,
++                prot: VmProt::READ | VmProt::WRITE,
++            },
++            id,
++        ));
++        ids.push(id);
++    }
++    GuestMemoryLease(ids)
++}
++
++/// Mach-style memory operations backed by shared Win32 sections.
++#[derive(Debug, Default)]
++pub struct WindowsVm;
++
++impl WindowsVm {
++    /// The process's memory service.
++    pub fn new() -> Self {
++        Self
++    }
++    /// Whether every byte is readable, including memory supplied by the host.
++    pub fn readable(&self, at: HostAddr, length: u64) -> bool {
++        let Some(end) = (at.addr() as u64).checked_add(length) else {
++            return false;
++        };
++        let mut next = at.addr() as u64;
++        while next < end {
++            let mut info = std::mem::MaybeUninit::<MEMORY_BASIC_INFORMATION>::uninit();
++            // SAFETY: VirtualQuery inspects mappings without dereferencing the queried address.
++            if unsafe {
++                VirtualQuery(
++                    ptr(next),
++                    info.as_mut_ptr(),
++                    size_of::<MEMORY_BASIC_INFORMATION>(),
++                )
++            } == 0
++            {
++                return false;
++            }
++            let info = unsafe { info.assume_init() };
++            if info.State != MEM_COMMIT || info.Protect & (PAGE_NOACCESS | PAGE_GUARD) != 0 {
++                return false;
++            }
++            next = (info.BaseAddress as u64).saturating_add(info.RegionSize as u64);
++        }
++        true
++    }
++}
++
++impl HostVm for WindowsVm {
++    fn reserve_anywhere(&self, len: u64) -> Result<HostAddr, KernReturn> {
++        let (_, length) = bounds(HostAddr::NULL, len)?;
++        if length == 0 {
++            return Ok(HostAddr::NULL);
++        }
++        let first = reserve(length)?;
++        TABLE.lock().views.insert(
++            first,
++            View {
++                end: first + length,
++                backing: None,
++            },
++        );
++        Ok(HostAddr::from_addr(first as usize))
++    }
++    fn page_size(&self) -> u64 {
++        page_size()
++    }
++    fn page_shift(&self) -> u32 {
++        page_size().trailing_zeros()
++    }
++    fn allocate_anywhere(&self, len: u64) -> Result<HostAddr, KernReturn> {
++        self.allocate_aliasable(len)
++    }
++    fn allocate_aliasable(&self, len: u64) -> Result<HostAddr, KernReturn> {
++        let (_, length) = bounds(HostAddr::NULL, len)?;
++        if length == 0 {
++            return Ok(HostAddr::NULL);
++        }
++        let backing = Backing {
++            section: section(length)?,
++            offset: 0,
++            prot: VmProt::READ | VmProt::WRITE,
++        };
++        let first = reserve(length)?;
++        if let Err(why) = map(first, length, &backing) {
++            unsafe {
++                VirtualFree(ptr(first), 0, MEM_RELEASE);
++            }
++            return Err(why);
++        }
++        TABLE.lock().views.insert(
++            first,
++            View {
++                end: first + length,
++                backing: Some(backing),
++            },
++        );
++        Ok(HostAddr::from_addr(first as usize))
++    }
++    fn allocate_fixed_overwrite(&self, addr: HostAddr, len: u64) -> Result<(), KernReturn> {
++        let (first, length) = bounds(addr, len)?;
++        if length == 0 {
++            return Ok(());
++        }
++        let backing = Backing {
++            section: section(length)?,
++            offset: 0,
++            prot: VmProt::READ | VmProt::WRITE,
++        };
++        TABLE.lock().replace(
++            first,
++            length,
++            &[Piece {
++                at: 0,
++                length,
++                backing,
++            }],
++        )
++    }
++    fn remap_shared_overwrite(
++        &self,
++        dst: HostAddr,
++        src: HostAddr,
++        len: u64,
++    ) -> Result<HostAddr, KernReturn> {
++        let (source, length) = bounds(src, len)?;
++        let (target, _) = bounds(dst, len)?;
++        if length == 0 {
++            return Ok(dst);
++        }
++        let mut t = TABLE.lock();
++        let pieces = t.pieces(source, length).ok_or(INVALID_ADDRESS)?;
++        t.replace(target, length, &pieces)?;
++        Ok(dst)
++    }
++    fn protect_max(&self, addr: HostAddr, len: u64, prot: VmProt) -> Result<(), KernReturn> {
++        let (first, length) = bounds(addr, len)?;
++        if length == 0 {
++            return Ok(());
++        }
++        let mut t = TABLE.lock();
++        let old = t.snapshot(first, length).ok_or(INVALID_ADDRESS)?;
++        if prot != VmProt::NONE && old.iter().any(|(_, _, b)| b.is_none()) {
++            return Err(INVALID_ARGUMENT);
++        }
++        t.cut(first)?;
++        t.cut(first + length)?;
++        for (&at, view) in t.views.range_mut(first..first + length) {
++            if let Some(backing) = &mut view.backing {
++                let allowed = VmProt(backing.prot.raw() & prot.raw());
++                let mut previous = 0;
++                if unsafe {
++                    VirtualProtect(
++                        ptr(at),
++                        (view.end - at) as usize,
++                        protection(allowed),
++                        &mut previous,
++                    )
++                } == 0
++                {
++                    return Err(error("VirtualProtect"));
++                }
++                backing.prot = allowed;
++            }
++        }
++        Ok(())
++    }
++    fn deallocate(&self, addr: HostAddr, len: u64) -> KernReturn {
++        let Ok((first, length)) = bounds(addr, len) else {
++            return INVALID_ARGUMENT;
++        };
++        if length == 0 {
++            return KernReturn::SUCCESS;
++        }
++        let mut t = TABLE.lock();
++        if t.registered
++            .iter()
++            .any(|(a, b, _, _)| *a < first + length && first < *b)
++        {
++            return INVALID_ARGUMENT;
++        }
++        if t.snapshot(first, length).is_none() {
++            return INVALID_ADDRESS;
++        }
++        if let Err(why) = t.cut(first).and_then(|_| t.cut(first + length)) {
++            return why;
++        }
++        let keys: Vec<u64> = t
++            .views
++            .range(first..first + length)
++            .map(|(&k, _)| k)
++            .collect();
++        for key in keys {
++            let released = if t.views[&key].backing.is_some() {
++                unsafe {
++                    UnmapViewOfFile2(
++                        GetCurrentProcess(),
++                        MEMORY_MAPPED_VIEW_ADDRESS { Value: ptr(key) },
++                        0,
++                    )
++                }
++            } else {
++                unsafe { VirtualFree(ptr(key), 0, MEM_RELEASE) }
++            };
++            if released == 0 {
++                return error("deallocate");
++            }
++            t.views.remove(&key);
++        }
++        KernReturn::SUCCESS
++    }
++}
++
++/// Surface-owned shared memory, released after its final GPU keep-alive.
++#[derive(Debug)]
++pub(crate) struct OwnMemory {
++    pub(crate) first: u64,
++    pub(crate) length: u64,
++    registration: Option<GuestMemoryLease>,
++}
++impl OwnMemory {
++    pub(crate) fn new(length: u64) -> Option<Self> {
++        let (_, length) = bounds(HostAddr::NULL, length).ok()?;
++        let at = WindowsVm::new().allocate_aliasable(length).ok()?;
++        let first = at.addr() as u64;
++        let backing = pieces(first, length)?.into_iter().next()?.backing;
++        let registration =
++            register_guest_memory([(first, length, backing.section, backing.offset)]);
++        Some(Self {
++            first,
++            length,
++            registration: Some(registration),
++        })
++    }
++    pub(crate) fn first(&self) -> u64 {
++        self.first
++    }
++}
++impl Drop for OwnMemory {
++    fn drop(&mut self) {
++        drop(self.registration.take());
++        let _ = WindowsVm::new().deallocate(HostAddr::from_addr(self.first as usize), self.length);
++    }
++}
++
++pub(crate) fn allocate_aliasable(length: u64) -> Result<HostAddr, KernReturn> {
++    WindowsVm::new().allocate_aliasable(length)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn surface_owned_pages_are_released_only_by_their_owner() {
++        let vm = WindowsVm::new();
++        let p = vm.page_size();
++        let owned = OwnMemory::new(p).unwrap();
++        let address = HostAddr::from_addr(owned.first() as usize);
++        assert!(!vm.deallocate(address, p).is_success());
++        assert!(vm.readable(address, p));
++        drop(owned);
++        assert!(!vm.readable(address, p));
++    }
++    #[test]
++    fn a_large_task_reservation_commits_only_the_pages_mapped_into_it() {
++        let vm = WindowsVm::new();
++        let p = vm.page_size();
++        let length = 1_u64 << 40;
++        let reservation = vm.reserve_anywhere(length).unwrap();
++        vm.protect_max(reservation, length, VmProt::NONE).unwrap();
++        assert!(!vm.readable(reservation, p));
++        let source = vm.allocate_anywhere(p).unwrap();
++        let target = HostAddr::from_addr(reservation.addr() + 3 * p as usize);
++        vm.remap_shared_overwrite(target, source, p).unwrap();
++        unsafe {
++            *(target.addr() as *mut u8) = 87;
++            assert_eq!(*(source.addr() as *const u8), 87);
++        }
++        assert!(!vm.readable(reservation, p));
++        assert!(vm.deallocate(source, p).is_success());
++        assert!(vm.deallocate(reservation, length).is_success());
++    }
++    #[test]
++    fn noncontiguous_aliases_share_pages_and_outlive_the_source() {
++        let vm = WindowsVm::new();
++        let p = vm.page_size();
++        let source = vm.allocate_anywhere(4 * p).unwrap();
++        let target = vm.allocate_anywhere(2 * p).unwrap();
++        unsafe {
++            *(source.addr() as *mut u8).add(p as usize) = 17;
++            *(source.addr() as *mut u8).add(3 * p as usize) = 51;
++        }
++        vm.remap_shared_overwrite(
++            target,
++            HostAddr::from_addr(source.addr() + 3 * p as usize),
++            p,
++        )
++        .unwrap();
++        vm.remap_shared_overwrite(
++            HostAddr::from_addr(target.addr() + p as usize),
++            HostAddr::from_addr(source.addr() + p as usize),
++            p,
++        )
++        .unwrap();
++        unsafe {
++            assert_eq!(*(target.addr() as *const u8), 51);
++            *(target.addr() as *mut u8) = 73;
++            assert_eq!(*(source.addr() as *const u8).add(3 * p as usize), 73);
++        }
++        assert!(vm.deallocate(source, 4 * p).is_success());
++        unsafe {
++            assert_eq!(*(target.addr() as *const u8), 73);
++            assert_eq!(*(target.addr() as *const u8).add(p as usize), 17);
++        }
++        assert!(vm.deallocate(target, 2 * p).is_success());
++    }
++    #[test]
++    fn fixed_zero_overwrite_preserves_neighbouring_pages() {
++        let vm = WindowsVm::new();
++        let p = vm.page_size();
++        let source = vm.allocate_anywhere(3 * p).unwrap();
++        unsafe {
++            std::ptr::write_bytes(source.addr() as *mut u8, 43, (3 * p) as usize);
++        }
++        vm.allocate_fixed_overwrite(HostAddr::from_addr(source.addr() + p as usize), p)
++            .unwrap();
++        unsafe {
++            assert_eq!(*(source.addr() as *const u8), 43);
++            assert_eq!(*(source.addr() as *const u8).add(p as usize), 0);
++            assert_eq!(*(source.addr() as *const u8).add(2 * p as usize), 43);
++        }
++        assert!(vm.deallocate(source, 3 * p).is_success());
++    }
++    #[test]
++    fn unknown_source_is_refused_without_changing_the_target() {
++        let vm = WindowsVm::new();
++        let p = vm.page_size();
++        let target = vm.allocate_anywhere(p).unwrap();
++        unsafe {
++            *(target.addr() as *mut u8) = 71;
++        }
++        assert!(
++            vm.remap_shared_overwrite(target, HostAddr::NULL, p)
++                .is_err()
++        );
++        unsafe {
++            assert_eq!(*(target.addr() as *const u8), 71);
++        }
++        assert!(vm.deallocate(target, p).is_success());
++    }
++    #[test]
++    fn a_kernel_refused_section_view_restores_the_target() {
++        let vm = WindowsVm::new();
++        let p = vm.page_size();
++        let target = vm.allocate_anywhere(3 * p).unwrap();
++        unsafe {
++            std::ptr::write_bytes(target.addr() as *mut u8, 29, (3 * p) as usize);
++        }
++        let source = 0x10000;
++        let lease = register_guest_memory([(source, p, section(p).unwrap(), 2 * p)]);
++        assert!(
++            vm.remap_shared_overwrite(
++                HostAddr::from_addr(target.addr() + p as usize),
++                HostAddr::from_addr(source as usize),
++                p
++            )
++            .is_err()
++        );
++        let bytes =
++            unsafe { std::slice::from_raw_parts(target.addr() as *const u8, (3 * p) as usize) };
++        assert!(bytes.iter().all(|&b| b == 29));
++        drop(lease);
++        assert!(vm.deallocate(target, 3 * p).is_success());
++    }
++    #[test]
++    fn maximum_read_protection_is_preserved_by_later_aliases() {
++        let vm = WindowsVm::new();
++        let p = vm.page_size();
++        let source = vm.allocate_anywhere(p).unwrap();
++        let target = vm.allocate_anywhere(p).unwrap();
++        vm.protect_max(source, p, VmProt::READ).unwrap();
++        vm.remap_shared_overwrite(target, source, p).unwrap();
++        assert_eq!(
++            pieces(target.addr() as u64, p).unwrap()[0].backing.prot,
++            VmProt::READ
++        );
++        assert!(vm.deallocate(source, p).is_success());
++        assert!(vm.deallocate(target, p).is_success());
++    }
++}
+diff --git a/crates/reims-vgpu-vulkan/src/remap.rs b/crates/reims-vgpu-vulkan/src/remap.rs
+index 3c34e86..62e96f9 100644
+--- a/crates/reims-vgpu-vulkan/src/remap.rs
++++ b/crates/reims-vgpu-vulkan/src/remap.rs
+@@ -360,6 +360,9 @@ impl Default for VulkanVm {
+ }
+ 
+ impl HostVm for VulkanVm {
++    fn reserve_anywhere(&self, len: u64) -> Result<HostAddr, KernReturn> {
++        self.vm.reserve_anywhere(len)
++    }
+     fn page_size(&self) -> u64 {
+         self.vm.page_size()
+     }
+diff --git a/crates/reims-vgpu-window/Cargo.toml b/crates/reims-vgpu-window/Cargo.toml
+index d5ea772..70f7774 100644
+--- a/crates/reims-vgpu-window/Cargo.toml
++++ b/crates/reims-vgpu-window/Cargo.toml
+@@ -15,7 +15,7 @@ ash.workspace = true
+ 
+ # The window on Linux (`sdl`): SDL3 for the window, its input and its Vulkan surface, and the
+ # Vulkan crate's threads.
+-[target.'cfg(target_os = "linux")'.dependencies]
++[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+ reims-vgpu-vulkan.workspace = true
+ sdl3-sys.workspace = true
+ 
+diff --git a/crates/reims-vgpu-window/src/lib.rs b/crates/reims-vgpu-window/src/lib.rs
+index 8dc7572..51898d7 100644
+--- a/crates/reims-vgpu-window/src/lib.rs
++++ b/crates/reims-vgpu-window/src/lib.rs
+@@ -56,7 +56,7 @@ pub mod scroll;
+ 
+ // The SDL3 window: Linux's (`native/linux.rs`), and macOS's with the `macos-sdl` feature, behind
+ // `REIMS_VGPU_WINDOW_IMPL`.
+-#[cfg(any(target_os = "linux", feature = "macos-sdl"))]
++#[cfg(any(target_os = "linux", target_os = "windows", feature = "macos-sdl"))]
+ mod sdl;
+ 
+ pub use config::{
+diff --git a/crates/reims-vgpu-window/src/native.rs b/crates/reims-vgpu-window/src/native.rs
+index bd31ea8..0f8ce34 100644
+--- a/crates/reims-vgpu-window/src/native.rs
++++ b/crates/reims-vgpu-window/src/native.rs
+@@ -11,15 +11,15 @@
+ //!   the window's shell and cursor are SDL's shared ones (`sdl`), with Linux's side in
+ //!   `native/linux/sdl.rs`.
+ 
+-#[cfg(target_os = "linux")]
+-mod linux;
++#[cfg(any(target_os = "linux", target_os = "windows"))]
++mod desktop;
+ #[cfg(target_os = "macos")]
+ mod macos;
+ 
+-#[cfg(target_os = "linux")]
+-pub use linux::FrameSink;
+-#[cfg(target_os = "linux")]
+-pub(crate) use linux::{
++#[cfg(any(target_os = "linux", target_os = "windows"))]
++pub use desktop::FrameSink;
++#[cfg(any(target_os = "linux", target_os = "windows"))]
++pub(crate) use desktop::{
+     Surface, close, cursor_changed, guest_mode_changed, host_screens, open, sdl as sdl_os,
+ };
+ #[cfg(target_os = "macos")]
+diff --git a/crates/reims-vgpu-window/src/native/linux.rs b/crates/reims-vgpu-window/src/native/desktop.rs
+similarity index 100%
+rename from crates/reims-vgpu-window/src/native/linux.rs
+rename to crates/reims-vgpu-window/src/native/desktop.rs
+diff --git a/crates/reims-vgpu-window/src/native/linux/input.rs b/crates/reims-vgpu-window/src/native/desktop/input.rs
+similarity index 100%
+rename from crates/reims-vgpu-window/src/native/linux/input.rs
+rename to crates/reims-vgpu-window/src/native/desktop/input.rs
+diff --git a/crates/reims-vgpu-window/src/native/linux/keymap.rs b/crates/reims-vgpu-window/src/native/desktop/keymap.rs
+similarity index 100%
+rename from crates/reims-vgpu-window/src/native/linux/keymap.rs
+rename to crates/reims-vgpu-window/src/native/desktop/keymap.rs
+diff --git a/crates/reims-vgpu-window/src/native/linux/render.rs b/crates/reims-vgpu-window/src/native/desktop/render.rs
+similarity index 100%
+rename from crates/reims-vgpu-window/src/native/linux/render.rs
+rename to crates/reims-vgpu-window/src/native/desktop/render.rs
+diff --git a/crates/reims-vgpu-window/src/native/linux/sdl.rs b/crates/reims-vgpu-window/src/native/desktop/sdl.rs
+similarity index 100%
+rename from crates/reims-vgpu-window/src/native/linux/sdl.rs
+rename to crates/reims-vgpu-window/src/native/desktop/sdl.rs
+diff --git a/crates/reims-vgpu-window/src/native/linux/ui.rs b/crates/reims-vgpu-window/src/native/desktop/ui.rs
+similarity index 100%
+rename from crates/reims-vgpu-window/src/native/linux/ui.rs
+rename to crates/reims-vgpu-window/src/native/desktop/ui.rs
+diff --git a/crates/reims-vgpu-window/src/sdl/shell.rs b/crates/reims-vgpu-window/src/sdl/shell.rs
+index 120c07d..468652c 100644
+--- a/crates/reims-vgpu-window/src/sdl/shell.rs
++++ b/crates/reims-vgpu-window/src/sdl/shell.rs
+@@ -195,8 +195,11 @@ pub(crate) fn close(id: u64) {
+ 
+ /// Window `id`'s render thread let its surface go: SDL's window goes where the display has ended.
+ #[cfg_attr(
+-    not(target_os = "linux"),
+-    expect(dead_code, reason = "only Linux's render thread holds SDL's window")
++    not(any(target_os = "linux", target_os = "windows")),
++    expect(
++        dead_code,
++        reason = "only desktop Vulkan render threads hold SDL's window"
++    )
+ )]
+ pub(crate) fn released(id: u64) {
+     let gone = with_shell(id, |shell| {
+diff --git a/crates/reims-vgpu/src/device.rs b/crates/reims-vgpu/src/device.rs
+index 2973c61..0fb237e 100644
+--- a/crates/reims-vgpu/src/device.rs
++++ b/crates/reims-vgpu/src/device.rs
+@@ -19,7 +19,10 @@
+ //! core handle.
+ 
+ use std::any::Any;
++#[cfg(unix)]
+ use std::os::fd::OwnedFd;
++#[cfg(target_os = "windows")]
++use std::os::windows::io::OwnedHandle;
+ use std::sync::Arc;
+ 
+ use reims_vgpu_core::device::Device as CoreDevice;
+@@ -57,7 +60,11 @@ pub struct MemoryMap {
+ #[derive(Clone, Debug)]
+ pub struct MemoryFile {
+     /// The file, held open while any map or device holds it.
++    #[cfg(unix)]
+     pub fd: Arc<OwnedFd>,
++    /// The native Windows section backing this range.
++    #[cfg(target_os = "windows")]
++    pub section: Arc<OwnedHandle>,
+     /// The file offset of the range's first byte, a multiple of the host's page size.
+     pub offset: u64,
+ }
+diff --git a/crates/reims-vgpu/src/lib.rs b/crates/reims-vgpu/src/lib.rs
+index 05f4094..ec61a6c 100644
+--- a/crates/reims-vgpu/src/lib.rs
++++ b/crates/reims-vgpu/src/lib.rs
+@@ -29,8 +29,13 @@
+ // limit of 128 (E0275), as the C crate's does.
+ #![recursion_limit = "256"]
+ 
+-#[cfg(all(target_os = "linux", not(feature = "vulkan")))]
+-compile_error!("on Linux the library is the Vulkan platform's: build it with the `vulkan` feature");
++#[cfg(all(
++    any(target_os = "linux", target_os = "windows"),
++    not(feature = "vulkan")
++))]
++compile_error!(
++    "on Linux and Windows the library is the Vulkan platform's: build it with the `vulkan` feature"
++);
+ 
+ mod device;
+ mod display;
+@@ -68,7 +73,7 @@ pub use reims_vgpu_vulkan::VulkanPlatform;
+ #[cfg(target_os = "macos")]
+ pub type DefaultPlatform = MetalPlatform;
+ /// The platform every handle is made on by default: `VulkanPlatform` on Linux.
+-#[cfg(target_os = "linux")]
++#[cfg(any(target_os = "linux", target_os = "windows"))]
+ pub type DefaultPlatform = VulkanPlatform;
+ pub use reims_vgpu_window::{
+     BUTTON_EXTRA, BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT, BUTTON_SIDE, CloseFn, KeyFn,
+diff --git a/crates/reims-vgpu/src/platform/vulkan.rs b/crates/reims-vgpu/src/platform/vulkan.rs
+index 2526249..4a8536c 100644
+--- a/crates/reims-vgpu/src/platform/vulkan.rs
++++ b/crates/reims-vgpu/src/platform/vulkan.rs
+@@ -49,7 +49,10 @@ impl ApiPlatform for VulkanPlatform {
+             Some(GuestRamFile {
+                 host: range.host_address.addr().to_u64(),
+                 length: range.physical_length,
++                #[cfg(unix)]
+                 fd: Arc::clone(&file.fd),
++                #[cfg(target_os = "windows")]
++                section: Arc::clone(&file.section),
+                 offset: file.offset,
+             })
+         });
+diff --git a/crates/reims-vgpu/src/window/vulkan.rs b/crates/reims-vgpu/src/window/vulkan.rs
+index c16496a..3269484 100644
+--- a/crates/reims-vgpu/src/window/vulkan.rs
++++ b/crates/reims-vgpu/src/window/vulkan.rs
+@@ -2,8 +2,8 @@
+ //! the window's swapchain, on either OS (`swapchain.rs`), and each OS's window asks the sink for
+ //! it its own way (`linux.rs`, `macos.rs`).
+ 
+-#[cfg(target_os = "linux")]
+-mod linux;
++#[cfg(any(target_os = "linux", target_os = "windows"))]
++mod desktop;
+ #[cfg(target_os = "macos")]
+ mod macos;
+ mod swapchain;
+diff --git a/crates/reims-vgpu/src/window/vulkan/linux.rs b/crates/reims-vgpu/src/window/vulkan/desktop.rs
+similarity index 80%
+rename from crates/reims-vgpu/src/window/vulkan/linux.rs
+rename to crates/reims-vgpu/src/window/vulkan/desktop.rs
+index efa8fb5..88913d5 100644
+--- a/crates/reims-vgpu/src/window/vulkan/linux.rs
++++ b/crates/reims-vgpu/src/window/vulkan/desktop.rs
+@@ -1,4 +1,4 @@
+-//! What Linux's window asks of the Vulkan platform's sink ([`FrameSink`]): a presenter over the
++//! What the SDL desktop window asks of the Vulkan platform's sink ([`FrameSink`]): a presenter over the
+ //! window's swapchain ([`SwapchainSink::make_presenter`]), which SDL's window makes its surface
+ //! for.
+ 
+diff --git a/docs/api.md b/docs/api.md
+index 780ae4d..a1f2858 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -788,3 +788,7 @@ The API rests on these decisions.
+ | 7 | How are a Metal device's capabilities covered, when a host cannot hand the library a device lacking them? | **Core's unit tests**: `device::tests::a_device_without_the_capabilities_leaves_them_out_of_device_info` turns off detach backing, the address-range heaps and buffers, IOSurface buffers, shared texture handles, dynamic stride, image blocks and command buffer jump, and `a_paravirtual_device_keeps_argument_buffers_off` names the device as a paravirtual GPU. |
+ | 8 | Does an uncommitted frame that is released stay counted in flight, so that every later present waits its 2 s, as when a host of Apple's SDK drops an uncommitted command buffer? | **Yes**, and the header says so. Committing on release would change what a present waits for. |
+ | 9 | Do the runner's `encode` records keep Metal's numeric command buffer status, or the API's status name? | **The name.** The runner records what the API answers. |
++
++## Windows section-backed RAM (experimental)
++
++The size-checked `RvgDeviceConfig.memory_sections` extension accepts one `RvgMemoryRangeSection` per range. Handles are borrowed for creation and duplicated by the device. Each offset is relative to its section. See [Windows host notes](windows.md).
+diff --git a/docs/windows.md b/docs/windows.md
+new file mode 100644
+index 0000000..3d7a5d8
+--- /dev/null
++++ b/docs/windows.md
+@@ -0,0 +1,25 @@
++# Experimental Windows / WHPX host
++
++This local port targets native x86-64 Windows with the Vulkan feature and QEMU WHPX. It does not require GPU partitioning. The guest uses Apple's existing AppleParavirtGPU driver; Metal commands are translated through metal2vulkan-runtime to the host Vulkan driver.
++
++Build with the GNU Rust toolchain and MSYS2 UCRT64 development tools:
++
++```sh
++cargo build -p reims-vgpu-c --release --no-default-features --features vulkan
++```
++
++The workspace currently patches metal2vulkan and its runtime to the sibling `../metal2vulkan-windows` checkout. This is a development dependency, not a published package. The runtime needs the Windows rotation, page-size, sharing and exit-guard changes in that checkout. Firmware uses llvm-objcopy on Windows. QEMU is a separate local experimental checkout with WHPX fixes and section-backed RAM.
++
++## Memory and API
++
++Windows RAM is backed by pagefile sections. `RvgDeviceConfig.memory_sections` is an additive, size-checked extension: each range supplies a borrowed native section handle and its byte offset. Creation duplicates handles and validates the range. These are not Unix file descriptors. The QEMU host must allocate RAM from shared sections and provide their handles; callback-only RAM cannot supply aliasable guest memory.
++
++VirtualAlloc2 placeholders and MapViewOfFile3 provide fixed aliases, partial replacement and independent backing lifetimes. GPU virtual-address reservations use uncommitted placeholders rather than pagefile-backed allocations. Host memory imported into Vulkan retains its writable alias until the runtime releases it. Vulkan external-host-memory support and compatible alignment are required. DMA-BUF remains Unix-only.
++
++## Validation and limits
++
++A local Windows 11 / RTX 4070 SUPER run booted an independent Sonoma 14.8.9 disk copy using WHPX. The guest loaded AppleParavirtGPUControl, reported Metal 2, and rendered the 1920x1080 desktop. Host logs showed translated render and compute work. Eight window drag round trips updated the display without stopping the guest. A QMP hardware reset recovered the Metal device; this is not a guest-initiated clean reboot test.
++
++Seven actual-source memory tests cover alias lifetime, partial replacement, refusal rollback, maximum protections, a 1 TiB sparse reservation and surface ownership. The runtime host-memory selection passed 11 tests, and a native Vulkan import/fill/readback test passed.
++
++The validated presentation path is headless QMP capture (`REIMS_VGPU_WINDOW=0`). Native SDL presentation, video decode, performance, long-duration stability, Linux/macOS regression checks and the full behavior-lock suite remain unverified. This is a local experiment, not an upstream-ready or production-supported port.
+diff --git a/firmware/Makefile b/firmware/Makefile
+index 0b27a48..d9e5d92 100644
+--- a/firmware/Makefile
++++ b/firmware/Makefile
+@@ -13,6 +13,7 @@
+ CC    = clang
+ LD    = lld-link
+ ROMLD = ld.lld
++OBJCOPY = llvm-objcopy
+ 
+ BUILD = build
+ NAME  = ReimsVgpu
+@@ -48,7 +49,11 @@ rom: $(BUILD)/$(NAME).rom
+ $(BUILD)/$(NAME).rom: src/OptionRom.S src/ReimsVgpu.h $(BUILD)/$(NAME).efi
+ 	$(CC) --target=x86_64-unknown-none-elf -DEFI_IMAGE='"$(BUILD)/$(NAME).efi"' \
+ 		-c $< -o $(BUILD)/obj/OptionRom.o
++ifeq ($(OS),Windows_NT)
++	$(OBJCOPY) -O binary --only-section=.rom $(BUILD)/obj/OptionRom.o $@
++else
+ 	$(ROMLD) --oformat binary -o $@ $(BUILD)/obj/OptionRom.o
++endif
+ 
+ $(BUILD)/$(NAME).efi: $(OBJECTS)
+ 	$(LD) $(LDFLAGS) /out:$@ $^

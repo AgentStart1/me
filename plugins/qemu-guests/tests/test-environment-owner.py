@@ -27,6 +27,63 @@ class EnvironmentOwnerTests(unittest.TestCase):
     def record(self):
         return json.loads((self.lock / 'owner.json').read_text())
 
+    def test_drained_publication_runs_after_resources_and_workers_before_release(self):
+        events = []
+        owner = TestEnvironmentOwner(self.home)
+        def publish(error):
+            self.assertIsNone(error)
+            self.assertEqual(owner.state, OwnerState.DRAINED)
+            self.assertEqual(events, ['resource', 'workers'])
+            self.assertEqual(self.record()['token'], owner.token)
+            with self.assertRaises(FileExistsError):
+                with TestEnvironmentOwner(self.home):
+                    self.fail('Publication lost its reservation')
+            with self.assertRaises(RuntimeError):
+                owner.callback(lambda: None)
+            events.append('published')
+        with patch.object(owner, '_finish_workers', side_effect=lambda: events.append('workers')):
+            with owner:
+                owner.callback(lambda: events.append('resource'))
+                owner.on_drained(publish)
+        self.assertEqual(events, ['resource', 'workers', 'published'])
+        self.assertFalse(self.lock.exists())
+
+    def test_failed_publication_retains_the_lease(self):
+        with self.assertRaisesRegex(OSError, 'publication failed'):
+            with TestEnvironmentOwner(self.home) as owner:
+                owner.on_drained(Mock(side_effect=OSError('publication failed')))
+        self.assertIs(owner.state, OwnerState.RETAINED)
+        self.assertEqual(self.record()['phase'], 'cleanup-uncertain')
+
+    def test_publication_can_report_uncertainty_without_releasing_the_lease(self):
+        with self.assertRaises(CleanupUncertain):
+            with TestEnvironmentOwner(self.home) as owner:
+                owner.on_drained(lambda error: owner.retain())
+        self.assertIs(owner.state, OwnerState.RETAINED)
+
+    def test_lost_lease_identity_prevents_terminal_publication(self):
+        publish = Mock()
+        with self.assertRaisesRegex(RuntimeError, 'refusing publication'):
+            with TestEnvironmentOwner(self.home) as owner:
+                owner.on_drained(publish)
+                record = self.record()
+                (self.lock / 'owner.json').write_text(json.dumps({**record, 'token': 'replacement'}))
+        publish.assert_not_called()
+        self.assertIs(owner.state, OwnerState.RETAINED)
+
+    def test_body_failure_is_published_before_clean_lease_release(self):
+        failure = ValueError('fixture failure')
+        def publish(error):
+            self.assertIs(error, failure)
+            self.assertTrue(self.lock.exists())
+        callback = Mock(side_effect=publish)
+        with self.assertRaises(ValueError):
+            with TestEnvironmentOwner(self.home) as owner:
+                owner.on_drained(callback)
+                raise failure
+        callback.assert_called_once()
+        self.assertFalse(self.lock.exists())
+
     def test_success_releases_only_after_all_owned_resources_close(self):
         order = []
         with TestEnvironmentOwner(self.home) as owner:

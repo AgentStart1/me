@@ -163,7 +163,9 @@ jobs:
       - run: python plugins/qemu-guests/tests/test-environment-cli.py
       - run: python plugins/qemu-guests/tests/test-cancellation.py
       - run: python plugins/qemu-guests/tests/test-worker-protocol.py
-      - run: node --test plugins/qemu-guests/tests/test-appium-run.cjs plugins/qemu-guests/tests/test-macos-autologin.cjs
+      - run: python plugins/qemu-guests/tests/test-macos-desktop.py
+      - run: python plugins/qemu-guests/tests/test-reims-runtime.py
+      - run: node --test plugins/qemu-guests/tests/test-appium-run.cjs plugins/qemu-guests/tests/test-macos-autologin.cjs plugins/qemu-guests/tests/test-prepare-runtime.cjs
 
   windows-msys2-path:
     name: Windows MSYS2 path regression

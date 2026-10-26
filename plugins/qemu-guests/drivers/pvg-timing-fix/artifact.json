@@ -1,0 +1,14 @@
+{
+  "build": "24H32",
+  "darwin": 24,
+  "architecture": "x86_64",
+  "lilu_source": "e4748cc081bf060302c7d3c44a643ce1d11b7e1d",
+  "kernel_sdk_source": "3f750085caa17ec3a7880f11c11bf4f48cd6a164",
+  "files": {
+    "Info.plist": "60c87596724d892bce1e57b164aa401563ebb777b0b7f18bfca5f47d38f63789",
+    "LICENSE-Lilu.txt": "74c3ca48189b796b0d262866e67de8efba77a71516667ce68dc3a8f13c2a3c57",
+    "PvgTimingFix": "d840d8619c09f0d5ea386ef393a38c0b27b8708155f0fe1c21661b14dd67c10d",
+    "PvgTimingFix.cpp": "04826e09e1503a50c0b8fa86e10195da8896747b87e503181c27faef93835bc2",
+    "StockTimingMethod.hpp": "09ace635bb7cb100ef7ec2d790bbd336da725e1a8bc54b2a03ec1c65bd283c4a"
+  }
+}
