@@ -39,6 +39,12 @@ Use a GPT installer disk (GPTSPUD in the preparation helper), attached read-only
 
 First boot requires FileVault off, publishes dedicated-account loginwindow credentials with root-only permissions, installs the Appium LaunchAgent and reboots. Never disable encryption to satisfy setup. Acceptance must confirm authenticated SSH, the expected console user, its loaded Appium service and ready loopback endpoint. A handoff marker is not installation success; retain it and inspect failures rather than repeating a destructive command. No compiler or native install hook may run in the work guest without explicit user authorization.
 
+On Sequoia, a retained `/var/db/.AppleSetupTermsOfService` cookie can force the
+Terms pane even when `.AppleSetupDone` and persistent automatic login exist.
+The first-boot template clears this separate cookie for the installation already
+invoked with `--agreetolicense`. Do not substitute clicking the Terms pane for
+validating the corrected bootstrap on an independent empty disk.
+
 ## Project runtime requirements and setup hooks
 
 Keep portable dependency requirements in the consuming project: Java/Appium versions, normal driver/plugin dependencies, system runtime libraries, prebuilt native classpath coordinates and desktop dimensions. Keep VM hardware, media, SSH, accelerator settings, prebuilt bundle locations and operator launcher commands outside that project. Use `prepare-appium-runtime.py` to package prepared local extensions, prebuilt assets and the Windows host-compiled display helper. `--requirements` with `--platform` also executes project-declared host preparation hooks. Use `guest-vm.py install <private-profile> --requirements <project-requirements>` for automated desktop setup. Fresh initialized Linux guests supply their prepared JDK/native metadata without a private Linux transport override. Use new isolated state directories/disks/ports for acceptance; never reset an existing VM to validate an install.
@@ -266,6 +272,62 @@ the reservation and networking for inspection; older shell-launched records rema
 recoverable. Do not remove retained state merely because a PID file is absent.
 
 ## Guest dependency and acceptance checks
+
+For the qualified Windows 11 x64 / Intel macOS 15.8.1 GPU path, use the bundled
+`qemu_runtime: "reims-whpx"` profile and `scripts/reims_runtime.py`, not cached
+private experimental binaries or sibling source checkouts. This runtime is
+separate from Windows guests' `whpx-reset`. Its dependency pins and patches live
+in `patches/reims-windows`; first use builds public sources with GNU Rust and
+MSYS2 UCRT64 and verifies the complete runtime. Use
+`uv run scripts/prepare-macos-gpu-boot.py` to create a new operator-owned EFI
+copy with the bundled, guarded timing fix and pinned Lilu; require build 24H32.
+Do not modify a running boot image, overwrite firmware, bypass a failed driver
+hash/build guard, or claim support for a new macOS release. Keep all caches,
+Apple media, private firmware, profiles and credentials outside consuming
+projects. Read README.md for prerequisites and DEVELOPMENT.md for rebuilding
+the supplied driver on a designated preparation machine. This does not grant
+guest-build authorization. Require actual clock/framebuffer and unchanged
+business acceptance; native SDL presentation and video decode are unqualified.
+Use one normal in-guest shutdown request for cold-boot qualification and confirm
+native exit before relaunching; do not race ACPI and SSH shutdown requests.
+The transparent `java-argfile` relay supports Windows/Ubuntu only. macOS business
+acceptance requires a prepared operator-owned Appium launch adapter; do not
+claim the GPU runtime adds that transport or place provider details in the project.
+
+For Intel macOS desktop recovery after fresh installation or explicit upgrade,
+read README.md's prepared-desktop section and use `scripts/macos-desktop.py
+prepare|reconcile|verify <guest.json> --plan <private-desktop.json>`. Use prepare
+before a planned cold boot; it does not publish desktop readiness. Require a reviewed
+exact OS build, bundle identifiers/CDHashes, pinned artifacts and an independent
+prebuilt WDA LaunchAgent. Use `webDriverAgentMacUrl`, never an Appium-managed WDA
+process or a build-for-testing fallback. Scripts, credential ZIPs and specific
+GPU/business checks stay outside consuming projects. The source WDA template
+only executes test-without-building. Probe actual access with a fresh reviewed
+runner before repairing permissions; preserve working grants. Regrant missing
+Accessibility through native System Settings controls and narrowly recognized authentication; do not edit TCC or
+disable system security. Require actual input readback, native window geometry,
+screenshot and confirmed cleanup before desktop readiness. Cold-boot verification
+and the unchanged business suite remain separate from SSH/Appium readiness.
+Prepare the dedicated account before cold boot to prevent idle screen locking.
+Require a verified unlocked matching console before native input; do not bypass
+an existing lock or treat a ready SSH/Appium service as proof of an unlocked UI.
+Reconciliation may perform one normal account login only after checking the
+matching locked console, system loginwindow secure-input process and visible
+password field. Never delete lock cookies or weaken authentication policy;
+verification must not authenticate and must require actual unlocked state.
+For permission authorization, require one recognized password field and the
+reviewed System Settings/SecurityAgent process in the test account to own secure input; recheck the prompt and process
+identity before typing once. Never replace these checks with OCR text alone or
+blind input into the current focus. Publish terminal desktop receipts after
+resource/worker cleanup while still holding the guest lease; a retained lease
+always requires inspection regardless of a prior receipt's phase.
+Retain uncertain session leases; inspect named resources before operator recovery,
+without bulk-deleting sessions or stealing reservations.
+
+Require a complete CPU-matched Mac2 runtime as well as WDA; a server-only Appium
+archive can report ready without any drivers. The desktop controller imports the
+prepared Mac2 entry before session creation. Preserve diagnostic failures and
+retained ownership records when moving validation to a new independent guest.
 
 Use Alpine's OpenRC `cgroups` service, not a `cgroupfs-mount` package. Retain
 Docker, Compose and SSH/SFTP dependencies; Go is needed only for proxy compilation.

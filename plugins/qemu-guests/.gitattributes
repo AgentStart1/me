@@ -1,2 +1,10 @@
 # Unified patches require a space prefix on blank context lines.
 patches/*.patch whitespace=-blank-at-eol
+# Keep checksummed inputs identical on Windows and Unix checkouts.
+patches/reims-windows/* text eol=lf
+# Diff context prefixes precede Makefile tabs and may end with a blank context line.
+patches/reims-windows/*.patch whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+templates/build-reims-*.sh text eol=lf
+templates/reims-vgpu.pc.tpl text eol=lf
+drivers/pvg-timing-fix/* text eol=lf
+drivers/pvg-timing-fix/PvgTimingFix -text

@@ -352,3 +352,216 @@ The snapshot retains the fingerprint v2 byte layout, including its no-hook compa
 Run tests/test-environment-owner.py for compounded proxy/transport failures through the actual environment.run wiring, context cleanup errors, interrupted teardown, retention-publication failure, foreign ownership and successful release. Run tests/test-initialization-snapshot.py for source mutation/deletion, one-read capture, detached-view mutation, Ubuntu/Windows payloads, cloud-init configuration and actual persisted-record/seed agreement. These suites use temporary directories and mocks/local fixtures only. Keep QEMU_TEST_ACCEL unset for normal regressions; native smoke remains an explicit separate opt-in.
 
 The relay switches to CLOSED before server shutdown or waiting for its session lock, then drains the active worker under that lock before cleaning launch resources. A previously accepted HTTP worker that finishes reading its body after close must reject the request before staging files or contacting upstream. The ownership suite verifies this with a real loopback connection held at the request-body boundary; no VM or application is launched.
+
+## Bundled Windows macOS GPU dependencies
+
+`patches/reims-windows/sources.json` pins the three public source revisions and
+their patch hashes. The patches preserve the tested local Windows port: Reims
+platform memory and C API, metal2vulkan runtime host-memory support, and QEMU's
+WHPX/section-backed RAM integration. `reims_sources.py` captures the lock,
+patches and build templates before checkout; it only applies them in a fresh
+cache workspace. Never point this preparer at a contributor's existing checkout.
+The Reims QEMU gitlink is deliberately excluded from its patch; QEMU is fetched
+and patched independently from the same lock.
+The plugin's `.gitattributes` keeps checksummed patch/driver files and GPU build
+templates at LF, and marks the kext binary as non-text. A temporary repository
+checkout with `core.autocrlf=true` preserved all 16 release inputs byte-for-byte;
+retain these attributes when updating or distributing the bundle.
+Whitespace exceptions for these three patch files preserve unified-diff context
+prefixes before Makefile tabs and blank final context lines; ordinary source
+files retain their normal whitespace checks. Do not normalize the patch bytes.
+
+Tracking: [Windows support #17](https://github.com/steelbrain/reims-vgpu/issues/17)
+and [merged early port #57](https://github.com/steelbrain/reims-vgpu/pull/57)
+refer to the earlier architecture, not this patch set.
+[Memory issue #71](https://github.com/steelbrain/reims-vgpu/issues/71) describes
+related aliasing/import failures. [QEMU #12](https://github.com/steelbrain/qemu-reims-vgpu/pull/12)
+contains related section backing but was closed without merging;
+[QEMU #4](https://github.com/steelbrain/qemu-reims-vgpu/pull/4) tracks other WHPX
+fixes. No matching metal2vulkan Windows-runtime or detailed-timing issue was
+found in the review. Retire a patch only after its behavior is present in a
+reviewed upstream pin and clean-build plus native GPU acceptance passes.
+
+`reims_runtime.py` builds the static library and EFI ROM, obtains Rust's native
+link dependencies, renders pkg-config metadata and builds QEMU with WHPX only.
+It reuses the existing PE DLL bundler and runtime-file/accelerator verification.
+Publication includes the immutable recipe and upstream license texts. A failed
+or interrupted build preserves its source/output evidence; cancellation retains
+its build reservation. The separate runtime selection must not alter Windows
+guest defaults or silently fall back to TCG.
+
+`drivers/pvg-timing-fix` contains the independent timing hook, the qualified
+prebuilt x86-64 kext, checksum manifest and dependency license. To rebuild it,
+prepare clean checkouts of [Lilu](https://github.com/acidanthera/Lilu) and
+[MacKernelSDK](https://github.com/acidanthera/MacKernelSDK) at the revisions in
+`artifact.json`, then run its `build.py --lilu-source ... --kernel-sdk ...
+--output ... --clang <LLVM-23-clang++>` on the designated preparation machine.
+Windows produces Mach-O objects and retained LLVM IR; final linking uses
+`xcrun ld -arch x86_64 -kext -undefined dynamic_lookup` with those two objects
+on a designated macOS build machine (`--link` does this locally on macOS).
+This is not permission to build in a work guest. Review the kext imports and
+type, update the artifact manifest deliberately, and requalify before replacing
+the bundled binary. The exact byte guard must be reviewed for every new guest
+kernel build; do not weaken it to accept an untested release.
+
+EFI preparation captures each verified driver file once in an immutable
+`DriverSnapshot`; Lilu checksum verification and ZIP extraction consume one
+captured archive buffer. Image writes and receipt hashes use those bytes,
+with driver readback before completion. The output image and sidecar receipt
+are created exclusively, and receipt/source aliases are rejected before any
+output creation. Failed attempts preserve newly created partial outputs.
+
+Run `python tests/test-reims-runtime.py` after installing
+`scripts/requirements-guests.txt`. It exercises patch checksums and capture,
+real Git patch application in synthetic repositories, runtime selection and
+environment isolation, unsupported builds and real FAT-image preservation.
+Native validation additionally requires a clean public-source build, verified
+artifact/DLL manifest, a separate VM using the generated firmware, nominal
+CoreVideo timing, visible Metal presents and unchanged application acceptance.
+Do not treat packaged source or an accelerator list as a live GPU test.
+
+On 2026-10-26, a fresh checkout/build using only these public pins and bundled
+patches passed runtime/DLL verification. An isolated copy of a previously
+blank-disk-installed 24H32 system used that runtime and an EFI image generated
+by the bundled preparer, with four vCPUs and 4096 MiB RAM. Two normal in-guest
+shutdown/cold-start cycles, native desktop reconciliation and subsequent
+read-only verification passed. Eight immediate/timed Metal frames matched
+their framebuffer colors; 1800 CoreVideo samples had no target/clock deviations
+over 100 ms. The unchanged external business suite passed all 18 tests with
+zero failures, errors or skips through the operator-owned Mac2 adapter, with
+confirmed session/forward cleanup. Generated Codex package regressions, runtime
+verification and a subsequent native desktop check also passed.
+This qualifies the opt-in `reims-whpx` path,
+not an arbitrary host GPU, macOS release or the default Windows guest runtime.
+
+A separate copy stalled after an ACPI power-button request raced an SSH
+shutdown. It was paused with its memory, disk and ownership evidence retained;
+the root cause is not established. The successful cold-start qualification
+used one normal in-guest shutdown request and confirmed native exit before
+relaunching. Do not claim that ACPI shutdown or sleep/resume has been qualified.
+
+## Prepared Intel macOS desktop recovery
+
+Sequoia's loginwindow checks a separate `/var/db/.AppleSetupTermsOfService`
+cookie before ordinary setup completion. A diagnostic macOS 15.8.1 boot retained
+that cookie after `startosinstall --agreetolicense`; its log reported `Setup launch
+reason: terms and conditions` despite a valid account, `.AppleSetupDone` and
+automatic-login configuration. Clearing the cookie and rebooting restored the
+desktop and authenticated SSH. The bootstrap now clears it before its final
+reboot, matching the [Setup Manager deployment finding](https://github.com/jamf/Setup-Manager/discussions/96).
+That diagnostic repair alone does not establish a clean unattended installation.
+The package postinstall rearms first boot only when explicitly installed on the
+running target, allowing an upgrade package to refresh the reviewed existing
+account's configuration without changing its password.
+
+`macos_desktop_plan.py` captures a private manifest, its credential and setup
+script bytes before guest mutation. Checksum-pinned archives stream through SCP;
+the guest checksum is checked before the supplied setup script executes. Require
+existing pinned SSH host keys and verified supervisor/QEMU/listener identity.
+`macos_native.py` owns specific W3C sessions and the newly created Finder window;
+`macos_permissions.py` selects unambiguous visible System Settings controls and
+verifies every transition. `macos_console.py` supplies physical QMP input and
+recognizes only the explicit system authorization dialog for credential entry.
+Unknown layouts, OS builds, signing identities or unsupported key characters fail.
+
+The test account's ByHost screen-saver idle time is set to zero during first
+boot and desktop preparation. `pmset displaysleep 0` alone did not prevent a
+cloned test desktop from reaching its lock screen while SSH and Appium remained
+ready. Qualification checks `IOConsoleLocked` and the matching on-console
+session before creating any native client. A cloned lock cookie caused
+loginwindow to restore a lock even after automatic login (`kLWLockFromCookieFile`);
+idle-time configuration alone cannot clear that existing state. Reconciliation
+verifies the matching on-console account and the secure-input PID's exact system
+loginwindow executable, locates one visible `Enter Password` field beside the
+known account label, rechecks the target after focusing it, then submits the
+credential once through QMP. Allow up to two minutes for the cold-login state
+transition; a qualified four-vCPU guest exceeded the previous 30-second wait
+but subsequently reported unlocked without another password submission.
+Actual unlocked IORegistry state is required before
+native qualification. Unknown/ambiguous state or an unreviewed secure-input
+process fails before typing. Verification never authenticates; password policy
+and the OS-managed lock cookie remain untouched. Preserve uncertain ownership
+from earlier failed tests.
+The qualified login layout is English Sequoia at 1920x1080. Recognize the
+account label and low-contrast placeholder in separate narrow crops; never use
+the crop's assumed location as a blind password click. Tesseract TSV parsing
+must disable CSV quote processing, since recognized quote characters are raw
+text and otherwise consume subsequent rows. A target recheck immediately before
+typing prevents a changed/unlocked console from receiving the credential.
+System Settings authorization separately recognizes a unique password caption
+and the complete authorization message. Its low-contrast placeholder/button
+use separate crops of one captured 1920x1080 frame. Crop positions only constrain
+OCR; input uses the recognized field bounds. After focusing, require the matching
+unlocked console's secure-input PID to be a reviewed System Settings or SecurityAgent executable in the test account;
+recheck the full prompt, PID, executable and process start time before typing
+once. Missing AX fields do not permit blind input: the OCR field and secure-input
+checks are mandatory for that path as well.
+
+Finder element UUIDs can change when a new window changes the snapshot hierarchy.
+`macos_windows.py` reads stable WindowServer window numbers through the built-in
+JavaScript/Objective-C bridge and CoreGraphics, without Apple Events. It excludes
+the desktop layer and window titles. Qualification matches only its newly created
+window to native geometry, verifies the actual system geometry and disappearance,
+and requires all pre-existing windows and their rectangles to remain unchanged.
+
+The prepared WDA must be independent of Appium's driver-owned process lifecycle.
+Its LaunchAgent runs test-without-building, and every new Mac2 session explicitly
+uses webDriverAgentMacUrl. TestEnvironmentOwner owns reservations and tunnels.
+Missing/malformed creation responses and failed specific deletion retain the
+lease. Readiness is published only after resource cleanup and guest identity
+revalidation; a competing lease must not overwrite an existing desktop receipt.
+
+WDA caches Accessibility trust, so reconciliation starts with a fresh runner and
+actual native qualification. Only an Accessibility failure triggers removal and
+re-registration of reviewed grants; an enabled, working grant is left intact.
+Revoking a valid grant while its runner caches trusted access can invalidate its
+native snapshots. Qualification after repair therefore also uses a fresh runner.
+`launchctl kickstart -k` only replaces the xcodebuild wrapper and can leave
+testmanagerd's runner app listening on the same port. `macos_wda.py` unloads the
+named job first, matches any remaining listener to a reviewed bundle executable,
+account and process start time, sends TERM only after an immediate identity
+recheck, confirms exit, then reloads the job. An unreviewed listener is never
+signaled. Unconfirmed shutdown/restart retains ownership; no broad process-name
+scan or kill is used. The readiness wait rejects the old listener PID.
+If the guarded TERM fails, only a fresh confirmation that the original runner
+is absent permits restart. A replacement or an unknown process probe still fails.
+
+`TestEnvironmentOwner.on_drained` runs one terminal-metadata callback after all
+registered resources and workers finish, before releasing its guest lease.
+`DRAINED` forbids new owned resources. Desktop success and failure receipts use
+this boundary; neither writes state after leaving the owner. Recheck lease
+identity before publication, and retain ownership if publication fails. A
+retained lease remains authoritative even if release fails after writing a receipt.
+
+The review fixes were checked with deterministic input-replacement, output-path
+collision, lease-publication and credential-target regressions. A native 24H32
+authorization probe forced the OCR path, confirmed the secure-input identity
+twice, submitted the credential once and reached the file picker without changing
+existing grants. The public reconciliation command and real EFI-copy preparation
+also passed. The full 18-case business result recorded above predates these
+management fixes; it was not rerun for them.
+
+Run `python tests/test-macos-desktop.py` for synthetic manifest, input, target
+selection and session-ownership contracts. Keep native installation/cold-boot/UI
+and consuming-project acceptance separate and record the selected release and
+prepared asset hashes. This suite does not start a VM.
+
+Run `node --test tests/test-prepare-runtime.cjs` for first-extension cache
+creation and preservation/relocation of existing registrations. A server-only
+archive legitimately lacks Appium's extension cache until first startup; the
+offline preparer creates schema revision 4 when adding its first extension.
+
+A clean Intel macOS 15.8.1 (24H32) run completed installation, automatic login,
+prepared-runtime deployment, native Accessibility repair and two cold starts
+without manual interaction, using four vCPUs and 4096 MiB RAM. The prepared
+assets included Xcode 16.2 (16C5032a) and Mac2 4.5.0; no WDA or application
+build ran in the guest. With a separately supplied experimental display runtime,
+eight immediate/timed Metal frames matched the actual framebuffer colors and
+1800 CoreVideo samples had no target/clock deviations over 100 ms. These GPU
+results do not establish GPU support in the plugin's default managed runtime.
+The unchanged external desktop business suite then passed all 18 tests with
+zero failures, errors or skips through an operator-owned Mac2 launch adapter,
+separate from the plugin's Windows/Ubuntu transparent JVM relay.
+Guest sessions, application bundles and SSH
+forwards were cleaned up before the complete lifecycle published acceptance;
+the VM remained running and its test lease was released.

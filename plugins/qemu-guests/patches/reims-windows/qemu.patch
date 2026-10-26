@@ -1,0 +1,370 @@
+diff --git a/accel/accel-system.c b/accel/accel-system.c
+index 1325b23..c0cb813 100644
+--- a/accel/accel-system.c
++++ b/accel/accel-system.c
+@@ -77,6 +77,16 @@ void accel_pre_resume(MachineState *ms, bool step_pending)
+     }
+ }
+ 
++void accel_reset(MachineState *ms)
++{
++    AccelState *accel = ms->accelerator;
++    AccelClass *acc = ACCEL_GET_CLASS(accel);
++
++    if (acc->reset_vm) {
++        acc->reset_vm(accel);
++    }
++}
++
+ /* initialize the arch-independent accel operation interfaces */
+ void accel_init_ops_interfaces(AccelClass *ac)
+ {
+diff --git a/accel/whpx/whpx-common.c b/accel/whpx/whpx-common.c
+index 247e12d..9258522 100644
+--- a/accel/whpx/whpx-common.c
++++ b/accel/whpx/whpx-common.c
+@@ -231,6 +231,22 @@ void whpx_cpu_synchronize_pre_loadvm(CPUState *cpu)
+     run_on_cpu(cpu, do_whpx_cpu_synchronize_pre_loadvm, RUN_ON_CPU_NULL);
+ }
+ 
++static void whpx_partition_reset(AccelState *as)
++{
++    HRESULT hr;
++
++    if (!whp_dispatch.WHvResetPartition) {
++        warn_report("WHPX: partition reset API unavailable");
++        return;
++    }
++    hr = whp_dispatch.WHvResetPartition(whpx_global.partition);
++    if (FAILED(hr)) {
++        error_report("WHPX: partition reset failed, hr=%08lx", hr);
++    } else {
++        info_report("WHPX: partition reset completed");
++    }
++}
++
+ static void whpx_pre_resume_vm(AccelState *as, bool step_pending)
+ {
+     whpx_global.step_pending = step_pending;
+@@ -526,6 +542,7 @@ static void whpx_accel_class_init(ObjectClass *oc, const void *data)
+     ac->name = "WHPX";
+     ac->init_machine = whpx_accel_init;
+     ac->pre_resume_vm = whpx_pre_resume_vm;
++    ac->reset_vm = whpx_partition_reset;
+     ac->allowed = &whpx_allowed;
+ 
+     object_class_property_add(oc, "kernel-irqchip", "on|off|split",
+diff --git a/hw/display/apple-gfx.c b/hw/display/apple-gfx.c
+index de8a240..c34e271 100644
+--- a/hw/display/apple-gfx.c
++++ b/hw/display/apple-gfx.c
+@@ -1007,6 +1007,9 @@ bool apple_gfx_common_realize(AppleGFXState *s, DeviceState *dev,
+     static const char display_name[] = "Reims vGPU";
+     g_autoptr(GArray) memory_ranges = NULL;
+     g_autoptr(GArray) memory_files = NULL;
++#ifdef CONFIG_WIN32
++    g_autoptr(GArray) memory_sections = NULL;
++#endif
+     g_autofree RvgDisplayMode *modes = NULL;
+     const AppleGFXDisplayMode *display_modes = apple_gfx_default_modes;
+     uint32_t num_display_modes = ARRAY_SIZE(apple_gfx_default_modes);
+@@ -1075,6 +1078,22 @@ bool apple_gfx_common_realize(AppleGFXState *s, DeviceState *dev,
+                                 &config->memory_files, errp)) {
+         return false;
+     }
++#ifdef CONFIG_WIN32
++    memory_sections = g_array_new(false, false, sizeof(RvgMemoryRangeSection));
++    for (i = 0; i < memory_ranges->len; i++) {
++        RvgMemoryRange *range = &g_array_index(memory_ranges, RvgMemoryRange, i);
++        RvgMemoryRangeSection section = { 0 };
++        section.handle = qemu_win32_ram_section(range->host_address,
++                                                &section.offset);
++        if (!section.handle) {
++            error_setg(errp, "apple-gfx: RAM range has no Win32 section backing");
++            return false;
++        }
++        g_array_append_val(memory_sections, section);
++    }
++    config->memory_files = NULL;
++    config->memory_sections = (const RvgMemoryRangeSection *)memory_sections->data;
++#endif
+     memory_map = (RvgMemoryMap) {
+         .ranges = (const RvgMemoryRange *)memory_ranges->data,
+         .range_count = memory_ranges->len,
+diff --git a/include/accel/accel-ops.h b/include/accel/accel-ops.h
+index 9f3f329..a167649 100644
+--- a/include/accel/accel-ops.h
++++ b/include/accel/accel-ops.h
+@@ -35,6 +35,7 @@ struct AccelClass {
+     /* system related hooks */
+     void (*setup_post)(AccelState *as);
+     void (*pre_resume_vm)(AccelState *as, bool step_pending);
++    void (*reset_vm)(AccelState *as);
+     bool (*has_memory)(AccelState *accel, AddressSpace *as,
+                        hwaddr start_addr, hwaddr size);
+ 
+diff --git a/include/qemu/accel.h b/include/qemu/accel.h
+index 6f65f1c..4e73092 100644
+--- a/include/qemu/accel.h
++++ b/include/qemu/accel.h
+@@ -54,6 +54,9 @@ void accel_setup_post(MachineState *ms);
+ 
+ void accel_pre_resume(MachineState *ms, bool step_pending);
+ 
++/* Reset accelerator state with all virtual CPUs stopped. */
++void accel_reset(MachineState *ms);
++
+ /**
+  * accel_cpu_instance_init:
+  * @cpu: The CPU that needs to do accel-specific object initializations.
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index 1ec5b42..f3f885b 100644
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -537,6 +537,10 @@ int qemu_daemon(int nochdir, int noclose);
+ void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
+                           bool noreserve);
+ void qemu_anon_ram_free(void *ptr, size_t size);
++#ifdef _WIN32
++/* Borrowed section backing address; offset is relative to that section. */
++uintptr_t qemu_win32_ram_section(void *address, uint64_t *offset);
++#endif
+ int qemu_shm_alloc(size_t size, Error **errp);
+ 
+ #ifdef _WIN32
+diff --git a/meson.build b/meson.build
+index 4fa0b99..b28a50c 100644
+--- a/meson.build
++++ b/meson.build
+@@ -879,7 +879,7 @@ endif
+ # xtask dist` writes into its target/dist/lib/pkgconfig. It is linked
+ # statically, so the binary records no path to it. The library runs on
+ # macOS, under HVF, and on Linux, under KVM.
+-if host_os in ['darwin', 'linux']
++if host_os in ['darwin', 'linux', 'windows']
+   pvg = dependency('reims-vgpu', method: 'pkg-config', static: true,
+                    required: get_option('pvg'))
+   # apple-gfx-pci's default romfile: the EFI option ROM the package's
+@@ -3424,7 +3424,8 @@ foreach target : target_dirs
+     # figure out which target can support PVG on this host: HVF's on macOS,
+     # KVM's on Linux.
+     if pvg.found() and (target in accelerator_targets.get('CONFIG_HVF', []) or
+-                        target in accelerator_targets.get('CONFIG_KVM', []))
++                        target in accelerator_targets.get('CONFIG_KVM', []) or
++                        target in accelerator_targets.get('CONFIG_WHPX', []))
+       target_kconfig += 'CONFIG_MAC_PVG=y'
+     endif
+ 
+diff --git a/system/runstate.c b/system/runstate.c
+index d3e64d2..ddcf63f 100644
+--- a/system/runstate.c
++++ b/system/runstate.c
+@@ -723,6 +723,10 @@ void qemu_system_reset(ShutdownCause reason)
+         qapi_event_send_reset(shutdown_caused_by_guest(reason), reason);
+     }
+ 
++    if (current_machine) {
++        accel_reset(current_machine);
++    }
++
+     /*
+      * Some boards use the machine reset callback to point CPUs to the firmware
+      * entry point.  Assume that this is not the case for boards that support
+diff --git a/target/arm/whpx/whpx-all.c b/target/arm/whpx/whpx-all.c
+index 46f0b95..f8e6932 100644
+--- a/target/arm/whpx/whpx-all.c
++++ b/target/arm/whpx/whpx-all.c
+@@ -471,8 +471,6 @@ int whpx_vcpu_run(CPUState *cpu)
+             if (arm_cpu->power_state != PSCI_OFF) {
+                 whpx_psci_cpu_off(arm_cpu);
+             }
+-            /* Partition-wide reset, to reset state for reboots to succeed. */
+-            whp_dispatch.WHvResetPartition(whpx->partition);
+             bql_unlock();
+             break;
+         case WHvRunVpExitReasonNone:
+diff --git a/target/i386/whpx/whpx-all.c b/target/i386/whpx/whpx-all.c
+index 113f79a..c80a14a 100644
+--- a/target/i386/whpx/whpx-all.c
++++ b/target/i386/whpx/whpx-all.c
+@@ -41,6 +41,7 @@
+ #include "system/whpx-all.h"
+ #include "system/whpx-common.h"
+ #include "whpx-i386.h"
++#include "whpx-cpuid.h"
+ 
+ #include "emulate/x86_decode.h"
+ #include "emulate/x86_emu.h"
+@@ -2596,19 +2597,21 @@ int whpx_vcpu_run(CPUState *cpu)
+             /* Dynamic depending on XCR0 and XSS, so query DefaultResult */
+             if (vcpu->exit_ctx.CpuidAccess.Rax == 0x07
+                 && vcpu->exit_ctx.CpuidAccess.Rcx == 0) {
+-                if (vcpu->exit_ctx.CpuidAccess.DefaultResultRdx
+-                    & CPUID_7_0_EDX_CET_IBT) {
+-                    reg_values[3].Reg32 |= CPUID_7_0_EDX_CET_IBT;
+-                } else {
+-                    reg_values[3].Reg32 &= ~CPUID_7_0_EDX_CET_IBT;
+-                }
++                bool xsave = env->features[FEAT_1_ECX] & CPUID_EXT_XSAVE;
++                bool xsaves = env->features[FEAT_XSAVE] & CPUID_XSAVE_XSAVES;
+ 
+-                if (vcpu->exit_ctx.CpuidAccess.DefaultResultRcx
+-                    & CPUID_7_0_ECX_CET_SHSTK) {
+-                    reg_values[2].Reg32 |= CPUID_7_0_ECX_CET_SHSTK;
+-                } else {
+-                    reg_values[2].Reg32 &= ~CPUID_7_0_ECX_CET_SHSTK;
+-                }
++                /* CET state needs a guest supervisor-state save/restore path.
++                 * WHPX defaults must not re-enable features excluded by the
++                 * selected CPU model (for example, pre-XSAVE Westmere).
++                 */
++                reg_values[2].Reg32 = whpx_filter_cet_cpuid(
++                    reg_values[2].Reg32,
++                    vcpu->exit_ctx.CpuidAccess.DefaultResultRcx,
++                    CPUID_7_0_ECX_CET_SHSTK, xsave, xsaves);
++                reg_values[3].Reg32 = whpx_filter_cet_cpuid(
++                    reg_values[3].Reg32,
++                    vcpu->exit_ctx.CpuidAccess.DefaultResultRdx,
++                    CPUID_7_0_EDX_CET_IBT, xsave, xsaves);
+ 
+                 if (vcpu->exit_ctx.CpuidAccess.DefaultResultRcx
+                     & CPUID_7_0_ECX_OSPKE) {
+@@ -3039,7 +3042,7 @@ int whpx_accel_init(AccelState *as, MachineState *ms)
+     WHV_PROCESSOR_FEATURES_BANKS processor_features;
+     WHV_PROCESSOR_PERFMON_FEATURES perfmon_features;
+ 
+-    UINT32 cpuidExitList[] = {0x0, 0x1, 0x6, 0x7, 0xb, 0xd, 0x14, 0x24, 0x29, 0x1E,
++    UINT32 cpuidExitList[] = {0x0, 0x1, 0x4, 0x6, 0x7, 0xb, 0xd, 0x14, 0x24, 0x29, 0x1E,
+         0x40000000, 0x40000001, 0x40000010, 0x80000000, 0x80000001,
+         0x80000002, 0x80000003, 0x80000004, 0x80000007, 0x80000008,
+         0x8000000A, 0x80000021, 0x80000022, 0xC0000000, 0xC0000001};
+diff --git a/target/i386/whpx/whpx-cpuid.h b/target/i386/whpx/whpx-cpuid.h
+new file mode 100644
+index 0000000..1e29e15
+--- /dev/null
++++ b/target/i386/whpx/whpx-cpuid.h
+@@ -0,0 +1,23 @@
++/*
++ * WHPX CPUID capability intersection.
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++#ifndef WHPX_CPUID_H
++#define WHPX_CPUID_H
++
++#include <stdbool.h>
++#include <stdint.h>
++
++/* Preserve unrelated bits; CET requires both guest and WHPX support, plus
++ * the guest XSAVE/XSAVES path used to preserve per-thread CET state.
++ */
++static inline uint32_t whpx_filter_cet_cpuid(uint32_t model, uint32_t host,
++                                           uint32_t cet_mask,
++                                           bool xsave, bool xsaves)
++{
++    uint32_t cet = xsave && xsaves ? model & host & cet_mask : 0;
++
++    return (model & ~cet_mask) | cet;
++}
++
++#endif /* WHPX_CPUID_H */
+diff --git a/util/oslib-win32.c b/util/oslib-win32.c
+index 5f3e8f4..40043ca 100644
+--- a/util/oslib-win32.c
++++ b/util/oslib-win32.c
+@@ -36,6 +36,35 @@
+ #include "qemu/error-report.h"
+ #include <malloc.h>
+ 
++typedef struct Win32RamSection {
++    void *base;
++    size_t size;
++    HANDLE section;
++    struct Win32RamSection *next;
++} Win32RamSection;
++
++static SRWLOCK ram_sections_lock = SRWLOCK_INIT;
++static Win32RamSection *ram_sections;
++
++uintptr_t qemu_win32_ram_section(void *address, uint64_t *offset)
++{
++    Win32RamSection *entry;
++    uintptr_t result = 0;
++    uintptr_t at = (uintptr_t)address;
++
++    AcquireSRWLockShared(&ram_sections_lock);
++    for (entry = ram_sections; entry; entry = entry->next) {
++        uintptr_t base = (uintptr_t)entry->base;
++        if (at >= base && at - base < entry->size) {
++            *offset = at - base;
++            result = (uintptr_t)entry->section;
++            break;
++        }
++    }
++    ReleaseSRWLockShared(&ram_sections_lock);
++    return result;
++}
++
+ static int get_allocation_granularity(void)
+ {
+     SYSTEM_INFO system_info;
+@@ -48,6 +77,8 @@ void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
+                           bool noreserve)
+ {
+     void *ptr;
++    HANDLE section;
++    Win32RamSection *entry;
+ 
+     if (noreserve) {
+         /*
+@@ -58,7 +89,23 @@ void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
+         return NULL;
+     }
+ 
+-    ptr = VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
++    section = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
++                                 (uint64_t)size >> 32, (uint32_t)size, NULL);
++    if (!section) {
++        return NULL;
++    }
++    ptr = MapViewOfFile(section, FILE_MAP_ALL_ACCESS, 0, 0, size);
++    if (!ptr) {
++        CloseHandle(section);
++        return NULL;
++    }
++    entry = g_new(Win32RamSection, 1);
++    *entry = (Win32RamSection) { .base = ptr, .size = size,
++                                .section = section };
++    AcquireSRWLockExclusive(&ram_sections_lock);
++    entry->next = ram_sections;
++    ram_sections = entry;
++    ReleaseSRWLockExclusive(&ram_sections_lock);
+     trace_qemu_anon_ram_alloc(size, ptr);
+ 
+     if (ptr && align) {
+@@ -69,9 +116,25 @@ void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
+ 
+ void qemu_anon_ram_free(void *ptr, size_t size)
+ {
++    Win32RamSection **link, *entry = NULL;
+     trace_qemu_anon_ram_free(ptr, size);
+     if (ptr) {
+-        VirtualFree(ptr, 0, MEM_RELEASE);
++        AcquireSRWLockExclusive(&ram_sections_lock);
++        for (link = &ram_sections; *link; link = &(*link)->next) {
++            if ((*link)->base == ptr) {
++                entry = *link;
++                *link = entry->next;
++                break;
++            }
++        }
++        ReleaseSRWLockExclusive(&ram_sections_lock);
++        if (entry) {
++            UnmapViewOfFile(ptr);
++            CloseHandle(entry->section);
++            g_free(entry);
++        } else {
++            VirtualFree(ptr, 0, MEM_RELEASE);
++        }
+     }
+ }
+ 

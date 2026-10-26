@@ -29,6 +29,13 @@ def alive(record):
     return identity(record['pid']) == record['identity']
 
 
+def process_environment(config):
+    if config.get('qemu_runtime') == 'reims-whpx':
+        # The qualified Windows path presents through QMP; SDL is not qualified.
+        return {**os.environ, 'REIMS_VGPU_WINDOW': '0'}
+    return None
+
+
 def arguments(config, home, installing, first_boot=True):
     disk = str(home / 'disk.qcow2').replace(',', ',,')
     port = config['ssh_port']
@@ -157,7 +164,8 @@ def supervise(config, home, installing):
         with open(home / 'qemu.log', 'ab') as qemu_log:
             with defer_cancellation():
                 child = subprocess.Popen(arguments(config, home, boot_install, first_boot=installing), stdin=subprocess.PIPE,
-                                         stdout=qemu_log, stderr=qemu_log, start_new_session=os.name != 'nt',
+                                         stdout=qemu_log, stderr=qemu_log, env=process_environment(config),
+                                         start_new_session=os.name != 'nt',
                                          creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
                 native = identity(child.pid)
                 if native is None:
@@ -189,7 +197,8 @@ def supervise(config, home, installing):
                         child.stdin.close()
                         with defer_cancellation():
                             child = subprocess.Popen(arguments(config, home, True, first_boot=False), stdin=subprocess.PIPE,
-                                stdout=qemu_log, stderr=qemu_log, start_new_session=os.name != 'nt',
+                                stdout=qemu_log, stderr=qemu_log, env=process_environment(config),
+                                start_new_session=os.name != 'nt',
                                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0)
                             record = {**record, 'pid': child.pid, 'identity': identity(child.pid)}
                             if record['identity'] is None:

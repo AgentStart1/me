@@ -33,6 +33,13 @@ bash bootstrap.sh
 [ -s /etc/kcpassword ]
 [ "$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser)" = '{{USER}}' ]
 /usr/bin/pmset -a sleep 0 displaysleep 0
+# This dedicated account must not enter its idle screen saver during host tests.
+# Keep authentication policies unchanged; an explicitly locked session stays locked.
+/usr/bin/sudo -H -u '{{USER}}' /usr/bin/defaults -currentHost write com.apple.screensaver idleTime -int 0
+# Sequoia can retain this separate Terms cookie despite startosinstall's
+# --agreetolicense. It takes precedence over .AppleSetupDone at loginwindow.
+# https://github.com/jamf/Setup-Manager/discussions/96
+rm -f /var/db/.AppleSetupTermsOfService
 touch /var/db/.AppleSetupDone /var/db/qemu-guests-ready
 rm -f account-password
 /sbin/shutdown -r now

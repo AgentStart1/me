@@ -12,7 +12,9 @@ const replace = value => {
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v]) => [k,replace(v)]));
     return value;
 };
-const config = replace(yaml.parse(fs.readFileSync(file, 'utf8')));
+// A server-only offline runtime has no extension cache until its first start.
+const config = fs.existsSync(file) ? replace(yaml.parse(fs.readFileSync(file, 'utf8'))) :
+    {drivers: {}, plugins: {}, schemaRev: 4};
 for (const {path: installPath, package: pkg} of prepared) {
     const metadata = pkg.appium;
     const plugins = Boolean(metadata.pluginName);
@@ -29,5 +31,6 @@ manifest.plugins = Object.keys(config.plugins || {});
 manifest.extensions = Object.fromEntries(['drivers', 'plugins'].map(kind => [kind,
     Object.fromEntries(Object.entries(config[kind] || {}).map(([name, item]) => [name, item.version]))]));
 manifest.source_root = root;
+fs.mkdirSync(path.dirname(file), {recursive: true});
 fs.writeFileSync(file, yaml.stringify(config));
 fs.writeFileSync(manifestFile, JSON.stringify(manifest));
