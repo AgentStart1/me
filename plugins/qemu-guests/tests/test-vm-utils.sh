@@ -372,11 +372,17 @@ probe_whpx() { return 0; }
 VM_ACCELERATOR=auto
 configure_qemu_acceleration "${MOCK_DIR}/bin/qemu-system-x86_64"
 assert_equals "whpx" "$QEMU_ACCELERATOR" "automatic Windows selection prefers WHPX"
-assert_equals "-accel whpx -cpu qemu64" "${QEMU_ACCEL_ARGS[*]}" "WHPX uses its compatible CPU model"
+assert_equals "-accel whpx -cpu host" "${QEMU_ACCEL_ARGS[*]}" "WHPX exposes the host CPU"
 
+VM_ACCELERATOR=whpx
+configure_qemu_acceleration "${MOCK_DIR}/bin/qemu-system-x86_64"
+assert_equals "-accel whpx -cpu host" "${QEMU_ACCEL_ARGS[*]}" "explicit WHPX exposes the host CPU"
+
+VM_ACCELERATOR=auto
 probe_whpx() { return 1; }
 configure_qemu_acceleration "${MOCK_DIR}/bin/qemu-system-x86_64"
 assert_equals "tcg" "$QEMU_ACCELERATOR" "automatic selection falls back when WHPX probe fails"
+assert_equals "-accel tcg,thread=multi -cpu max" "${QEMU_ACCEL_ARGS[*]}" "WHPX failure uses the full emulated CPU"
 
 is_windows() { return 1; }
 platform_tag() { echo linux; }
