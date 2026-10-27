@@ -47,8 +47,15 @@ def payload(config):
                 files.update(snapshot.guest_files)
             files['setup-hooks.json'] = snapshot.guest_hooks_json if snapshot is not None else b'[]'
             files['run-setup-hooks.cjs'] = render('run-setup-hooks.cjs.tpl', {}).encode()
+        geometry = {'WIDTH': desktop['width'], 'HEIGHT': desktop['height']}
+        gpu = config.get('qemu_runtime') == 'virgl-whpx'
+        display = render('desktop-display-' + ('virgl' if gpu else 'xvfb') + '.sh.tpl', geometry)
         files['desktop-session.sh'] = render('desktop-session.sh.tpl', {
-            'WIDTH': desktop['width'], 'HEIGHT': desktop['height']}).encode()
+            **geometry, 'DISPLAY_SETUP': display}).encode()
+        if gpu:
+            files['graphics.json'] = json.dumps({'backend': 'virgl'}).encode()
+            files['verify-gpu.py'] = Path(__file__).with_name('guest_gpu.py').read_bytes()
+            files['desktop-autostart.desktop'] = render('desktop-autostart.desktop.tpl', {}).encode()
         files['desktop-setup.ps1'] = render('desktop-setup.ps1.tpl', {
             'WIDTH': desktop['width'], 'HEIGHT': desktop['height']}).encode()
     if windows:
@@ -110,6 +117,10 @@ def prepare_seed(config, directory):
             cloud['packages'] += LINUX_PACKAGES + config['desktop']['packages']
             cloud['write_files'].append({'path': '/etc/lightdm/lightdm.conf.d/60-test-autologin.conf',
                 'permissions': '0644', 'content': '[Seat:*]\nautologin-user=' + config['ssh_user'] + '\nautologin-user-timeout=0\nautologin-session=xfce\nuser-session=xfce\n'})
+        if config.get('qemu_runtime') == 'virgl-whpx':
+            cloud['packages'] += ['mesa-utils', 'x11-xserver-utils']
+            # LightDM can start during package installation, before the autostart file exists.
+            cloud['runcmd'][-1] = ['systemctl', 'restart', 'lightdm']
         (directory / 'user-data').write_text('#cloud-config\n' + json.dumps(cloud), encoding='utf-8')
         (directory / 'meta-data').write_text(json.dumps({'instance-id': config['name'], 'local-hostname': config['name']}), encoding='utf-8')
     elif config['os'] == 'windows':

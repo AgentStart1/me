@@ -114,7 +114,7 @@ def extract(archive, destination):
         source.extractall(destination, members=members, filter='data')
 
 
-def bundle(executable, source, stage, msys):
+def bundle(executable, source, stage, msys, dependency_dirs=()):
     binaries = stage / 'bin'
     binaries.mkdir(parents=True)
     pending = [executable]
@@ -128,8 +128,10 @@ def bundle(executable, source, stage, msys):
         result = subprocess.run([str(msys / 'ucrt64/bin/objdump.exe'), '-p', str(path)],
                                 check=True, capture_output=True, text=True, timeout=30)
         for name in re.findall(r'DLL Name:\s*(\S+)', result.stdout):
-            dependency = msys / 'ucrt64/bin' / name
-            if dependency.is_file():
+            dependency = next((directory / name for directory in
+                               (*dependency_dirs, msys / 'ucrt64/bin')
+                               if (directory / name).is_file()), None)
+            if dependency is not None:
                 pending.append(dependency)
             elif not (Path(os.environ['SystemRoot']) / 'System32' / name).is_file() and not name.lower().startswith(('api-ms-', 'ext-ms-')):
                 raise ValueError('Missing runtime DLL: ' + name)
@@ -226,6 +228,9 @@ def build(cache=None, msys2=None, archive=None, jobs=8):
 
 
 def prepare(config, build_runtime=True):
+    if config.get('qemu_runtime') == 'virgl-whpx':
+        from virgl_runtime import prepare as prepare_virgl
+        return prepare_virgl(config, build_runtime)
     if config.get('qemu_runtime') == 'reims-whpx':
         from reims_runtime import prepare as prepare_gpu
         return prepare_gpu(config, build_runtime)

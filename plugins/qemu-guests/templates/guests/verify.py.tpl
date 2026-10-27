@@ -13,5 +13,7 @@ if Path('/opt/qemu-guests/desktop.json').exists():
     version = subprocess.check_output(['java', '-version'], stderr=subprocess.STDOUT).decode()
     assert int(re.search(r'version "(\d+)', version)[1]) == requirements['java'], 'Java runtime version mismatch'
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+if Path('/opt/qemu-guests/graphics.json').exists():
+    subprocess.run(['python3', '/opt/qemu-guests/verify-gpu.py'], check=True, timeout=10)
 with opener.open('http://127.0.0.1:4723/status', timeout=3) as response:
     assert json.load(response)['value']['ready'], 'Appium not ready'

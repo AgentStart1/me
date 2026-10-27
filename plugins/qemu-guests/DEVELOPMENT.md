@@ -566,6 +566,64 @@ Guest sessions, application bundles and SSH
 forwards were cleaned up before the complete lifecycle published acceptance;
 the VM remained running and its test lease was released.
 
+## Ubuntu VirGL/WHPX runtime
+
+`scripts/virgl_runtime.py` builds the opt-in Ubuntu runtime without using private
+experimental binaries. Its immutable snapshot captures the public QEMU and
+VirGLrenderer pins from `patches/viogpu-windows/sources.json`, the checked patch
+bytes, both WHPX patches and `templates/build-virgl-whpx.sh`. Mesa's Windows
+guest driver is not built or installed for Ubuntu. The cache identity includes
+these captured inputs; archives are privately copied and SHA-256 checked before
+extraction. Changed recipes use independent cache directories. Busy/interrupted
+builds retain their reservation until inspected. A complete runtime contains
+recursive DLL dependencies, firmware, source licenses and the captured recipe.
+
+For an explicit host preparation, use Python 3.12+ on Windows 11 x64:
+
+```sh
+python scripts/virgl_runtime.py --msys2-root C:/msys64 --jobs 8
+```
+
+Optional `--cache-dir`, `--qemu-archive` and `--virgl-archive` select private
+storage and already downloaded pinned archives. Set `QEMU_VIRGL_CACHE` when
+profile startup must use an alternate cache, including home paths with spaces;
+use the same cache for explicit builds and guest commands. MSYS2 installs the required
+UCRT64 compiler, Meson, Ninja, SDL2 and libepoxy packages. No system QEMU is
+replaced. Verification requires WHPX only, the VirGL device, hidden SDL option,
+and matching hashes for every bundled file. Accelerator/device enumeration does
+not prove actual GPU rendering.
+
+`guest_seed.py` chooses the display setup fragment inside the shared desktop
+session template. The GPU fragment inherits LightDM's DISPLAY/XAUTHORITY;
+the default fragment still owns Xvfb/Openbox. GPU autostart uses a private
+D-Bus session and the existing temporary unlocked keyring. `guest_gpu.py` rejects
+software renderers and mismatched dimensions, then publishes a boot ID and
+session PID/start-time receipt. Acceptance checks that live receipt and the
+existing Java, desktop and Appium requirements. The installation record includes
+the GPU backend, preventing a profile-only change from adopting a software disk.
+Initial acceptance still requires completed cloud-init. After recorded successful
+installation, cold starts retain desktop checks without requiring the one-time
+NoCloud seed to remain attached.
+
+Run the isolated regressions without starting any VM:
+
+```sh
+python tests/test-virgl-runtime.py
+python tests/test-desktop-provisioning.py
+python tests/test-whpx-runtime.py
+python tests/test-guest-panel.py
+python tests/test-work-guests.py
+```
+
+Native qualification must use a fresh state directory, the built managed runtime
+and the unchanged consuming project's runtime requirements. Require hardware
+renderer output, actual rendered color readback, native Appium source/input and
+screenshots, followed by a normal shutdown/cold start and the unchanged business
+suite. Keep logs, media, profiles and account data private. QMP has no CPU surface
+for this scanout; registry/capture checks must refuse panel capture without
+attempting a failing QMP request. Native Appium screenshot support remains the
+responsibility of the project's normal driver.
+
 ## Experimental viogpu source bundle
 
 `patches/viogpu-windows/sources.json` locks source revisions/archive hashes,

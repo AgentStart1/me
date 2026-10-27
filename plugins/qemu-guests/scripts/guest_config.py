@@ -32,8 +32,8 @@ def load(path):
         raise ValueError('os must be ubuntu, windows, macos or custom')
     data['qemu_runtime'] = data.get('qemu_runtime',
         'whpx-reset' if os.name == 'nt' and data['os'] == 'windows' and not data.get('qemu') else 'system')
-    if data['qemu_runtime'] not in {'system', 'whpx-reset', 'reims-whpx'}:
-        raise ValueError('qemu_runtime must be system, whpx-reset or reims-whpx')
+    if data['qemu_runtime'] not in {'system', 'whpx-reset', 'reims-whpx', 'virgl-whpx'}:
+        raise ValueError('qemu_runtime must be system, whpx-reset, reims-whpx or virgl-whpx')
     if data['qemu_runtime'] == 'reims-whpx' and data['os'] != 'macos':
         raise ValueError('reims-whpx is reserved for Intel macOS guests')
     if 'base_image' in data and 'installer_iso' in data:
@@ -52,6 +52,8 @@ def load(path):
     data['graphical'] = data.get('graphical', data['os'] in {'windows', 'macos'})
     if type(data['graphical']) is not bool:
         raise ValueError('graphical must be true or false')
+    if data['qemu_runtime'] == 'virgl-whpx' and (data['os'] != 'ubuntu' or not data['graphical']):
+        raise ValueError('virgl-whpx requires a graphical Ubuntu guest')
     if data['graphical'] or data['os'] == 'macos':
         integer(data.get('qmp_port'), 'qmp_port (required for graphical guests)', 1024, 65535)
         if data['qmp_port'] in (data['ssh_port'], appium['host_port']):
@@ -70,7 +72,7 @@ def load(path):
     if not re.fullmatch('[a-z][a-z0-9_-]*', data['ssh_user']):
         raise ValueError('ssh_user must be a simple account name')
     for name in ('qemu_args', 'install_args', 'acceptance', 'hardware_args'):
-        default = ['-accel', 'whpx', '-cpu', 'Westmere,-vmx,-svm'] if name == 'qemu_args' and data['qemu_runtime'] == 'whpx-reset' else []
+        default = ['-accel', 'whpx', '-cpu', 'Westmere,-vmx,-svm'] if name == 'qemu_args' and data['qemu_runtime'] in {'whpx-reset', 'virgl-whpx'} else []
         if name == 'qemu_args' and data['qemu_runtime'] == 'reims-whpx':
             from reims_runtime import CPU_ARGS
             default = CPU_ARGS
@@ -103,6 +105,8 @@ def load(path):
 
 
 def verify_inputs(config):
+    if config.get('qemu_runtime') == 'virgl-whpx' and 'runtime_requirements' not in config:
+        raise ValueError('Install virgl-whpx with --requirements for the desktop runtime')
     if config['os'] == 'macos':
         if not Path(config['macos']['bootstrap_package']).is_file():
             raise ValueError('Build the macOS bootstrap product package before installation')
