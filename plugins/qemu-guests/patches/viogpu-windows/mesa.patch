@@ -1,0 +1,128 @@
+--- a/src/gallium/drivers/virgl/virgl_context.c
++++ b/src/gallium/drivers/virgl/virgl_context.c
+@@ -907,10 +907,14 @@
+    virgl_encode_clear(vctx, buffers, color, depth, stencil);
+ }
+ 
+-static uint32_t find_cbuf_handle (struct virgl_framebuffer_state *framebuffer,
++static uint32_t find_surface_handle (struct virgl_framebuffer_state *framebuffer,
+                                   struct pipe_surface *surface)
+ {
+    struct pipe_framebuffer_state *pframebuffer = &framebuffer->base;
++
++   if (framebuffer->zsbuf_handle > 0 &&
++       pipe_surface_equal(surface, &pframebuffer->zsbuf))
++      return framebuffer->zsbuf_handle;
+ 
+    for (unsigned i = 0; i < pframebuffer->nr_cbufs; i++) {
+       if (framebuffer->cbufs_handles[i] > 0 &&
+@@ -920,6 +924,30 @@
+    }
+ 
+    return 0;
++}
++
++/* A clear targets its view independently of the currently bound framebuffer.
++ * Borrow a bound surface handle or create a temporary protocol object. */
++static void virgl_clear_surface_view(struct pipe_context *ctx,
++                                     struct pipe_surface *dst,
++                                     unsigned flags,
++                                     const union pipe_color_union *color,
++                                     unsigned x, unsigned y,
++                                     unsigned width, unsigned height,
++                                     bool render_condition_enabled)
++{
++   struct virgl_context *vctx = virgl_context(ctx);
++   uint32_t handle = find_surface_handle(&vctx->framebuffer, dst);
++   bool temporary = handle == 0;
++   if (temporary)
++      handle = virgl_create_surface(ctx, dst->texture, dst);
++   if (handle > 0) {
++      virgl_encode_clear_surface(vctx, handle, flags, color, x, y, width, height,
++                                 render_condition_enabled);
++      if (temporary)
++         virgl_encode_delete_object(vctx, handle, VIRGL_OBJECT_SURFACE);
++   }
++   virgl_resource_dirty(virgl_resource(dst->texture), dst->level);
+ }
+ 
+ static void virgl_clear_render_target(struct pipe_context *ctx,
+@@ -929,19 +957,8 @@
+                                       unsigned width, unsigned height,
+                                       bool render_condition_enabled)
+ {
+-   struct virgl_context *vctx = virgl_context(ctx);
+-
+-   uint32_t dst_handle = find_cbuf_handle (&vctx->framebuffer, dst);
+-   if (dst_handle > 0)
+-      virgl_encode_clear_surface(vctx, dst_handle, PIPE_CLEAR_COLOR0, color,
+-                                 dstx, dsty, width, height,
+-                                 render_condition_enabled);
+-
+-   /* Mark as dirty, since we are updating the host side resource
+-    * without going through the corresponding guest side resource, and
+-    * hence the two will diverge.
+-    */
+-   virgl_resource_dirty(virgl_resource(dst->texture), dst->level);
++   virgl_clear_surface_view(ctx, dst, PIPE_CLEAR_COLOR0, color,
++                            dstx, dsty, width, height, render_condition_enabled);
+ }
+ 
+ static void virgl_clear_depth_stencil(struct pipe_context *ctx,
+@@ -953,23 +970,11 @@
+                                       unsigned width, unsigned height,
+                                       bool render_condition_enabled)
+ {
+-   struct virgl_context *vctx = virgl_context(ctx);
+-
+-   union pipe_color_union color;
++   union pipe_color_union color = {0};
+    memcpy(color.ui, &depth, sizeof(double));
+    color.ui[3] = stencil;
+-
+-   uint32_t dst_handle = find_cbuf_handle (&vctx->framebuffer, dst);
+-   if (dst_handle > 0)
+-      virgl_encode_clear_surface(vctx, dst_handle, clear_flags, &color,
+-                                 dstx, dsty, width, height,
+-                                 render_condition_enabled);
+-
+-   /* Mark as dirty, since we are updating the host side resource
+-    * without going through the corresponding guest side resource, and
+-    * hence the two will diverge.
+-    */
+-   virgl_resource_dirty(virgl_resource(dst->texture), dst->level);
++   virgl_clear_surface_view(ctx, dst, clear_flags, &color,
++                            dstx, dsty, width, height, render_condition_enabled);
+ }
+ 
+ static void virgl_clear_render_target_stub(struct pipe_context *ctx,
+--- a/src/gallium/frontends/d3d10umd/Resource.cpp
++++ b/src/gallium/frontends/d3d10umd/Resource.cpp
+@@ -789,6 +789,13 @@
+ {
+    LOG_ENTRYPOINT();
+ 
++   // Direct3D empty boxes, including inverted bounds, are no-ops.
++   if (pSrcBox && (pSrcBox->left >= pSrcBox->right ||
++                   pSrcBox->top >= pSrcBox->bottom ||
++                   pSrcBox->front >= pSrcBox->back)) {
++      return;
++   }
++
+    Device *pDevice = CastDevice(hDevice);
+    if (!CheckPredicate(pDevice)) {
+       return;
+@@ -929,6 +936,13 @@
+                             UINT DepthPitch)                         // IN
+ {
+    LOG_ENTRYPOINT();
++
++   // Direct3D empty boxes, including inverted bounds, are no-ops.
++   if (pDstBox && (pDstBox->left >= pDstBox->right ||
++                   pDstBox->top >= pDstBox->bottom ||
++                   pDstBox->front >= pDstBox->back)) {
++      return;
++   }
+ 
+    Device *pDevice = CastDevice(hDevice);
+    if (!CheckPredicate(pDevice)) {

@@ -1,0 +1,162 @@
+--- a/hw/display/trace-events
++++ b/hw/display/trace-events
+@@ -226,3 +226,6 @@
+ apple_gfx_iosfc_unmap_memory_region(void* mem, void *region) "unmapping @ %p from memory region %p"
+ apple_gfx_iosfc_raise_irq(uint32_t vector) "vector=0x%x"
+ 
++
++virtio_gpu_gl_reset_thread(bool vcpu) "vcpu=%d"
++virtio_gpu_gl_scanout_reset_thread(bool vcpu) "vcpu=%d"
+--- a/hw/display/virtio-gpu-gl.c
++++ b/hw/display/virtio-gpu-gl.c
+@@ -18,6 +18,8 @@
+ #include "qemu/error-report.h"
+ #include "qapi/error.h"
+ #include "system/system.h"
++#include "system/cpus.h"
++#include "trace.h"
+ #include "hw/virtio/virtio.h"
+ #include "hw/virtio/virtio-gpu.h"
+ #include "hw/virtio/virtio-gpu-bswap.h"
+@@ -99,7 +101,7 @@
+      * thread, and when the renderer is unblocked.
+      */
+     if (gl->renderer_state == RS_INITED) {
+-        virtio_gpu_virgl_reset_scanout(g);
++        trace_virtio_gpu_gl_reset_thread(qemu_in_vcpu_thread());
+         gl->renderer_state = RS_RESET;
+     }
+ }
+--- a/hw/display/virtio-gpu-virgl.c
++++ b/hw/display/virtio-gpu-virgl.c
+@@ -12,6 +12,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "system/cpus.h"
+ #include "qemu/error-report.h"
+ #include "qemu/iov.h"
+ #include "trace.h"
+@@ -1519,6 +1520,10 @@
+ 
+     switch (gl->renderer_state) {
+     case RS_RESET:
++        /* Device reset may run on a vCPU thread. Keep SDL/GL cleanup here
++         * on the main loop, alongside the deferred renderer reset. */
++        trace_virtio_gpu_gl_scanout_reset_thread(qemu_in_vcpu_thread());
++        virtio_gpu_virgl_reset_scanout(g);
+         virgl_renderer_force_ctx_0();
+ 
+         if (!virtio_gpu_virgl_reset(g)) {
+--- a/qapi/ui.json
++++ b/qapi/ui.json
+@@ -1474,13 +1474,16 @@
+ #
+ # SDL2 display options.
+ #
++# @hidden: Keep SDL windows hidden, including at initial creation.
++#     Incompatible with full-screen=on.
++#
+ # @grab-mod: Modifier keys that should be pressed together with the
+ #     "G" key to release the mouse grab.
+ #
+ # Since: 7.1
+ ##
+ { 'struct'  : 'DisplaySDL',
+-  'data'    : { '*grab-mod'   : 'HotKeyMod' } }
++  'data'    : { '*grab-mod'   : 'HotKeyMod', '*hidden': 'bool' } }
+ 
+ ##
+ # @DisplayType:
+--- a/ui/sdl2.c
++++ b/ui/sdl2.c
+@@ -33,6 +33,8 @@
+ #include "system/runstate-action.h"
+ #include "system/system.h"
+ #include "qemu/log.h"
++#include "qemu/error-report.h"
++#include "trace.h"
+ #include "qemu-main.h"
+ 
+ #ifdef CONFIG_X11
+@@ -49,6 +51,7 @@
+ 
+ static int gui_saved_grab;
+ static int gui_fullscreen;
++static bool gui_hidden;
+ static int gui_grab_code = KMOD_LALT | KMOD_LCTRL;
+ static SDL_Cursor *sdl_cursor_normal;
+ static SDL_Cursor *sdl_cursor_hidden;
+@@ -94,7 +97,7 @@
+     } else {
+         flags |= SDL_WINDOW_RESIZABLE;
+     }
+-    if (scon->hidden) {
++    if (gui_hidden || scon->hidden) {
+         flags |= SDL_WINDOW_HIDDEN;
+     }
+ #ifdef CONFIG_OPENGL
+@@ -108,6 +111,8 @@
+                                          surface_width(scon->surface),
+                                          surface_height(scon->surface),
+                                          flags);
++    trace_sdl2_window_created(scon->idx, gui_hidden,
++                              scon->real_window ? SDL_GetWindowFlags(scon->real_window) : 0);
+     if (scon->opengl) {
+         const char *driver = "opengl";
+ 
+@@ -407,7 +412,7 @@
+             }
+ 
+             win = ev->key.keysym.scancode - SDL_SCANCODE_1;
+-            if (win < sdl2_num_outputs) {
++            if (!gui_hidden && win < sdl2_num_outputs) {
+                 sdl2_console[win].hidden = !sdl2_console[win].hidden;
+                 if (sdl2_console[win].real_window) {
+                     if (sdl2_console[win].hidden) {
+@@ -654,9 +659,11 @@
+         }
+         break;
+     case SDL_WINDOWEVENT_SHOWN:
++        trace_sdl2_window_visibility(scon->idx, true);
+         scon->hidden = false;
+         break;
+     case SDL_WINDOWEVENT_HIDDEN:
++        trace_sdl2_window_visibility(scon->idx, false);
+         scon->hidden = true;
+         break;
+     }
+@@ -930,7 +937,12 @@
+     memset(&info, 0, sizeof(info));
+     SDL_VERSION(&info.version);
+ 
++    gui_hidden = o->u.sdl.has_hidden && o->u.sdl.hidden;
+     gui_fullscreen = o->has_full_screen && o->full_screen;
++    if (gui_hidden && gui_fullscreen) {
++        error_report("SDL hidden=on is incompatible with full-screen=on");
++        exit(1);
++    }
+ 
+     if (o->u.sdl.has_grab_mod) {
+         if (o->u.sdl.grab_mod == HOT_KEY_MOD_LSHIFT_LCTRL_LALT) {
+@@ -955,8 +967,8 @@
+         QemuConsole *con = qemu_console_lookup_by_index(i);
+         const DisplayChangeListenerOps *ops = &dcl_2d_ops;
+         assert(con != NULL);
+-        if (!qemu_console_is_graphic(con) &&
+-            qemu_console_get_index(con) != 0) {
++        if (gui_hidden || (!qemu_console_is_graphic(con) &&
++                           qemu_console_get_index(con) != 0)) {
+             sdl2_console[i].hidden = true;
+         }
+         sdl2_console[i].idx = i;
+--- a/ui/trace-events
++++ b/ui/trace-events
+@@ -210,3 +210,7 @@
+ 
+ # egl-helpers.c
+ egl_init_d3d11_device(void *p) "d3d device: %p"
++
++# sdl2.c
++sdl2_window_created(int idx, bool hidden, uint32_t flags) "console=%d hidden=%d flags=0x%x"
++sdl2_window_visibility(int idx, bool shown) "console=%d shown=%d"
