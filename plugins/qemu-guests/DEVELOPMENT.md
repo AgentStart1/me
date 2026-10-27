@@ -619,10 +619,31 @@ Native qualification must use a fresh state directory, the built managed runtime
 and the unchanged consuming project's runtime requirements. Require hardware
 renderer output, actual rendered color readback, native Appium source/input and
 screenshots, followed by a normal shutdown/cold start and the unchanged business
-suite. Keep logs, media, profiles and account data private. QMP has no CPU surface
-for this scanout; registry/capture checks must refuse panel capture without
-attempting a failing QMP request. Native Appium screenshot support remains the
-responsibility of the project's normal driver.
+suite. Keep logs, media, profiles and account data private. Native Appium
+screenshot support remains the responsibility of the project's normal driver.
+
+`patches/qemu-11.1.2-sdl-gl-snapshot.patch` adds an optional SDL GL snapshot
+callback to QMP screendump when the console has no CPU surface. It reads the
+current scanout on the main thread into an owned pixman image before PNG encoding
+can yield. Readback is on demand, with crop/orientation conversion and restoration
+of SDL context, read framebuffer/buffer and pixel-pack state. Failed reads never
+publish an image. Existing CPU-surface capture keeps its original path. The patch
+is captured in the recipe, so older runtimes are not reused for panel capture.
+
+On a logged-on Windows desktop, exercise the helper from the actual patched
+QEMU source tree without starting a VM:
+
+```sh
+python scripts/test-qmp-snapshot-native.py --qemu-source /private/build/qemu-11.1.2 --output /private/native-snapshot
+```
+
+The native regression checks 40 cases across orientations, crops, sizes, padded
+rows and bound pixel-pack buffers, plus GL failures and recovery. It also mutates
+pack-state normalization as a negative control and requires the regression to
+detect it. VM qualification must compare actual QMP PNGs with native screenshots,
+exercise pause/resume and display resize, and continuously capture through the
+registered screen tool during unchanged business tests. Restore the display mode
+and resume the guest in cleanup before releasing the test lease.
 
 ## Experimental viogpu source bundle
 

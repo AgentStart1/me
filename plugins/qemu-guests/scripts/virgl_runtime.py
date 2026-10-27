@@ -31,7 +31,8 @@ class Snapshot:
         sources = json.loads(lock)['sources']
         inputs = [BuildInput('build-virgl-whpx.sh', (ROOT / 'templates/build-virgl-whpx.sh').read_bytes())]
         for name, filename in [('qemu-whpx-reset', 'qemu-11.1.2-whpx-partition-reset.patch'),
-                               ('qemu-whpx-cet', 'qemu-11.1.2-whpx-cet-xsave.patch')]:
+                               ('qemu-whpx-cet', 'qemu-11.1.2-whpx-cet-xsave.patch'),
+                               ('qemu-gl-snapshot', 'qemu-11.1.2-sdl-gl-snapshot.patch')]:
             inputs.append(BuildInput(name + '.patch', (ROOT / 'patches' / filename).read_bytes()))
         for name, output in [('qemu', 'qemu-virgl.patch'), ('virglrenderer', 'virglrenderer.patch')]:
             content = (folder / sources[name]['patch']).read_bytes()
@@ -60,6 +61,7 @@ def verify(runtime, snapshot=None):
     snapshot = snapshot or Snapshot.capture()
     manifest = json.loads((runtime / 'runtime.json').read_text())
     required = {'bin/libvirglrenderer-1.dll', 'bin/SDL2.dll', 'bin/libepoxy-0.dll',
+                'recipe/qemu-gl-snapshot.patch',
                 'share/qemu/vgabios-virtio.bin'}
     if not required.issubset(manifest.get('files', {})):
         raise ValueError('VirGL runtime dependencies are missing')

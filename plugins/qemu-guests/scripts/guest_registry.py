@@ -17,7 +17,7 @@ def register(config, home):
     identifier = hashlib.sha256(os.path.normcase(str(home.resolve())).encode()).hexdigest()[:24]
     metadata = {key: config[key] for key in ('name', 'os', 'graphical', 'memory', 'cpus', 'ssh_port')}
     metadata.update(id=identifier, state_dir=str(home.resolve()), qmp_port=config.get('qmp_port'),
-                    qmp_capture=config.get('qemu_runtime') != 'virgl-whpx')
+                    qmp_capture=True)
     if config.get('appium'):
         metadata['appium_port'] = config['appium']['host_port']
     write_record(root / (identifier + '.json'), metadata)

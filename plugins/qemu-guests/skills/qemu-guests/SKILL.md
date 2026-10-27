@@ -364,9 +364,10 @@ isolated D-Bus/AT-SPI and temporary unlocked native keyring. Require the current
 boot/session receipt, hardware VirGL, actual rendering, native Appium input and
 screenshots, then unchanged business acceptance. Do not compete with manual
 console use during testing. Require a logged-on host desktop even with hidden
-SDL; session 0, logout and host-boot autostart are unqualified. Panel QMP capture
-is unavailable for this scanout; use the normal application's Appium screenshot
-API. CUDA, Vulkan and video decode are not qualified. Read DEVELOPMENT.md for
+SDL; session 0, logout and host-boot autostart are unqualified. The managed
+runtime supports panel QMP capture through an on-demand scanout snapshot;
+verify its orientation, colors and current dimensions against native Appium
+screenshots. CUDA, Vulkan and video decode are not qualified. Read DEVELOPMENT.md for
 source rebuilding, failure regressions and cold-start qualification.
 
 ## Experimental Windows viogpu

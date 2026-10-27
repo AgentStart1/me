@@ -35,6 +35,7 @@ class VirglTests(unittest.TestCase):
     def stage(self):
         files = {}
         for relative in ['bin/qemu-system-x86_64.exe', 'bin/libvirglrenderer-1.dll',
+                         'recipe/qemu-gl-snapshot.patch',
                          'bin/SDL2.dll', 'bin/libepoxy-0.dll', 'share/qemu/vgabios-virtio.bin',
                          'share/qemu/bios-256k.bin', 'share/qemu/vgabios-stdvga.bin']:
             path = self.home / relative
@@ -65,6 +66,18 @@ class VirglTests(unittest.TestCase):
         self.assertNotEqual(first.recipe(), second.recipe())
         self.assertNotEqual(runtime.location(self.home, first), runtime.location(self.home, second))
         self.assertNotIn(b'changed recipe', first.inputs[0].content)
+
+    def test_snapshot_patch_changes_the_runtime_cache_identity(self):
+        plugin = self.home / 'plugin'
+        for name in ['patches', 'templates']:
+            shutil.copytree(ROOT / name, plugin / name)
+        with patch.object(runtime, 'ROOT', plugin):
+            before = runtime.Snapshot.capture()
+            target = plugin / 'patches/qemu-11.1.2-sdl-gl-snapshot.patch'
+            target.write_bytes(target.read_bytes() + b'\n# changed snapshot patch\n')
+            after = runtime.Snapshot.capture()
+        self.assertNotEqual(before.recipe(), after.recipe())
+        self.assertIn('qemu-gl-snapshot.patch', [item.name for item in before.inputs])
 
     @unittest.skipUnless(os.name == 'nt', 'Windows build preflight')
     def test_bad_archive_cannot_start_a_compiler_or_publish_runtime(self):
@@ -162,7 +175,7 @@ class VirglTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '--requirements'):
             guest_config.verify_inputs(self.config)
 
-    def test_gpu_panel_never_advertises_a_nonexistent_qmp_surface(self):
+    def test_gpu_panel_advertises_the_managed_snapshot_backend(self):
         config = {**self.config, 'name': 'gpu-fixture', 'memory': 4096, 'cpus': 4,
                   'ssh_port': 2230, 'qmp_port': 2231}
         with patch.object(guest_registry, 'directory', return_value=self.home / 'registry'):
@@ -170,7 +183,7 @@ class VirglTests(unittest.TestCase):
             with patch.object(guest_registry, 'state', return_value=('ready', {'pid': 123})):
                 item = guest_registry.snapshot()['items'][0]
         self.assertEqual(item['state'], 'ready')
-        self.assertFalse(item['screenAvailable'])
+        self.assertTrue(item['screenAvailable'])
 
 
 if __name__ == '__main__':

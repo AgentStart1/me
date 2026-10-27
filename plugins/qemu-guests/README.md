@@ -230,9 +230,9 @@ state directory instead. Applications and native dependencies are prepared on
 the host or a designated build machine, never compiled in the work guest.
 
 This path accelerates OpenGL. CUDA, Vulkan, video decode and arbitrary host
-GPUs are not qualified. The GPU scanout does not provide a QMP screenshot
-surface, so the status panel does not advertise live capture for this profile;
-use the application's native Appium screenshot endpoint. Readiness validates
+GPUs are not qualified. The managed runtime supports status-panel QMP capture
+by reading the current GPU scanout into a private image on demand. Appium
+screenshots continue to use the application's normal driver. Readiness validates
 the current boot and session, while actual rendering, screenshots and business
 E2E acceptance remain separate checks. See
 [development instructions](DEVELOPMENT.md#ubuntu-virglwhpx-runtime) for rebuilding

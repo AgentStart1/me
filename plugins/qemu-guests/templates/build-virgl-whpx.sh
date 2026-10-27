@@ -8,7 +8,7 @@ pacman -S --needed --noconfirm mingw-w64-ucrt-x86_64-gcc \
   mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-glib2 \
   mingw-w64-ucrt-x86_64-pixman mingw-w64-ucrt-x86_64-libslirp \
   mingw-w64-ucrt-x86_64-libepoxy mingw-w64-ucrt-x86_64-SDL2 diffutils patch
-for name in qemu-whpx-reset qemu-whpx-cet qemu-virgl; do
+for name in qemu-whpx-reset qemu-whpx-cet qemu-virgl qemu-gl-snapshot; do
   patch --fuzz=0 -d "$work/qemu-11.1.2" -p1 < "$work/inputs/$name.patch"
 done
 patch --fuzz=0 -d "$work/virglrenderer-1.3.0" -p1 < "$work/inputs/virglrenderer.patch"
