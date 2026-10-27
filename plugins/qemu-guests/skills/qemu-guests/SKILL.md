@@ -347,3 +347,16 @@ GuestTransport owns its SSH children: attempt every child stop before reporting 
 Configured test execution must share one CancellationRequest between CLI, TestEnvironmentOwner and transports. Follow the three invariants in DEVELOPMENT.md: only the main thread commits cancellation/phase/lease state; workers publish reliable events and sticky cleanup failures; release and terminal publication require closed admission, confirmed resource-worker completion and final event collection. Signals only enqueue requests. Workers read committed snapshots at checkpoints and never construct or replace shared cancellation. Keep main-thread cleanup shields context-local. Report stop failures before HTTP conversion and worker completion, retaining them even if a later retry succeeds. Reject worker attempts to mutate owner/CLI state. Preserve existing assertions and the documented cancellation priority, including the identity of an accepted interruption. Never reintroduce frame inspection, asynchronous signal exceptions, handoff retries or nested handler replacement. Keep the shared process runtime and existing VM-management commands unchanged.
 
 Publish one immutable CliResult/CleanupReport after worker reports and all cleanup have been accounted for. Emit fixed failure categories/counts and the accurate acquired-lease recovery hint, never raw cleanup exceptions, commands, paths or credentials. Unconfirmed workers or failed retention publication must preserve ownership evidence. Verify tests/test-worker-protocol.py plus the existing cancellation, CLI, owner, transport and relay suites with QEMU_TEST_ACCEL unset. Use mocks/local fixtures; do not start, stop or repair existing VMs for these regressions.
+
+## Experimental Windows viogpu
+
+For the source-only hidden SDL/VirGL experiment, follow the experimental viogpu
+section in DEVELOPMENT.md. Verify the pinned bundle with
+`scripts/verify-viogpu-bundle.py` before preparing an isolated source/runtime tree.
+No new managed runtime name or unattended guest driver install is provided.
+Keep guest GPU profiles, signing choices, patched binaries and rollback state
+outside consuming projects. Never copy this plugin's patch/build orchestration
+into a consuming project or change host Secure Boot. Keep compilation on the host.
+Use the existing test runner's owned temporary Appium transport; hidden display
+still requires a logged-on guest desktop. Do not equate SSH readiness, a warm
+reboot of an older DLL, or earlier full-suite results with current GPU acceptance.

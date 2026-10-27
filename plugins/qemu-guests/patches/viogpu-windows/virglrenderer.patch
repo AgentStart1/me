@@ -1,0 +1,491 @@
+--- a/src/drm/drm-uapi/drm.h
++++ b/src/drm/drm-uapi/drm.h
+@@ -44,7 +44,9 @@
+ #else /* One of the BSDs */
+ 
+ #include <stdint.h>
++#ifndef WIN32
+ #include <sys/ioccom.h>
++#endif
+ #include <sys/types.h>
+ typedef int8_t   __s8;
+ typedef uint8_t  __u8;
+--- a/src/mesa/compat/c11/threads_win32.h
++++ b/src/mesa/compat/c11/threads_win32.h
+@@ -175,7 +175,7 @@
+     return 0;
+ }
+ 
+-static void impl_tss_dtor_invoke()
++static void impl_tss_dtor_invoke(void)
+ {
+     int i;
+     for (i = 0; i < EMULATED_THREADS_TSS_DTOR_SLOTNUM; i++) {
+--- a/src/vrend/vrend_formats.c
++++ b/src/vrend/vrend_formats.c
+@@ -86,6 +86,7 @@
+   {
+     { VIRGL_FORMAT_Z16_UNORM, GL_DEPTH_COMPONENT16, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NO_SWIZZLE, view_class_unsupported },
+     { VIRGL_FORMAT_S8_UINT_Z24_UNORM, GL_DEPTH24_STENCIL8_EXT, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NO_SWIZZLE, view_class_unsupported },
++    { VIRGL_FORMAT_Z24_UNORM_S8_UINT, GL_DEPTH24_STENCIL8_EXT, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NO_SWIZZLE, view_class_unsupported },
+     { VIRGL_FORMAT_Z24X8_UNORM, GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, NO_SWIZZLE, view_class_unsupported },
+     { VIRGL_FORMAT_Z32_FLOAT, GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT, NO_SWIZZLE, view_class_unsupported },
+     /* this is probably a separate format */
+--- a/src/vrend/vrend_renderer.c
++++ b/src/vrend/vrend_renderer.c
+@@ -4860,6 +4860,32 @@
+    vrend_clear_finish(sub_ctx, buffers);
+ }
+ 
++/* Gallium Z24S8 stores depth in bits 0..23; GL_UNSIGNED_INT_24_8
++ * stores it in bits 8..31. Convert only tightly packed temporary transfers,
++ * never the guest iovec in place. Native S8Z24 resources need no conversion. */
++static void vrend_repack_z24s8(void *data, uint64_t size, bool to_gl)
++{
++   uint32_t *words = data;
++   for (uint64_t i = 0; i < size / sizeof(*words); i++) {
++      uint32_t value = words[i];
++      words[i] = to_gl ? (value << 8) | (value >> 24)
++                       : (value >> 8) | (value << 24);
++   }
++}
++
++/* Gallium keeps Z24 in the low 24 bits. GL_UNSIGNED_INT normalizes all
++ * 32 bits: replicate the high eight bits on upload, discard them on readback.
++ * Call only on owned, tightly packed staging memory. */
++static void vrend_repack_z24x8(void *data, uint64_t size, bool to_gl)
++{
++   uint32_t *words = data;
++   for (uint64_t i = 0; i < size / sizeof(*words); i++) {
++      uint32_t value = words[i];
++      words[i] = to_gl ? (value << 8) | ((value & 0xffffff) >> 16)
++                       : value >> 8;
++   }
++}
++
+ int vrend_clear_texture(struct vrend_context* ctx,
+                          struct vrend_resource *res, uint32_t level,
+                          const struct pipe_box *box,
+@@ -4870,6 +4896,16 @@
+    enum virgl_formats fmt = res->base.format;
+    format = tex_conv_table[fmt].glformat;
+    type = tex_conv_table[fmt].gltype;
++
++   uint32_t packed_depth_stencil;
++   if (fmt == VIRGL_FORMAT_Z24_UNORM_S8_UINT || fmt == VIRGL_FORMAT_Z24X8_UNORM) {
++      memcpy(&packed_depth_stencil, data, sizeof(packed_depth_stencil));
++      if (fmt == VIRGL_FORMAT_Z24_UNORM_S8_UINT)
++         vrend_repack_z24s8(&packed_depth_stencil, sizeof(packed_depth_stencil), true);
++      else
++         vrend_repack_z24x8(&packed_depth_stencil, sizeof(packed_depth_stencil), true);
++      data = &packed_depth_stencil;
++   }
+ 
+    /* 32-bit BGRA resources are always reordered to RGBA ordering before
+     * submission to the host driver. Reorder red/blue color bytes in
+@@ -8951,19 +8987,6 @@
+    glBufferSubData(d->target, d->box->x + doff, len, src);
+ }
+ 
+-static void vrend_scale_depth(void *ptr, int size, float scale_val)
+-{
+-   GLuint *ival = ptr;
+-   const GLfloat myscale = 1.0f / 0xffffff;
+-   int i;
+-   for (i = 0; i < size / 4; i++) {
+-      GLuint value = ival[i];
+-      GLfloat d = ((float)(value >> 8) * myscale) * scale_val;
+-      d = CLAMP(d, 0.0F, 1.0F);
+-      ival[i] = (GLuint)(d / myscale) << 8;
+-   }
+-}
+-
+ static void read_transfer_data(const struct iovec *iov,
+                                unsigned int num_iovs,
+                                char *data,
+@@ -9320,7 +9343,6 @@
+       int x = 0, y = 0;
+       bool compressed;
+       bool invert = false;
+-      float depth_scale;
+       uint64_t send_size = 0;
+       uint32_t stride = info->stride;
+       uint32_t layer_stride = info->layer_stride;
+@@ -9335,7 +9357,9 @@
+                                                 u_minify(res->base.height0, info->level));
+ 
+       compressed = util_format_is_compressed(res->base.format);
+-      if (num_iovs > 1 || compressed) {
++      if (num_iovs > 1 || compressed ||
++          (res->base.format == VIRGL_FORMAT_Z24_UNORM_S8_UINT ||
++           res->base.format == VIRGL_FORMAT_Z24X8_UNORM)) {
+          need_temp = true;
+       }
+ 
+@@ -9502,16 +9526,11 @@
+                                                ((info->box->z * level_height + y) * stride + x * elsize);
+          }
+ 
+-         if (res->base.format == VIRGL_FORMAT_Z24X8_UNORM) {
+-            /* we get values from the guest as 24-bit scaled integers
+-               but we give them to the host GL and it interprets them
+-               as 32-bit scaled integers, so we need to scale them here */
+-            depth_scale = 256.0;
+-            if (!vrend_state.use_core_profile)
+-               glPixelTransferf(GL_DEPTH_SCALE, depth_scale);
+-            else
+-               vrend_scale_depth(data, send_size, depth_scale);
+-         }
++         if (res->base.format == VIRGL_FORMAT_Z24_UNORM_S8_UINT)
++            vrend_repack_z24s8(data, send_size, true);
++
++         if (res->base.format == VIRGL_FORMAT_Z24X8_UNORM)
++            vrend_repack_z24x8(data, send_size, true);
+          if (res->target == GL_TEXTURE_CUBE_MAP) {
+             GLenum ctarget = GL_TEXTURE_CUBE_MAP_POSITIVE_X + info->box->z;
+             if (compressed) {
+@@ -9556,10 +9575,6 @@
+                                glformat, gltype, data);
+             }
+          }
+-         if (res->base.format == VIRGL_FORMAT_Z24X8_UNORM) {
+-            if (!vrend_state.use_core_profile)
+-               glPixelTransferf(GL_DEPTH_SCALE, 1.0);
+-         }
+       }
+ 
+       if (stride && !need_temp) {
+@@ -9597,6 +9612,8 @@
+    int compressed = util_format_is_compressed(res->base.format);
+    uint32_t iov_size = vrend_get_iovec_size(iov, num_iovs);
+    GLenum target;
++   if (glGetError() != GL_NO_ERROR)
++      return EIO;
+    uint32_t send_offset = 0;
+    format = tex_conv_table[res->base.format].glformat;
+    type = tex_conv_table[res->base.format].gltype;
+@@ -9610,7 +9627,7 @@
+    tex_size *= util_format_get_blocksize(res->base.format);
+    tex_size *= vrend_get_texture_depth(res, info->level);
+ 
+-   if (tex_size > iov_size)
++   if (tex_size > iov_size || tex_size > INT_MAX)
+       return EINVAL;
+ 
+    if (info->box->z && res->target != GL_TEXTURE_CUBE_MAP) {
+@@ -9661,6 +9678,24 @@
+       }
+    }
+ 
++   GLenum read_error = glGetError();
++   glPixelStorei(GL_PACK_ALIGNMENT, 4);
++   if (read_error != GL_NO_ERROR || vrend_state.use_gles) {
++      free(data);
++      return EIO;
++   }
++
++   if (res->base.format == VIRGL_FORMAT_Z24_UNORM_S8_UINT ||
++       res->base.format == VIRGL_FORMAT_Z24X8_UNORM) {
++      /* glGetTexImage reads one cube face, not the whole array allocation. */
++      uint64_t written_size = res->target == GL_TEXTURE_CUBE_MAP
++                                ? tex_size / res->base.array_size : tex_size;
++      if (res->base.format == VIRGL_FORMAT_Z24_UNORM_S8_UINT)
++         vrend_repack_z24s8(data, written_size, false);
++      else
++         vrend_repack_z24x8(data, written_size, false);
++   }
++
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+ 
+    write_transfer_data(&res->base, iov, num_iovs, data + send_offset,
+@@ -9670,7 +9705,7 @@
+    return 0;
+ }
+ 
+-static void do_readpixels(struct vrend_resource *res,
++static int do_readpixels(struct vrend_resource *res,
+                           int idx, uint32_t level, uint32_t layer,
+                           GLint x, GLint y,
+                           GLsizei width, GLsizei height,
+@@ -9678,11 +9713,23 @@
+                           GLsizei bufSize, void *data)
+ {
+    GLuint fb_id;
++   GLint old_read_fbo, old_draw_fbo;
++   int ret = EIO;
++
++   /* Never publish a buffer unless this read completed successfully. */
++   if (glGetError() != GL_NO_ERROR)
++      return EIO;
++   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &old_read_fbo);
++   glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &old_draw_fbo);
+ 
+    glGenFramebuffers(1, &fb_id);
+    glBindFramebuffer(GL_FRAMEBUFFER, fb_id);
+ 
+    vrend_fb_bind_texture(res, idx, level, layer);
++   GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
++   GLenum error = glGetError();
++   if (status != GL_FRAMEBUFFER_COMPLETE || error != GL_NO_ERROR)
++      goto cleanup;
+ 
+    /* Warn if the driver doesn't agree about the read format and type.
+       On desktop GL we can use basically any format and type to glReadPixels,
+@@ -9726,16 +9773,21 @@
+    else
+       glReadPixels(x, y, width, height, format, type, data);
+ 
++   if (glGetError() == GL_NO_ERROR)
++      ret = 0;
++
++cleanup:
++   glBindFramebuffer(GL_READ_FRAMEBUFFER, old_read_fbo);
++   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, old_draw_fbo);
+    glDeleteFramebuffers(1, &fb_id);
+-}
+-
+-static int vrend_transfer_send_readpixels(struct vrend_context *ctx,
++   return ret;
++}
++
++static int vrend_transfer_send_readpixels_layer(struct vrend_context *ctx,
+                                           struct vrend_resource *res,
+                                           const struct iovec *iov, int num_iovs,
+                                           const struct vrend_transfer_info *info)
+ {
+-   char *myptr = (char*)iov[0].iov_base + info->offset;
+-   int need_temp = 0;
+    char *data;
+    bool actually_invert, separate_invert = false;
+    GLenum format, type;
+@@ -9743,9 +9795,6 @@
+    uint64_t send_size = 0;
+    uint32_t h = u_minify(res->base.height0, info->level);
+    int elsize = util_format_get_blocksize(res->base.format);
+-   float depth_scale;
+-   int row_stride = info->stride / elsize;
+-   GLint old_fbo;
+ 
+    vrend_use_program(NULL);
+ 
+@@ -9784,37 +9833,18 @@
+    glPixelStorei(GL_PACK_SWAP_BYTES, 1);
+ #endif
+ 
+-   if (num_iovs > 1 || separate_invert)
+-      need_temp = 1;
+-
+-   if (vrend_state.use_gles && vrend_format_is_bgra(res->base.format))
+-      need_temp = true;
+-
+-   if (need_temp) {
+-      send_size = util_format_get_nblocks(res->base.format, info->box->width, info->box->height);
+-      send_size *= info->box->depth;
+-      send_size *= util_format_get_blocksize(res->base.format);
+-
+-      /* glReadnPixels only supports a buffer size of GLsizei = uint32_t, anything larger
+-       * is bogous */
+-      if (send_size > UINT_MAX) {
+-         virgl_error("Readback size out of range %"PRIu64"\n", send_size);
+-         return EINVAL;
+-      }
+-
+-      data = malloc(send_size);
+-      if (!data) {
+-         virgl_error("Memory allocation failed for %"PRIu64"\n", send_size);
+-         return ENOMEM;
+-      }
+-   } else {
+-      send_size = iov[0].iov_len - info->offset;
+-      data = myptr;
+-      if (!row_stride)
+-         row_stride = util_format_get_nblocksx(res->base.format, u_minify(res->base.width0, info->level));
+-   }
+-
+-   glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &old_fbo);
++   /* A framebuffer read and its format conversion own exactly one packed
++    * layer. Scatter to guest strides only after conversion; never use guest
++    * buffer capacity as the number of pixels to convert. */
++   send_size = (uint64_t)util_format_get_nblocks(res->base.format,
++                                               info->box->width, info->box->height);
++   send_size *= util_format_get_blocksize(res->base.format);
++   if (send_size > INT_MAX)
++      return EINVAL;
++   data = malloc(send_size);
++   if (!data)
++      return ENOMEM;
++
+ 
+    if (actually_invert)
+       y1 = h - info->box->y - info->box->height;
+@@ -9823,14 +9853,15 @@
+ 
+    if (has_feature(feat_mesa_invert) && actually_invert)
+       glPixelStorei(GL_PACK_INVERT_MESA, 1);
+-   if (!need_temp && row_stride)
+-      glPixelStorei(GL_PACK_ROW_LENGTH, row_stride);
++   glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+ 
+    switch (elsize) {
+    case 1:
++   case 3:
+       glPixelStorei(GL_PACK_ALIGNMENT, 1);
+       break;
+    case 2:
++   case 6:
+       glPixelStorei(GL_PACK_ALIGNMENT, 2);
+       break;
+    case 4:
+@@ -9842,18 +9873,13 @@
+       break;
+    }
+ 
+-   if (res->base.format == VIRGL_FORMAT_Z24X8_UNORM) {
+-      /* we get values from the guest as 24-bit scaled integers
+-         but we give them to the host GL and it interprets them
+-         as 32-bit scaled integers, so we need to scale them here */
+-      depth_scale = 1.0 / 256.0;
+-      if (!vrend_state.use_core_profile) {
+-         glPixelTransferf(GL_DEPTH_SCALE, depth_scale);
+-      }
+-   }
+-
+-   do_readpixels(res, 0, info->level, info->box->z, info->box->x, y1,
++   int ret = do_readpixels(res, 0, info->level, info->box->z, info->box->x, y1,
+                  info->box->width, info->box->height, format, type, send_size, data);
++   if (ret)
++      goto cleanup;
++
++   if (res->base.format == VIRGL_FORMAT_Z24_UNORM_S8_UINT)
++      vrend_repack_z24s8(data, send_size, false);
+ 
+    /* on GLES, texture-backed BGR* resources are always stored with RGB* internal format, but
+     * the guest will expect to readback the data in BGRA format.
+@@ -9866,31 +9892,52 @@
+       vrend_swizzle_data_bgra(send_size, data);
+    }
+ 
+-   if (res->base.format == VIRGL_FORMAT_Z24X8_UNORM) {
+-      if (!vrend_state.use_core_profile)
+-         glPixelTransferf(GL_DEPTH_SCALE, 1.0);
+-      else
+-         vrend_scale_depth(data, send_size, depth_scale);
+-   }
++   if (res->base.format == VIRGL_FORMAT_Z24X8_UNORM)
++      vrend_repack_z24x8(data, send_size, false);
++cleanup:
+    if (has_feature(feat_mesa_invert) && actually_invert)
+       glPixelStorei(GL_PACK_INVERT_MESA, 0);
+-   if (!need_temp && row_stride)
+-      glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+ 
+ #if UTIL_ARCH_BIG_ENDIAN
+    glPixelStorei(GL_PACK_SWAP_BYTES, 0);
+ #endif
+ 
+-   if (need_temp) {
++   if (!ret)
+       write_transfer_data(&res->base, iov, num_iovs, data,
+-                          info->stride, info->box, info->level, info->offset,
+-                          separate_invert);
+-      free(data);
+-   }
+-
+-   glBindFramebuffer(GL_FRAMEBUFFER, old_fbo);
+-
++                       info->stride, info->box, info->level, info->offset,
++                       separate_invert);
++   free(data);
++
++
++   return ret;
++}
++
++/* glReadPixels addresses one framebuffer layer. Keep layer iteration and the
++ * guest layout here, so every format uses the same single-layer readback path.
++ * The caller has already checked the complete box and iovec bounds. */
++static int vrend_transfer_send_readpixels(struct vrend_context *ctx,
++                                          struct vrend_resource *res,
++                                          const struct iovec *iov, int num_iovs,
++                                          const struct vrend_transfer_info *info)
++{
++   struct pipe_box box = *info->box;
++   struct vrend_transfer_info layer = *info;
++   uint32_t stride = info->stride ? info->stride :
++      util_format_get_stride(res->base.format, u_minify(res->base.width0, info->level));
++   uint32_t layer_stride = info->layer_stride ? info->layer_stride :
++      util_format_get_2d_size(res->base.format, stride,
++                             u_minify(res->base.height0, info->level));
++
++   box.depth = 1;
++   layer.box = &box;
++   for (int z = 0; z < info->box->depth; z++) {
++      box.z = info->box->z + z;
++      layer.offset = info->offset + (uint64_t)z * layer_stride;
++      int ret = vrend_transfer_send_readpixels_layer(ctx, res, iov, num_iovs, &layer);
++      if (ret)
++         return ret;
++   }
+    return 0;
+ }
+ 
+@@ -9954,23 +10001,18 @@
+       glUnmapBuffer(res->target);
+       glBindBufferARB(res->target, 0);
+    } else {
+-      int ret = -1;
+-      bool can_readpixels = true;
+-
+-      can_readpixels = vrend_format_can_render(res->base.format) || vrend_format_is_ds(res->base.format);
+-
+-      if (can_readpixels)
+-         ret = vrend_transfer_send_readpixels(ctx, res, iov, num_iovs, info);
+-
+-      /* Can hit this on a non-error path as well. */
+-      if (ret) {
+-         if (!vrend_state.use_gles)
+-            ret = vrend_transfer_send_getteximage(res, iov, num_iovs, info);
+-         else
+-            ret = vrend_transfer_send_readonly(res, iov, num_iovs, info);
+-      }
+-
+-      return ret;
++      /* Multisample resources must be resolved before CPU readback. Neither
++       * framebuffer reads nor GetTexImage can read them directly. */
++      if (res->base.nr_samples > 1)
++         return EINVAL;
++
++      /* Choose by capability, not by retrying after a failed read. A GL or
++       * allocation failure must reach the caller without publishing data. */
++      if (vrend_format_can_render(res->base.format) || vrend_format_is_ds(res->base.format))
++         return vrend_transfer_send_readpixels(ctx, res, iov, num_iovs, info);
++      if (!vrend_state.use_gles)
++         return vrend_transfer_send_getteximage(res, iov, num_iovs, info);
++      return vrend_transfer_send_readonly(res, iov, num_iovs, info);
+    }
+    return 0;
+ }
+@@ -10475,8 +10517,7 @@
+          but we give them to the host GL and it interprets them
+          as 32-bit scaled integers, so we need to scale them here */
+       if (dst_res->base.format == VIRGL_FORMAT_Z24X8_UNORM) {
+-         float depth_scale = 256.0;
+-         vrend_scale_depth(tptr, total_size, depth_scale);
++         vrend_repack_z24x8(tptr, total_size, true);
+       }
+ 
+       /* if this is a BGR* resource on GLES, the data needs to be manually swizzled to RGB* before
+@@ -12960,7 +13001,11 @@
+       glBindTexture(res->target, res->gl_id);
+       glGetnTexImageARB(res->target, 0, format, type, size, data);
+    } else if (vrend_state.use_gles) {
+-      do_readpixels(res, 0, 0, 0, 0, 0, *width, *height, format, type, size, data);
++      if (do_readpixels(res, 0, 0, 0, 0, 0, *width, *height, format, type, size, data)) {
++         free(data);
++         free(data2);
++         return NULL;
++      }
+    } else {
+       glBindTexture(res->target, res->gl_id);
+       glGetTexImage(res->target, 0, format, type, data);

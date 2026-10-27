@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "experimental": true,
+  "sources": {
+    "qemu": {
+      "url": "https://download.qemu.org/qemu-11.1.2.tar.xz",
+      "revision": "11.1.2",
+      "patch": "qemu.patch",
+      "patch_sha256": "24ce805d5d64520aec3ccde3c5510bda6ca8727068fa036a75b5f710ba64cf1b",
+      "files": {
+        "hw/display/trace-events": {
+          "before": "a9e38cb27390260e02e63d6600d80ed72eebe7039ea3f91ee6bea984d8ba01ff",
+          "after": "11a57070150c14967eaaf2854df1ccf96a29a8e818501b4a34e478e312652a21"
+        },
+        "hw/display/virtio-gpu-gl.c": {
+          "before": "84c747c6d652bd26b36cec858eb4154de1b78d4a7da421ea33e43149d4a11936",
+          "after": "47ac8a4d7376354b9a8db448f06785a9b89adf64d8daaff40465d59dcaedcc43"
+        },
+        "hw/display/virtio-gpu-virgl.c": {
+          "before": "2f76036b9b6335db1c9b638273d8a3c36c48c1b85bf0d157b8f012f4cc46669d",
+          "after": "69cbcca88a68a7990b65776f7ea748ce8bdaeb1dbc343f82b8d1e2b9453c6975"
+        },
+        "qapi/ui.json": {
+          "before": "87ac10949caa0da383eaba3d0676f078915bed9ea96025a6c7fb1c08135548ba",
+          "after": "bbedbf3f2b5cfc43f8c726ed88776d08069118d11f6d6d0a854f2615f7ab0fbf"
+        },
+        "ui/sdl2.c": {
+          "before": "5c8ffbd4512215c4e045003f58022c0b0ab6d6d979f9d870defb1f276ac513b3",
+          "after": "4bcba57877a5a82e004fc2e23f836844bf29a700607807e5ddf08a2d91adccce"
+        },
+        "ui/trace-events": {
+          "before": "838c901d0b29f90ceb6898e5f14e7e13ee25105be016dbaa4fc0d3eebfc78f14",
+          "after": "68093ca3fddac606e80f16128c01893bad35ad2ab04b1754748be0160f4dfb53"
+        }
+      },
+      "archive_sha256": "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016"
+    },
+    "virglrenderer": {
+      "url": "https://gitlab.freedesktop.org/virgl/virglrenderer/-/archive/1.3.0/virglrenderer-1.3.0.tar.bz2",
+      "revision": "1.3.0",
+      "patch": "virglrenderer.patch",
+      "patch_sha256": "3e2a990fdcdcfed9d22771c265eaabb27e6c6226240b4065b19991cab14f0c76",
+      "files": {
+        "src/drm/drm-uapi/drm.h": {
+          "before": "e97d535df3d33844a7c66578cb5adb501c57d17fb5ba55395309d1f275432060",
+          "after": "71d89671be29b217a0b7d6e750e620fdd4ba799ef2992607712662eca61253a7"
+        },
+        "src/mesa/compat/c11/threads_win32.h": {
+          "before": "0f0b528d93bd86a011abc1123c7ebd75d59ac42c0e71400f29557198e7b858f5",
+          "after": "342e9fa6623409ebb5b7c20ef9d0ce789f905e6a9769eb674988271109e2f6e1"
+        },
+        "src/vrend/vrend_formats.c": {
+          "before": "1b4b48526638b7b16293e7eb552b6d6cbdea44d551358bdc02f17c99b1d86844",
+          "after": "d15045ced3b438287e9137cf5cabba469bb6296605be8fb70a9134574d166280"
+        },
+        "src/vrend/vrend_renderer.c": {
+          "before": "be7e5c63fb501cb77bd5b2c13c332f8b93c49fd04d207f17d434932c237f4ea3",
+          "after": "3876e4dcee6ce8f05b77d4bac59efb34810383de4780afdf3f25f646bb8d3381"
+        }
+      },
+      "archive_sha256": "088040d130eaa0458a978fe7867fbfb1fcf1fdff52bf3b27a00658828bc4189f"
+    },
+    "mesa": {
+      "url": "https://github.com/arehnman/virtio-win-mesa/archive/7414220b238c43fbedc7eb3a6a1833750851a1ee.tar.gz",
+      "revision": "7414220b238c43fbedc7eb3a6a1833750851a1ee",
+      "patch": "mesa.patch",
+      "patch_sha256": "e84345eefa4e0f46f904fdb2f9a7b48ce92ede744379c899572e52ea2befeec9",
+      "files": {
+        "src/gallium/drivers/virgl/virgl_context.c": {
+          "before": "38df905ba09c8d402f11876ca87f6d11714d70a6ba0da89fea0157ca6a51b04e",
+          "after": "681a2ebf0b3a13ac99628c67b20bd1e648cf877492eeb91d3f96ce8a6f7905a4"
+        },
+        "src/gallium/frontends/d3d10umd/Resource.cpp": {
+          "before": "223d30c5cac1a78ebc0ed50e8e2a1f01a4f16d3b6a3fcba0e318f88213a81bb1",
+          "after": "863d5ba5ed00aabaf71c6033bc458f2754dd71f8e002c0ec24d393357d75b256"
+        }
+      },
+      "archive_sha256": "ca1f07b98f5b72d19578040b1e9fa04cd5a1e880671a6be89e889e871d59cfb0"
+    }
+  }
+}

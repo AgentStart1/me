@@ -8,3 +8,7 @@ templates/build-reims-*.sh text eol=lf
 templates/reims-vgpu.pc.tpl text eol=lf
 drivers/pvg-timing-fix/* text eol=lf
 drivers/pvg-timing-fix/PvgTimingFix -text
+
+patches/viogpu-windows/* text eol=lf
+patches/viogpu-windows/*.patch whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+tests/viogpu/*.c text eol=lf

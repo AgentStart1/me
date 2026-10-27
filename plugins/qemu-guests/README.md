@@ -762,3 +762,19 @@ Use the publish-pool bounds from that isolated profile. This opt-in check pulls
 BusyBox, Alpine and Ryuk images, exercises HTTP forwarding and CPU/memory cgroup limits,
 forces an OOM inside the constrained container, and checks workload removal.
 Keep Ryuk enabled. Stop only the isolated VM after verification.
+
+## Experimental Windows GPU patch bundle
+
+The plugin includes a source-only viogpu/VirGL patch bundle for a Windows guest
+using native host OpenGL. A patched QEMU can keep its SDL display hidden from
+initial creation (`-display sdl,gl=on,hidden=on`) while the guest retains its
+interactive desktop for automation. Hidden mode is incompatible with full-screen.
+Keep `graphical: true`; this is a hidden graphical backend, not `-display none`.
+
+This is an opt-in developer experiment, not a new managed runtime selector or an
+automatic GPU driver installer. Existing profiles and runtime defaults are unchanged.
+Use a separate private runtime/profile and retain rollback copies. Driver signing
+and guest setup remain operator prerequisites; no host Secure Boot changes are
+performed by this bundle. Test compilation stays on the host.
+
+See [build, qualification and rollback instructions](DEVELOPMENT.md#experimental-viogpu-source-bundle).

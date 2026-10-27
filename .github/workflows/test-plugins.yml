@@ -165,6 +165,7 @@ jobs:
       - run: python plugins/qemu-guests/tests/test-worker-protocol.py
       - run: python plugins/qemu-guests/tests/test-macos-desktop.py
       - run: python plugins/qemu-guests/tests/test-reims-runtime.py
+      - run: python plugins/qemu-guests/tests/test-viogpu-bundle.py
       - run: node --test plugins/qemu-guests/tests/test-appium-run.cjs plugins/qemu-guests/tests/test-macos-autologin.cjs plugins/qemu-guests/tests/test-prepare-runtime.cjs
 
   windows-msys2-path:

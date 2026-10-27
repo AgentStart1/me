@@ -565,3 +565,121 @@ separate from the plugin's Windows/Ubuntu transparent JVM relay.
 Guest sessions, application bundles and SSH
 forwards were cleaned up before the complete lifecycle published acceptance;
 the VM remained running and its test lease was released.
+
+## Experimental viogpu source bundle
+
+`patches/viogpu-windows/sources.json` locks source revisions/archive hashes,
+patch bytes, and before/after hashes for every modified file. Sources are QEMU
+11.1.2, VirGLrenderer 1.3.0, and the pinned `arehnman/virtio-win-mesa` revision.
+The VirGL patch includes the two MSYS2 1.3.0 build compatibility changes
+(`void` prototype and conditional `sys/ioccom.h` include), then the functional
+readback fixes. Preserve upstream license notices when distributing builds;
+no third-party binary, private profile, raw application log or credential is bundled.
+
+### Prepare and verify
+
+Download the archives named in the lock and verify SHA-256 before extraction.
+Use fresh LF source checkouts; never patch an operator's working checkout.
+The verifier checks captured bytes in temporary directories and never changes
+its supplied source paths:
+
+```sh
+python plugins/qemu-guests/scripts/verify-viogpu-bundle.py \
+  --qemu-source /private/src/qemu-11.1.2 \
+  --virglrenderer-source /private/src/virglrenderer-1.3.0 \
+  --mesa-source /private/src/virtio-win-mesa
+```
+
+Without source arguments it verifies bundle integrity only, not applicability.
+After verification, use `git apply` with the corresponding bundle patch inside
+each fresh source tree. QEMU also needs the existing plugin-owned WHPX partition
+reset and CET/XSAVE patches; this GPU patch changes separate files. The hidden
+switch must set SDL_WINDOW_HIDDEN before window creation. Device reset only marks
+pending work on the vCPU thread; scanout/GL cleanup belongs to the main loop.
+
+In an MSYS2 UCRT64 host shell, with GCC, Meson, Ninja, pkgconf, Python/PyYAML,
+libepoxy and SDL2 installed, build the patched renderer:
+
+```sh
+meson setup /private/build/virgl /private/src/virglrenderer-1.3.0 --buildtype=release --wrap-mode=nodownload
+meson compile -C /private/build/virgl
+```
+
+Build QEMU using the existing WHPX host recipe, adding `--enable-sdl`,
+`--enable-opengl` and `--enable-virglrenderer` and linking the patched renderer.
+Keep `--disable-tcg`. Bundle the resulting executable, DLL dependencies and
+firmware into a separate private runtime; never overwrite system QEMU.
+Build the guest Mesa DLL on the host with MSVC, Windows SDK/WDK and Meson:
+`-Dgallium-drivers=virgl -Dgallium-d3d10umd=true -Dgallium-wgl-dll-name=viogpu_wgl
+-Dgallium-d3d10-dll-name=viogpu_d3d10 -Db_vscrt=mt -Dllvm=disabled
+-Dvulkan-drivers=[] -Dvideo-codecs=[] --buildtype=debugoptimized`.
+These are host build prerequisites, not packages to install in a test VM.
+
+### Ownership and regression contracts
+
+The guest clear operation owns its view independently of framebuffer binding:
+borrow a matching bound handle, otherwise create/clear/delete a temporary surface.
+The readback adapter owns layer iteration and guest offsets. Each layer worker
+owns a packed temporary buffer; only valid pixels undergo conversion, then scatter
+to guest row/layer strides. D24S8 and Z24X8 use integer bit transformations.
+This adds a per-layer allocation/copy; throughput has not been benchmarked.
+A failed GL read must return an error before conversion/publication. Restore read
+and draw framebuffer bindings. Select the alternate texture path by capability,
+not as a retry after failure. Multisample resources require an explicit resolve.
+Earlier successfully published layers are not rolled back if a later layer fails.
+
+Run static integrity/failure tests without starting a VM:
+
+```sh
+python plugins/qemu-guests/tests/test-viogpu-bundle.py
+```
+
+Run native graphics regressions on a logged-on Windows host. Keep UCRT64 DLLs
+and the compiler on PATH. The output directory must be new:
+
+```sh
+python plugins/qemu-guests/scripts/test-viogpu-native.py \
+  --virgl-source /private/src/virglrenderer-1.3.0 \
+  --virgl-build /private/build/virgl --output /private/results/viogpu
+```
+
+This builds tests on the host and creates hidden SDL windows. It exercises 24
+exact readbacks (D24S8/Z24X8/RGBA8, mips, multiple layers, split iovecs, offsets,
+row/layer padding and unchanged upload source), five read-error/recovery checks,
+and D3D clear isolation on WARP. Z24X8 includes zero, one, 255, 256 and the two
+largest depth values. Clear isolation checks all eight subresources after each
+of eleven clears, including partial arrays and independent depth/stencil clears.
+A negative control widens a clear and must report 144 mismatches with exit 1.
+`results.json` identifies the tested DLL; failure retains build and case logs.
+
+For guest hardware acceptance, stage only the prebuilt `clear-isolation.exe`,
+run it in the dedicated interactive test session with a private log path, and
+repeat with `warp`. Preserve exit codes and fresh logs. Keep guest driver registry
+entries as a multi-string with the original entry count and absolute paths.
+Back up the original registry values and DLL before selecting a distinct patched
+DLL name. Do not replace a loaded host DLL: gracefully stop only the owned VM,
+replace its private runtime file, record the hash and cold-start it. Rollback uses
+the same stop/restore/start sequence and the original guest registry snapshot.
+
+If a Java test app loads system EGL/GLES libraries instead of its packaged ANGLE,
+use a test-launch-scoped empty `java.library.path` and confirm actual loaded modules.
+Do not impose that workaround on all Java processes or all consuming projects.
+Use the normal runner-owned temporary Appium connection; no persistent tunnel
+service is part of this bundle.
+
+### Qualification limits
+
+The clean bundled VirGL source was rebuilt and passed the native regressions.
+The equivalent experimental runtime passed guest hardware/WARP clears and two
+representative consuming-project desktop E2E cases with screenshots. An earlier
+renderer passed a full 18-case suite and warm reboot recovery; those results do
+not qualify the latest DLL. Hidden startup and main-thread reset were verified
+in the experiment. Clean-source QEMU/Mesa patch application is verified here;
+they were built in the experiment, not rebuilt as part of this packaging check.
+
+This is Windows x64 native OpenGL, with guest D3D feature level 10.0 / ANGLE ES2.
+It does not qualify GLES, all formats, host logout/session 0, host boot autostart,
+fresh-image unattended GPU installation, or long-term reliability. A separate
+pre-existing default-window OpenGL readback issue remains outside this bundle.
+Keep consuming-project acceptance artifacts private and rerun the full suite,
+screenshots and warm recovery when qualifying a newly built complete runtime.
