@@ -1,0 +1,244 @@
+--- a/include/ui/console.h
++++ b/include/ui/console.h
+@@ -232,6 +232,8 @@
+     /* optional */
+     void (*dpy_gl_release_dmabuf)(DisplayChangeListener *dcl,
+                                   QemuDmaBuf *dmabuf);
++    /* Main-thread only; returns a new owned CPU image, or sets errp. */
++    pixman_image_t *(*dpy_gl_snapshot)(DisplayChangeListener *dcl, Error **errp);
+     /* required if GL */
+     void (*dpy_gl_update)(DisplayChangeListener *dcl,
+                           uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+@@ -383,6 +385,8 @@
+ 
+ void qemu_console_resize(QemuConsole *con, int width, int height);
+ DisplaySurface *qemu_console_surface(QemuConsole *con);
++/* Main-thread only; no yield while a display backend reads its GL scanout. */
++pixman_image_t *qemu_console_gl_snapshot(QemuConsole *con, Error **errp);
+ void coroutine_fn qemu_console_co_wait_update(QemuConsole *con);
+ 
+ /* console-gl.c */
+--- a/include/ui/sdl2.h
++++ b/include/ui/sdl2.h
+@@ -86,6 +86,7 @@
+ int sdl2_gl_make_context_current(DisplayGLCtx *dgc,
+                                  QEMUGLContext ctx);
+ 
++pixman_image_t *sdl2_gl_snapshot(DisplayChangeListener *dcl, Error **errp);
+ void sdl2_gl_scanout_disable(DisplayChangeListener *dcl);
+ void sdl2_gl_scanout_texture(DisplayChangeListener *dcl,
+                              uint32_t backing_id,
+--- a/ui/console.c
++++ b/ui/console.c
+@@ -1382,6 +1382,19 @@
+     }
+ }
+ 
++pixman_image_t *qemu_console_gl_snapshot(QemuConsole *con, Error **errp)
++{
++    DisplayChangeListener *dcl;
++
++    QLIST_FOREACH(dcl, &con->ds->listeners, next) {
++        if (dcl->con == con && dcl->ops->dpy_gl_snapshot) {
++            return dcl->ops->dpy_gl_snapshot(dcl, errp);
++        }
++    }
++    error_setg(errp, "no surface or GL snapshot backend");
++    return NULL;
++}
++
+ static QemuDisplay *dpys[DISPLAY_TYPE__MAX];
+ 
+ void qemu_display_register(QemuDisplay *ui)
+--- /dev/null
++++ b/ui/gl-snapshot.h
+@@ -0,0 +1,89 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++#ifndef QEMU_GL_SNAPSHOT_H
++#define QEMU_GL_SNAPSHOT_H
++
++#include <epoxy/gl.h>
++#include <stdbool.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <string.h>
++#include <limits.h>
++
++/* Current-context only. The caller owns the bounded output buffer. */
++static bool qemu_gl_snapshot_read(GLuint framebuffer, int backing_height,
++                                 int x, int y,
++                                 int width, int height, int stride,
++                                 uint8_t *data, bool backing_y0_top,
++                                 const char **reason)
++{
++    GLint old_read_fb, old_read_buffer, old_pack_buffer;
++    GLint old_alignment, old_row_length, old_skip_rows, old_skip_pixels;
++    uint8_t *row = NULL;
++    bool success = false;
++
++    if (width <= 0 || height <= 0 || width > INT_MAX / 4 ||
++        stride < width * 4 || stride % 4 || !data || x < 0 || y < 0 ||
++        backing_height < height || y > backing_height - height) {
++        *reason = "invalid snapshot dimensions";
++        return false;
++    }
++    if (glGetError() != GL_NO_ERROR) {
++        *reason = "pre-existing OpenGL error";
++        return false;
++    }
++    if (backing_y0_top) {
++        row = malloc(width * 4);
++        if (!row) {
++            *reason = "snapshot row allocation failed";
++            return false;
++        }
++    }
++    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &old_read_fb);
++    glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &old_pack_buffer);
++    glGetIntegerv(GL_PACK_ALIGNMENT, &old_alignment);
++    glGetIntegerv(GL_PACK_ROW_LENGTH, &old_row_length);
++    glGetIntegerv(GL_PACK_SKIP_ROWS, &old_skip_rows);
++    glGetIntegerv(GL_PACK_SKIP_PIXELS, &old_skip_pixels);
++
++    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
++    glGetIntegerv(GL_READ_BUFFER, &old_read_buffer);
++    if (glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
++        *reason = "incomplete scanout framebuffer";
++        goto restore;
++    }
++    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
++    glPixelStorei(GL_PACK_ALIGNMENT, 1);
++    glPixelStorei(GL_PACK_ROW_LENGTH, stride / 4);
++    glPixelStorei(GL_PACK_SKIP_ROWS, 0);
++    glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
++    glReadBuffer(GL_COLOR_ATTACHMENT0);
++    /* Match SDL's scanout blit, then convert its lower-left GL origin to PNG rows. */
++    glReadPixels(x, backing_y0_top ? backing_height - y - height : y,
++                 width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
++    if (glGetError() != GL_NO_ERROR) {
++        *reason = "OpenGL scanout readback failed";
++        goto restore;
++    }
++    if (backing_y0_top) {
++        for (int top = 0; top < height / 2; top++) {
++            uint8_t *a = data + (size_t)top * stride;
++            uint8_t *b = data + (size_t)(height - top - 1) * stride;
++            memcpy(row, a, width * 4);
++            memcpy(a, b, width * 4);
++            memcpy(b, row, width * 4);
++        }
++    }
++    success = true;
++restore:
++    glReadBuffer(old_read_buffer);
++    glBindFramebuffer(GL_READ_FRAMEBUFFER, old_read_fb);
++    glBindBuffer(GL_PIXEL_PACK_BUFFER, old_pack_buffer);
++    glPixelStorei(GL_PACK_ALIGNMENT, old_alignment);
++    glPixelStorei(GL_PACK_ROW_LENGTH, old_row_length);
++    glPixelStorei(GL_PACK_SKIP_ROWS, old_skip_rows);
++    glPixelStorei(GL_PACK_SKIP_PIXELS, old_skip_pixels);
++    free(row);
++    return success;
++}
++
++#endif
+--- a/ui/sdl2-gl.c
++++ b/ui/sdl2-gl.c
+@@ -31,6 +31,8 @@
+ #include "ui/console.h"
+ #include "ui/input.h"
+ #include "ui/sdl2.h"
++#include "qapi/error.h"
++#include "gl-snapshot.h"
+ 
+ static void sdl2_set_scanout_mode(struct sdl2_console *scon, bool scanout)
+ {
+@@ -195,6 +197,55 @@
+     return SDL_GL_MakeCurrent(scon->real_window, sdlctx);
+ }
+ 
++pixman_image_t *sdl2_gl_snapshot(DisplayChangeListener *dcl, Error **errp)
++{
++    struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
++    SDL_Window *previous_window = SDL_GL_GetCurrentWindow();
++    SDL_GLContext previous_context = SDL_GL_GetCurrentContext();
++    pixman_image_t *image = NULL;
++    const char *reason = NULL;
++
++    if (!scon->scanout_mode || !scon->real_window ||
++        !scon->guest_fb.framebuffer || scon->x < 0 || scon->y < 0 ||
++        scon->w <= 0 || scon->h <= 0 ||
++        scon->x > scon->guest_fb.width || scon->y > scon->guest_fb.height ||
++        scon->w > scon->guest_fb.width - scon->x ||
++        scon->h > scon->guest_fb.height - scon->y) {
++        error_setg(errp, "SDL GL scanout is unavailable or out of bounds");
++        return NULL;
++    }
++    if (SDL_GL_MakeCurrent(scon->real_window, scon->winctx)) {
++        error_setg(errp, "Cannot select SDL snapshot context: %s", SDL_GetError());
++        return NULL;
++    }
++    /* Separate storage survives QMP encoder yields and concurrent guest updates. */
++    image = pixman_image_create_bits(PIXMAN_x8b8g8r8, scon->w, scon->h, NULL, 0);
++    if (!image) {
++        reason = "snapshot image allocation failed";
++        goto restore;
++    }
++    if (!qemu_gl_snapshot_read(scon->guest_fb.framebuffer,
++                              scon->guest_fb.height, scon->x, scon->y,
++                              scon->w, scon->h, pixman_image_get_stride(image),
++                              (uint8_t *)pixman_image_get_data(image),
++                              scon->y0_top, &reason)) {
++        pixman_image_unref(image);
++        image = NULL;
++    }
++restore:
++    if (SDL_GL_MakeCurrent(previous_window, previous_context)) {
++        if (image) {
++            pixman_image_unref(image);
++            image = NULL;
++        }
++        reason = "cannot restore SDL context after snapshot";
++    }
++    if (!image) {
++        error_setg(errp, "SDL GL snapshot failed: %s", reason);
++    }
++    return image;
++}
++
+ void sdl2_gl_scanout_disable(DisplayChangeListener *dcl)
+ {
+     struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
+--- a/ui/sdl2.c
++++ b/ui/sdl2.c
+@@ -842,6 +842,7 @@
+     .dpy_gl_scanout_disable  = sdl2_gl_scanout_disable,
+     .dpy_gl_scanout_texture  = sdl2_gl_scanout_texture,
+     .dpy_gl_update           = sdl2_gl_scanout_flush,
++    .dpy_gl_snapshot         = sdl2_gl_snapshot,
+ 
+ #ifdef CONFIG_GBM
+     .dpy_gl_scanout_dmabuf   = sdl2_gl_scanout_dmabuf,
+--- a/ui/ui-qmp-cmds.c
++++ b/ui/ui-qmp-cmds.c
+@@ -357,13 +357,15 @@
+      * an image ref before that.
+      */
+     surface = qemu_console_surface(con);
+-    if (!surface) {
+-        error_setg(errp, "no surface");
+-        object_unref(con);
++    if (surface) {
++        image = pixman_image_ref(surface->image);
++    } else {
++        image = qemu_console_gl_snapshot(con, errp);
++    }
++    object_unref(con);
++    if (!image) {
+         return;
+     }
+-    image = pixman_image_ref(surface->image);
+-    object_unref(con);
+ 
+     fd = qemu_create(filename, O_WRONLY | O_TRUNC | O_BINARY, 0666, errp);
+     if (fd == -1) {

@@ -348,6 +348,28 @@ Configured test execution must share one CancellationRequest between CLI, TestEn
 
 Publish one immutable CliResult/CleanupReport after worker reports and all cleanup have been accounted for. Emit fixed failure categories/counts and the accurate acquired-lease recovery hint, never raw cleanup exceptions, commands, paths or credentials. Unconfirmed workers or failed retention publication must preserve ownership evidence. Verify tests/test-worker-protocol.py plus the existing cancellation, CLI, owner, transport and relay suites with QEMU_TEST_ACCEL unset. Use mocks/local fixtures; do not start, stop or repair existing VMs for these regressions.
 
+## Ubuntu GPU on Windows
+
+For Ubuntu OpenGL on Windows 11 x64, use the opt-in `virgl-whpx` managed runtime
+and `profiles/ubuntu-virgl-whpx.json`. Read the owning README's Ubuntu GPU section.
+Build pinned public sources with `scripts/virgl_runtime.py`; never substitute a
+cached private experimental binary or overwrite system QEMU. Install a fresh
+state directory with the project's portable `--requirements`; do not convert an
+existing software disk by changing its profile or fabricate an initialization
+receipt. Keep the runtime cache, operator profile, SSH access and media outside
+consuming projects. This does not authorize compilation in the guest.
+
+The generated GPU session inherits the dedicated Xorg console and preserves its
+isolated D-Bus/AT-SPI and temporary unlocked native keyring. Require the current
+boot/session receipt, hardware VirGL, actual rendering, native Appium input and
+screenshots, then unchanged business acceptance. Do not compete with manual
+console use during testing. Require a logged-on host desktop even with hidden
+SDL; session 0, logout and host-boot autostart are unqualified. The managed
+runtime supports panel QMP capture through an on-demand scanout snapshot;
+verify its orientation, colors and current dimensions against native Appium
+screenshots. CUDA, Vulkan and video decode are not qualified. Read DEVELOPMENT.md for
+source rebuilding, failure regressions and cold-start qualification.
+
 ## Experimental Windows viogpu
 
 For the source-only hidden SDL/VirGL experiment, follow the experimental viogpu

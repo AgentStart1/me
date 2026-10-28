@@ -1,8 +1,11 @@
 """Portable dependency declarations and unattended desktop seed contracts."""
 import hashlib
+import getpass
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -87,6 +90,61 @@ class DesktopProvisioningTests(unittest.TestCase):
         bootstrap = files['bootstrap.ps1'].decode()
         self.assertIn('Restart-Computer', bootstrap)
         self.assertIn('AppliedDPI', bootstrap)
+
+    def test_gpu_seed_uses_console_without_changing_project_requirements(self):
+        config = apply({**self.config, 'qemu_runtime': 'virgl-whpx'}, self.requirements)
+        before = self.requirements.read_bytes()
+        prepare_seed(config, self.root / 'gpu-seed')
+        cloud = json.loads((self.root / 'gpu-seed/user-data').read_text().split('\n', 1)[1])
+        self.assertIn('mesa-utils', cloud['packages'])
+        self.assertEqual(cloud['runcmd'][-1], ['systemctl', 'restart', 'lightdm'])
+        files = payload(config)
+        script = files['desktop-session.sh'].decode()
+        self.assertNotIn('Xvfb', script)
+        self.assertNotIn('openbox --', script)
+        self.assertNotIn('unset XAUTHORITY', script)
+        self.assertIn('verify-gpu.py', script)
+        self.assertIn('gnome-keyring-daemon --unlock', script)
+        self.assertIn('dbus-run-session', files['desktop-autostart.desktop'].decode())
+        self.assertIn('systemctl disable --now', files['bootstrap.sh'].decode())
+        self.assertEqual(self.requirements.read_bytes(), before)
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX bootstrap permissions')
+    def test_gpu_bootstrap_makes_verifier_readable_after_private_seed_extraction(self):
+        config = apply({**self.config, 'ssh_user': getpass.getuser(),
+                        'qemu_runtime': 'virgl-whpx'}, self.requirements)
+        runtime = Path(config['appium']['runtime_archive'])
+        with zipfile.ZipFile(runtime, 'a') as archive:
+            archive.writestr('node', '#!/bin/sh\nexit 0\n')
+        destination = self.root / 'guest'
+        destination.mkdir()
+        for name, content in payload(config).items():
+            path = destination / name
+            path.write_bytes(content)
+            path.chmod(0o600)
+        system = self.root / 'system'
+        system.mkdir()
+        home = self.root / 'home'
+        home.mkdir()
+        tools = self.root / 'tools'
+        tools.mkdir()
+        for name, body in {'getent': 'printf "%s\\n" "$TEST_PASSWD_ENTRY"',
+                           'systemctl': 'printf "%s\\n" "$*" >> "$TEST_SYSTEMCTL_LOG"'}.items():
+            path = tools / name
+            path.write_text('#!/bin/sh\n' + body + '\n')
+            path.chmod(0o755)
+        script = destination / 'bootstrap.sh'
+        script.write_text(script.read_text().replace('/opt/qemu-guests', str(destination))
+                          .replace('/etc/systemd/system', str(system)))
+        log = self.root / 'systemctl.log'
+        env = {**os.environ, 'PATH': str(tools) + os.pathsep + os.environ['PATH'],
+               'TEST_PASSWD_ENTRY': f'{getpass.getuser()}:x:1000:1000:fixture:{home}:/bin/sh',
+               'TEST_SYSTEMCTL_LOG': str(log)}
+        subprocess.run(['/bin/sh', str(script)], env=env, check=True, capture_output=True)
+        self.assertTrue((destination / 'verify-gpu.py').stat().st_mode & 0o004)
+        self.assertTrue((home / '.config/autostart/qemu-guests-appium.desktop').exists())
+        self.assertIn('disable --now qemu-guests-appium.service', log.read_text())
+        self.assertNotIn('enable --now', log.read_text())
 
     def test_invalid_geometry_and_package_injection_are_rejected(self):
         for value in [{'width': True}, {'height': 0}, {'packages': ['curl; reboot']}]:

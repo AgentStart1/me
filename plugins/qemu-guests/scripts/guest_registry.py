@@ -16,7 +16,8 @@ def register(config, home):
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     identifier = hashlib.sha256(os.path.normcase(str(home.resolve())).encode()).hexdigest()[:24]
     metadata = {key: config[key] for key in ('name', 'os', 'graphical', 'memory', 'cpus', 'ssh_port')}
-    metadata.update(id=identifier, state_dir=str(home.resolve()), qmp_port=config.get('qmp_port'))
+    metadata.update(id=identifier, state_dir=str(home.resolve()), qmp_port=config.get('qmp_port'),
+                    qmp_capture=True)
     if config.get('appium'):
         metadata['appium_port'] = config['appium']['host_port']
     write_record(root / (identifier + '.json'), metadata)
@@ -63,6 +64,7 @@ def snapshot():
         result.append({key: item[key] for key in ('id', 'name', 'os', 'graphical', 'memory', 'cpus', 'ssh_port')} | {
             'state': phase, 'pid': record['pid'] if record else None,
             'appiumEndpoint': f'http://127.0.0.1:{item["appium_port"]}' if item.get('appium_port') else None,
-            'screenAvailable': bool(item['graphical'] and record and phase in {'booting', 'ready', 'paused'}),
+            'screenAvailable': bool(item['graphical'] and item.get('qmp_capture', True)
+                                    and record and phase in {'booting', 'ready', 'paused'}),
             'diskPresent': (Path(item['state_dir']) / 'disk.qcow2').is_file()})
     return {'state': 'available', 'items': result}

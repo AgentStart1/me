@@ -199,6 +199,45 @@ original disk and validate the upgrade on an independent copy before adoption.
 
 Preparation requires Apple tools (`createinstallmedia`, `pkgbuild`, `productbuild`, `hdiutil`). The Windows/Linux runtime can consume the resulting ISO/package but cannot build them with substitute tools. Installer versions, firmware and boot layouts must match; retain incomplete disks and inspect `macos-install.json` after an interrupted handoff. Do not erase a partially installed guest automatically. The bundled rendering/control tests do not replace installation testing with your selected macOS release.
 
+### Windows-host Ubuntu GPU runtime
+
+On Windows 11 x64, `profiles/ubuntu-virgl-whpx.json` opts into
+`qemu_runtime: "virgl-whpx"` for Ubuntu OpenGL acceleration. The managed runtime
+builds pinned QEMU 11.1.2 and VirGLrenderer 1.3.0 sources with the bundled patches,
+verifies its executable, firmware and DLLs, and keeps the system QEMU unchanged.
+It requires Python 3.12+, MSYS2 UCRT64, WHPX and a logged-on Windows desktop with
+a working native OpenGL driver. Hidden SDL still needs that desktop; host logout,
+session 0 and host-boot autostart are not qualified.
+
+Copy the sample to private operator storage and supply the verified Ubuntu image,
+SSH key, prepared Appium runtime and unique ports. Use the consuming project's
+portable desktop requirements; installation requires them:
+
+```sh
+python scripts/guest-vm.py plan /private/ubuntu-gpu.json
+python scripts/guest-vm.py install /private/ubuntu-gpu.json --requirements /project/desktop-requirements.json
+python scripts/guest-vm.py run /private/ubuntu-gpu.json
+```
+
+First installation automatically adds Ubuntu's binary Mesa diagnostics, starts
+the test session through LightDM/XFCE on Xorg, sets the required display size,
+and checks hardware VirGL before starting Appium. The test D-Bus session,
+AT-SPI and unlocked native keyring remain isolated. The console desktop is
+dedicated to these tests; manual use must not compete with an active test run.
+Ordinary Ubuntu profiles retain their existing Xvfb session. Switching an
+existing software-rendering disk to this runtime is rejected; initialize a new
+state directory instead. Applications and native dependencies are prepared on
+the host or a designated build machine, never compiled in the work guest.
+
+This path accelerates OpenGL. CUDA, Vulkan, video decode and arbitrary host
+GPUs are not qualified. The managed runtime supports status-panel QMP capture
+by reading the current GPU scanout into a private image on demand. Appium
+screenshots continue to use the application's normal driver. Readiness validates
+the current boot and session, while actual rendering, screenshots and business
+E2E acceptance remain separate checks. See
+[development instructions](DEVELOPMENT.md#ubuntu-virglwhpx-runtime) for rebuilding
+and qualification.
+
 ### Windows macOS GPU runtime
 
 For the qualified Intel macOS 15.8.1 (24H32) experiment on Windows 11 x64,
@@ -771,8 +810,10 @@ initial creation (`-display sdl,gl=on,hidden=on`) while the guest retains its
 interactive desktop for automation. Hidden mode is incompatible with full-screen.
 Keep `graphical: true`; this is a hidden graphical backend, not `-display none`.
 
-This is an opt-in developer experiment, not a new managed runtime selector or an
-automatic GPU driver installer. Existing profiles and runtime defaults are unchanged.
+This Windows guest bundle is an opt-in developer experiment; it does not add a
+managed Windows GPU runtime or automatic guest GPU driver installer. Existing
+profiles and runtime defaults are unchanged. Ubuntu's managed runtime is described
+separately above.
 Use a separate private runtime/profile and retain rollback copies. Driver signing
 and guest setup remain operator prerequisites; no host Secure Boot changes are
 performed by this bundle. Test compilation stays on the host.

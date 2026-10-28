@@ -7,7 +7,7 @@ A portable [Agent Plugins](https://agent-plugins.org) collection. It includes An
 - Android emulator provisioning, profiles, and framework-independent Android device test locking.
 - Android, RecyclerView, client-UI, and general engineering guidance, including cross-platform code design rules for async control flow, state, and concurrency with Kotlin/Android, Swift, TypeScript/JavaScript, Python, Rust, and C#/.NET references.
 - Test-report and code-diff site generation with optional ngrok sharing.
-- A persistent QEMU Alpine/Docker environment with Linux KVM, Windows WHPX, and portable TCG fallback, for Linux Docker container and Windows workflows. Linux hosts outside containers can use Docker directly without this plugin.
+- A persistent QEMU Alpine/Docker environment with Linux KVM, Windows WHPX, and portable TCG fallback, for Linux Docker container and Windows workflows. Linux hosts outside containers can use Docker directly without this plugin. Ubuntu work guests can opt into a pinned Windows/WHPX VirGL runtime for OpenGL acceleration.
 - Portable Claude agent prompts bundled with their owning plugins.
 
 This repository is the source of truth. Each `plugins/*/plugin.json` targets Agent Plugins 1.0.0; client metadata lives in reverse-domain `extensions`. Complete skill resources are shared. Source skills use portable frontmatter so other Agent Plugins clients can load them directly. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only when generating `me.claude`. Codex skill files are copied unchanged. Reusable agent prompts remain at each plugin’s `agents/` directory.

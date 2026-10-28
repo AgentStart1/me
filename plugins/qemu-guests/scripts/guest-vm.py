@@ -79,15 +79,25 @@ def acceptance(config, home):
                 for v in config['acceptance']]
     if config['os'] == 'macos':
         remote = '/bin/bash /opt/qemu-guests/verify-macos.sh'
+    elif config['os'] == 'ubuntu':
+        remote = 'sudo python3 /opt/qemu-guests/verify.py'
+        if not (home / 'installed.json').exists():
+            remote = ('status=$(sudo cloud-init status --format=json) && printf \'%s\' "$status" | '
+                      'python3 -c "import json,sys; sys.exit(json.load(sys.stdin)[\'status\'] != \'done\')" && '
+                      + remote)
     else:
-        remote = ('status=$(sudo cloud-init status --format=json) && printf \'%s\' "$status" | '
-                  'python3 -c "import json,sys; sys.exit(json.load(sys.stdin)[\'status\'] != \'done\')" && '
-              'sudo python3 /opt/qemu-guests/verify.py') if config['os'] == 'ubuntu' else (
-                  'powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:/ProgramData/qemu-guests/verify.ps1')
+        remote = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:/ProgramData/qemu-guests/verify.ps1'
     return ['ssh', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new',
             '-o', 'UserKnownHostsFile=' + str(home / 'known_hosts'), '-o', 'ConnectTimeout=3',
             '-i', config['access_key'], '-p', str(config['ssh_port']),
             config['ssh_user'] + '@127.0.0.1', remote]
+
+
+def installation_record(config):
+    record = {'os': config['os'], 'media_sha256': config['media_sha256']}
+    if config.get('qemu_runtime') == 'virgl-whpx':
+        record['graphics_backend'] = 'virgl'
+    return record
 
 
 def initialize(config, home):
@@ -108,7 +118,7 @@ def initialize(config, home):
     if 'runtime_requirements' in config:
         from initialization_snapshot import record_for
         write_record(home / 'runtime-requirements.json', record_for(config))
-    write_record(home / 'installation.json', {'os': config['os'], 'media_sha256': config['media_sha256']})
+    write_record(home / 'installation.json', installation_record(config))
 
 
 def private_home(home):
@@ -157,8 +167,8 @@ def supervise(config, home, installing):
             if not (home / 'disk.qcow2').is_file() or not (home / 'installation.json').is_file():
                 raise ValueError('No initialized disk; run install first')
             installed = json.loads((home / 'installation.json').read_text())
-            if installed != {'os': config['os'], 'media_sha256': config['media_sha256']}:
-                raise ValueError('OS/media changed; use a new state_dir')
+            if installed != installation_record(config):
+                raise ValueError('OS/media/graphics changed; use a new state_dir')
         # Interrupted installations keep their seed attached when resumed.
         boot_install = not (home / 'installed.json').exists()
         with open(home / 'qemu.log', 'ab') as qemu_log:

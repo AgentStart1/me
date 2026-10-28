@@ -56,6 +56,8 @@ def capture(identifier):
     item = next((entry for entry in entries() if entry['id'] == identifier), None)
     if item is None or not item['graphical']:
         raise ValueError('No registered graphical guest')
+    if not item.get('qmp_capture', True):
+        raise ValueError('GPU scanout has no QMP surface; use native Appium screenshots')
     phase, record = state(item)
     if phase not in {'booting', 'ready', 'paused'} or record is None:
         raise ValueError('Guest is not supervised and running')

@@ -27,5 +27,15 @@ else
         chmod 644 desktop-session.sh desktop.json
     fi
     systemctl daemon-reload
-    systemctl enable --now qemu-guests-appium.service
+    if [ -f graphics.json ]; then
+        chmod 644 verify-gpu.py
+        account_home=$(getent passwd '{{USER}}' | cut -d: -f6)
+        test -n "$account_home"
+        install -d -m 700 -o {{USER}} "$account_home/.config" "$account_home/.config/autostart"
+        install -m 644 -o {{USER}} desktop-autostart.desktop "$account_home/.config/autostart/qemu-guests-appium.desktop"
+        # The graphical login owns the GPU session; do not launch a competing Xvfb service.
+        systemctl disable --now qemu-guests-appium.service
+    else
+        systemctl enable --now qemu-guests-appium.service
+    fi
 fi
