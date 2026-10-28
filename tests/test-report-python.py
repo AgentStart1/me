@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import unittest
 import shutil
 import hashlib
@@ -16,57 +15,26 @@ PLUGINS = Path(os.environ.get('REPORT_TEST_PLUGINS', ROOT / 'plugins'))
 PLUGIN = sys.argv.pop(1) if len(sys.argv) > 1 and sys.argv[1] in ('diff-sharing', 'test-report-sharing') else None
 
 
-def published(output):
-    pointer = output / 'current.json'
-    return output / 'generations' / json.loads(pointer.read_text(encoding='utf-8'))['generation'] if pointer.exists() else output
+from report_test_support import ReportFixture, published
 
 
-class ReportTests(unittest.TestCase):
-    def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.project = Path(self.temporary.name)
-
-    def command(self, plugin, script, *args, env=None, success=True, cwd=None):
-        environment = dict(os.environ)
-        for key, value in (env or {}).items():
-            if value is None:
-                environment.pop(key, None)
-            else:
-                environment[key] = value
-        result = subprocess.run([sys.executable, str(PLUGINS / plugin / 'scripts' / script), *map(str, args)],
-                                cwd=cwd or self.project, env=environment, capture_output=True, text=True, encoding='utf-8')
-        self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
-        return result
-
+class ReportTests(ReportFixture):
     def test_bundled_runtime(self):
         source = (ROOT / 'scripts/report-sharing/report_runtime.py').read_bytes()
         for name in ('diff-sharing', 'test-report-sharing'):
             self.assertEqual(source, (ROOT / 'plugins' / name / 'scripts/report_runtime.py').read_bytes())
 
     @unittest.skipIf(PLUGIN == 'diff-sharing', 'Other plugin')
-    def test_collection_paths_duplicates_and_recursive_output(self):
+    def test_recursive_output_is_rejected(self):
         root = self.project / 'custom space & reports'
-        (root / 'nested').mkdir(parents=True)
+        root.mkdir()
         (root / 'index.html').write_text('<html>report</html>', encoding='utf-8')
-        (root / 'nested/index.html').write_text('child', encoding='utf-8')
-        (root / 'TEST-one.xml').write_text('<testsuite/>', encoding='utf-8')
-        other = self.project / 'other'
-        other.mkdir()
-        (other / 'TEST-one.xml').write_text('<testsuite name="other"/>', encoding='utf-8')
-        output = self.project / 'output space & results'
-        self.command('test-report-sharing', 'collect-test-results.py', '--test-dir', root,
-                     '--test-dir', root / 'nested', '--test-dir', other, '--output-dir', output)
-        summary = json.loads((published(output) / 'reports/summary.json').read_text(encoding='utf-8'))
-        self.assertEqual((summary['total_reports'], summary['xml_files']), (1, 2))
-        self.command('test-report-sharing', 'generate-report-site.py', '--output-dir', output)
-        self.assertEqual((published(output) / 'index.html').read_text(encoding='utf-8').count('(JUnit XML)'), 2)
         self.command('test-report-sharing', 'collect-test-results.py', '--test-dir', root,
                      '--output-dir', root / 'inside', success=False)
         self.assertFalse((root / 'inside').exists())
 
     @unittest.skipIf(PLUGIN == 'diff-sharing', 'Other plugin')
-    def test_bounded_scan_and_url_encoding(self):
+    def test_bounded_scan_excludes_deep_xml(self):
         root = self.project / 'xml'
         shallow = root / 'a/b/c'
         deep = shallow / 'd'
@@ -76,14 +44,6 @@ class ReportTests(unittest.TestCase):
         output = self.project / 'output'
         self.command('test-report-sharing', 'collect-test-results.py', '--test-dir', root, '--output-dir', output)
         self.assertEqual(len(list((published(output) / 'test-results').glob('*.xml'))), 1)
-        manual = self.project / 'legacy-manual-cache'
-        report = manual / 'reports' / 'name # & quote'
-        report.mkdir(parents=True)
-        (report / 'index.html').write_text('report')
-        self.command('test-report-sharing', 'generate-report-site.py', '--output-dir', manual)
-        page = (published(manual) / 'index.html').read_text(encoding='utf-8')
-        self.assertIn('name%20%23%20%26%20quote/index.html', page)
-        self.assertIn('&amp;', page)
 
     @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
     def test_git_modes_binary_and_invalid_refs(self):
@@ -114,7 +74,7 @@ class ReportTests(unittest.TestCase):
         self.assertNotIn('@@', (published(output) / 'index.html').read_text(encoding='utf-8'))
 
     @unittest.skipIf(PLUGIN == 'test-report-sharing', 'Other plugin')
-    def test_invalid_base_preserves_snapshot_and_renderer_failure_uses_git(self):
+    def test_invalid_base_preserves_snapshot(self):
         git, fake = self.init_structural_fixture()
         (self.project / 'example.py').write_text('value = 1\n')
         git('add', 'example.py'); git('commit', '-qm', 'base')
@@ -126,12 +86,6 @@ class ReportTests(unittest.TestCase):
         self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'missing-base', '--output-dir', output,
                      env=environment, success=False)
         self.assertEqual((output / 'current.json').read_bytes(), before)
-        fake.write_text('#!/usr/bin/env bash\nexit 41\n', newline='\n')
-        self.command('diff-sharing', 'generate-diff-report.py', '--base-ref', 'HEAD', '--output-dir', output, env=environment)
-        current = published(output)
-        self.assertEqual(json.loads((current / 'diff/stats.json').read_text(encoding='utf-8'))['difftastic_status'], 'failed')
-        self.assertIn('<option value="git" selected>', (current / 'diff/index.html').read_text(encoding='utf-8'))
-        self.assertFalse((current / 'diff/difftastic.jsonl').exists())
 
     def test_argument_validation(self):
         for plugin in [PLUGIN] if PLUGIN else ('diff-sharing', 'test-report-sharing'):
@@ -406,5 +360,12 @@ class ReportTests(unittest.TestCase):
         self.assertEqual((published(output) / 'diff/difftastic.jsonl').read_bytes(), b'')
 
 
+from report_contracts import CollectionContracts, DiffContracts, ShellContracts, TemplateContracts
+
+
 if __name__ == '__main__':
-    unittest.main()
+    if PLUGIN == 'diff-sharing':
+        del CollectionContracts
+    elif PLUGIN == 'test-report-sharing':
+        del DiffContracts
+    unittest.main(verbosity=2)

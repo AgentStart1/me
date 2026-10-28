@@ -12,8 +12,34 @@ After changing it, run `python scripts/sync-report-runtime.py` to bundle identic
 copies in both independently installed plugins. `--check` verifies those copies.
 Keep maintained page bodies under each plugin's `templates/` directory.
 
-Run the existing shell suites in both plugins, `python tests/test-report-python.py`,
+Run the thin shell compatibility suites in both plugins,
+`python tests/test-report-python.py`, `python tests/test-report-snapshots.py`,
 `python tests/test-report-launchers.py`, and `python tests/test-validation-workflow.py`.
+Install the browser with `uv run --with playwright==1.62.0 playwright install --with-deps chromium`,
+then run `uv run --script tests/test-report-browser.py`. On Windows, put Git Bash
+on PATH; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` can select an already installed Chromium.
+Browser tests use generated local snapshots and a deterministic Difftastic CLI
+fixture, not a live Difftastic installation or public tunnel. Each browser contract
+has a separate unittest result. No shared devices or existing report servers are used.
+
+Report test coverage ownership:
+
+| Contract | Suite |
+| --- | --- |
+| JSON summaries, bounded scanning, duplicate XML contents, HTML deduplication, directory aliases, empty reports, URL encoding and escaped labels | `tests/test-report-python.py` (including `report_contracts.py`) |
+| Difftastic configuration/payload, unavailable/failed status, Git statistics, committed/worktree modes and submodule exclusion | `tests/test-report-python.py` |
+| Actual rendered fragments/context, safe special characters, renderer/layout switching and Git fallback | `tests/test-report-browser.py` |
+| Atomic publication failures, overlapping snapshots and immutable linked assets | `tests/test-report-snapshots.py` |
+| Loopback/tunnel lifetime and cancellation | `tests/test-report-launchers.py` |
+| Shell target script, exact argument boundaries and exit-status propagation | `tests/test-report-python.py` (`ShellContracts`, recording interpreter fixture) |
+| Shell help, invalid arguments and interpreter selection | Plugin `tests/test-*.sh` suites |
+
+Native and browser suites share `tests/report_test_support.py` fixtures. Source
+string assertions are restricted to explicit template ownership constraints;
+interaction assertions execute in Chromium. The coverage checker discovers all
+`tests/test-report-*.py` entrypoints and requires CI wiring. Keep new contracts
+independently named rather than accumulating unrelated operations in one test.
+
 Native tests cover bounded scans, custom project directories, overlapping roots,
 recursive output rejection, URL/HTML escaping, binary Git statistics, committed
 comparisons, and invalid input. Argument parsing returns explicit project/output paths without changing global cwd.

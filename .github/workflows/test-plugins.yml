@@ -49,6 +49,23 @@ jobs:
       - run: python3 tests/test-report-python.py "${{ matrix.plugin }}"
       - run: python3 tests/test-report-snapshots.py
 
+  report-browser:
+    name: Report browser behavior
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: tests/test-report-browser.py
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-1.62.0
+      - run: uv run --with playwright==1.62.0 playwright install --with-deps chromium
+      - run: uv run --script tests/test-report-browser.py
+
   android-status:
     runs-on: ubuntu-latest
     steps:
