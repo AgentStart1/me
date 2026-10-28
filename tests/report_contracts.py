@@ -122,7 +122,8 @@ class ShellContracts(ReportFixture):
                 log.unlink(missing_ok=True)
                 environment = dict(os.environ, PYTHON_COMMAND=interpreter.as_posix(),
                                    REPORT_LAUNCH_LOG=log.as_posix(), REPORT_LAUNCH_STATUS=str(status))
-                result = subprocess.run(['bash', str(entry.with_suffix('.sh')), *arguments],
+                bash = os.environ.get('BASH_TEST_BINARY', 'bash')
+                result = subprocess.run([bash, str(entry.with_suffix('.sh')), *arguments],
                                         env=environment, capture_output=True, text=True, encoding='utf-8')
                 self.assertEqual(result.returncode, status, result.stdout + result.stderr)
                 recorded = log.read_bytes().decode('utf-8').split('\0')

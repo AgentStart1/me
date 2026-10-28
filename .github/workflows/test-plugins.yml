@@ -222,6 +222,8 @@ jobs:
   windows-runtime:
     name: Windows native ownership and reports
     runs-on: windows-latest
+    env:
+      BASH_TEST_BINARY: C:\Program Files\Git\bin\bash.exe
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

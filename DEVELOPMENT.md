@@ -17,7 +17,9 @@ Run the thin shell compatibility suites in both plugins,
 `python tests/test-report-launchers.py`, and `python tests/test-validation-workflow.py`.
 Install the browser with `uv run --with playwright==1.62.0 playwright install --with-deps chromium`,
 then run `uv run --script tests/test-report-browser.py`. On Windows, put Git Bash
-on PATH; `PLAYWRIGHT_CHROMIUM_EXECUTABLE` can select an already installed Chromium.
+on PATH, or set `BASH_TEST_BINARY` to its absolute executable path for the Shell
+dispatch contracts (Windows CI does this to avoid the WSL `bash.exe` shim).
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE` can select an already installed Chromium.
 Browser tests use generated local snapshots and a deterministic Difftastic CLI
 fixture, not a live Difftastic installation or public tunnel. Each browser contract
 has a separate unittest result. No shared devices or existing report servers are used.
