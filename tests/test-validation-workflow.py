@@ -21,6 +21,10 @@ assert not (workflow.parent / 'validate-plugins.yml').exists()
 assert jobs['sharing']['strategy']['fail-fast'] is False
 sharing = jobs['sharing']['strategy']['matrix']['plugin']
 runs = '\n'.join(step.get('run', '') for job in jobs.values() for step in job['steps'])
+for test in ROOT.glob('tests/test-report-*.py'):
+    assert test.relative_to(ROOT).as_posix() in runs, f'CI does not run {test}'
+assert 'playwright install --with-deps chromium' in '\n'.join(
+    step.get('run', '') for step in jobs['report-browser']['steps'])
 for plugin in sharing:
     assert list((ROOT / 'plugins' / plugin / 'tests').glob('test-*.sh'))
     runs += '\n' + '\n'.join(str(p.relative_to(ROOT)).replace('\\', '/') for p in
