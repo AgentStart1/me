@@ -1,0 +1,8 @@
+#!/bin/bash
+cat "$MOCK_DIR/current-range" > "$MOCK_DIR/cached-range"
+echo $$ > "$MOCK_DIR/daemon.pid"
+if [ "${FAIL_DAEMON:-0}" = 1 ]; then exit 42; fi
+touch "$MOCK_DIR/ready"
+if [ "${WAIT_DAEMON:-0}" = 1 ]; then while :; do sleep 1; done; fi
+while ! grep -q '32768 60999' "$MOCK_DIR/current-range"; do sleep 0.01; done
+exit 7

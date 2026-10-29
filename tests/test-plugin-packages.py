@@ -1,94 +1,105 @@
 #!/usr/bin/env python3
-"""Check distribution integrity, regeneration, and destructive-path guards."""
+"""Independent distribution integrity, regeneration and output safety contracts."""
 import importlib.util
-from pathlib import Path
-import tempfile
+import hashlib
 import json
+from pathlib import Path
 import shutil
+import tempfile
+import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('validation', ROOT / 'scripts/validate-plugin-packages.py')
 validation = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validation)
 build = validation.builder.build
-with tempfile.TemporaryDirectory() as temporary:
-    for client in ['claude', 'codex']:
-        output = Path(temporary) / f'me.{client}'
-        output.mkdir()
-        (output / 'unrelated.txt').write_text('keep')
-        build(client, output)
-        validation.validate(client, output)
-        for name in ['qemu-guests', 'android-emulator-profile', 'android-device-lock']:
-            plugin = output / 'plugins' / name
-            manifest = json.loads((plugin / f'.{client}-plugin/plugin.json').read_text())
-            assert manifest['mcpServers'] == './.mcp.json'
-            for resource in ['.mcp.json', 'templates/status-panel.html', 'scripts/status-server.py']:
-                assert (plugin / resource).is_file(), f'missing status runtime: {plugin / resource}'
-        assert (output / 'plugins/qemu-guests/container/Dockerfile').is_file()
-        assert (output / 'plugins/qemu-guests/skills/qemu-guests/references/configuration-and-recovery.md').is_file()
-        before = {p.relative_to(output): p.read_bytes() for p in output.rglob('*') if p.is_file()}
-        marketplace_dir = output / ('.agents/plugins' if client == 'codex' else '.claude-plugin')
-        (marketplace_dir / 'stale.txt').write_text('stale')
-        stale = output / 'plugins/stale'
-        stale.mkdir()
-        (stale / 'stale.txt').write_text('stale')
-        build(client, output)
-        after = {p.relative_to(output): p.read_bytes() for p in output.rglob('*') if p.is_file()}
-        assert before == after, 'regeneration is not deterministic'
-        assert (output / 'unrelated.txt').read_text() == 'keep'
-    for unsafe in [ROOT, ROOT.parent, ROOT / 'me.codex']:
-        try:
-            build('codex', unsafe)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError(f'accepted unsafe output: {unsafe}')
-# Invalid extension routes must fail before replacing existing output.
-with tempfile.TemporaryDirectory() as temporary:
-    fixture = Path(temporary) / 'source'
-    fixture.mkdir()
-    shutil.copytree(ROOT / 'plugins', fixture / 'plugins')
-    output = Path(temporary) / 'me.claude'
-    output.mkdir()
-    (output / 'README.md').write_text('preserve before validation')
-    original_root = validation.builder.ROOT
-    validation.builder.ROOT = fixture
-    manifest_path = fixture / 'plugins/android-device-lock/plugin.json'
-    manifest = json.loads(manifest_path.read_text())
-    manifest['extensions']['com.anthropic.claude']['skillFrontmatter']['android-device-lock']['agent'] = 'missing-agent'
-    manifest_path.write_text(json.dumps(manifest))
-    try:
-        try:
-            build('claude', output)
-        except ValueError as error:
-            assert 'missing Claude agent' in str(error)
-        else:
-            raise AssertionError('accepted missing agent route')
-        assert (output / 'README.md').read_text() == 'preserve before validation'
-    finally:
-        validation.builder.ROOT = original_root
-print('Distribution integrity, routing, determinism, and path guards passed.')
 
-# Development artifacts must be excluded even inside bundled skill resources.
-with tempfile.TemporaryDirectory() as temporary:
-    fixture = Path(temporary) / 'source'
-    shutil.copytree(ROOT / 'plugins', fixture / 'plugins')
-    shutil.copytree(ROOT / 'scripts/templates', fixture / 'scripts/templates')
-    plugin = fixture / 'plugins/qemu-guests'
-    for relative in ['ui/node_modules/dependency/index.js', 'scripts/__pycache__/status.pyc',
-                     'skills/qemu-guests/node_modules/dependency/index.js']:
-        artifact = plugin / relative
-        artifact.parent.mkdir(parents=True, exist_ok=True)
-        artifact.write_text('development artifact')
-    original_root = validation.builder.ROOT
-    validation.builder.ROOT = fixture
-    try:
-        for client in ['codex', 'claude']:
-            output = Path(temporary) / f'me.{client}'
-            build(client, output)
-            assert not list(output.rglob('node_modules'))
-            assert not list(output.rglob('__pycache__'))
-            assert (output / 'plugins/qemu-guests/templates/status-panel.html').is_file()
-    finally:
-        validation.builder.ROOT = original_root
-print('Status runtime registration and development artifact exclusion passed.')
+
+class PackageTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+
+    def source_fixture(self):
+        fixture = self.root / 'source'
+        shutil.copytree(ROOT / 'plugins', fixture / 'plugins')
+        shutil.copytree(ROOT / 'scripts/templates', fixture / 'scripts/templates')
+        return fixture
+
+    def test_distribution_integrity_and_runtime_resources(self):
+        for client in ('claude', 'codex'):
+            with self.subTest(client=client):
+                output = self.root / ('me.' + client)
+                build(client, output)
+                validation.validate(client, output)
+                for name in ('qemu-guests', 'android-emulator-profile', 'android-device-lock'):
+                    plugin = output / 'plugins' / name
+                    manifest = json.loads((plugin / f'.{client}-plugin/plugin.json').read_text())
+                    self.assertEqual(manifest['mcpServers'], './.mcp.json')
+                    for resource in ('.mcp.json', 'templates/status-panel.html', 'scripts/status-server.py'):
+                        self.assertTrue((plugin / resource).is_file(), str(plugin / resource))
+                self.assertTrue((output / 'plugins/qemu-guests/container/Dockerfile').is_file())
+                self.assertTrue((output / 'plugins/qemu-guests/skills/qemu-guests/references/configuration-and-recovery.md').is_file())
+
+    def test_regeneration_removes_stale_content_and_preserves_unrelated_files(self):
+        for client in ('claude', 'codex'):
+            with self.subTest(client=client):
+                output = self.root / ('me.' + client)
+                output.mkdir()
+                (output / 'unrelated.txt').write_text('keep')
+                build(client, output)
+                before = {p.relative_to(output): hashlib.sha256(p.read_bytes()).hexdigest()
+                          for p in output.rglob('*') if p.is_file()}
+                marketplace = output / ('.agents/plugins' if client == 'codex' else '.claude-plugin')
+                (marketplace / 'stale.txt').write_text('stale')
+                stale = output / 'plugins/stale'
+                stale.mkdir()
+                (stale / 'stale.txt').write_text('stale')
+                build(client, output)
+                after = {p.relative_to(output): hashlib.sha256(p.read_bytes()).hexdigest()
+                         for p in output.rglob('*') if p.is_file()}
+                self.assertEqual(before, after)
+                self.assertEqual((output / 'unrelated.txt').read_text(), 'keep')
+
+    def test_unsafe_output_paths_are_rejected(self):
+        for client in ('codex', 'claude'):
+            for unsafe in (ROOT, ROOT.parent, ROOT / ('me.' + client)):
+                with self.subTest(client=client, path=str(unsafe)):
+                    with self.assertRaises(ValueError):
+                        build(client, unsafe)
+
+    def test_invalid_agent_route_preserves_existing_output(self):
+        fixture = self.source_fixture()
+        output = self.root / 'me.claude'
+        output.mkdir()
+        (output / 'README.md').write_text('preserve before validation')
+        manifest_path = fixture / 'plugins/android-device-lock/plugin.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['extensions']['com.anthropic.claude']['skillFrontmatter']['android-device-lock']['agent'] = 'missing-agent'
+        manifest_path.write_text(json.dumps(manifest))
+        with patch.object(validation.builder, 'ROOT', fixture):
+            with self.assertRaisesRegex(ValueError, 'missing Claude agent'):
+                build('claude', output)
+        self.assertEqual((output / 'README.md').read_text(), 'preserve before validation')
+
+    def test_development_artifacts_are_excluded_from_bundled_resources(self):
+        fixture = self.source_fixture()
+        for relative in ('ui/node_modules/dependency/index.js', 'scripts/__pycache__/status.pyc',
+                         'skills/qemu-guests/node_modules/dependency/index.js'):
+            artifact = fixture / 'plugins/qemu-guests' / relative
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            artifact.write_text('development artifact')
+        with patch.object(validation.builder, 'ROOT', fixture):
+            for client in ('codex', 'claude'):
+                with self.subTest(client=client):
+                    output = self.root / ('me.' + client)
+                    build(client, output)
+                    self.assertEqual(list(output.rglob('node_modules')), [])
+                    self.assertEqual(list(output.rglob('__pycache__')), [])
+                    self.assertTrue((output / 'plugins/qemu-guests/templates/status-panel.html').is_file())
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -53,9 +53,9 @@ migration load results below remain evidence for that earlier version and scope.
 Port configuration tests run without QEMU or guest access:
 
 ```bash
-bash ./tests/test-port-ranges.sh
+python ./tests/test-port-ranges.py
 python3 ./tests/test-gvproxy-control.py
-./tests/test-vm-utils.sh
+python ./tests/test-vm-utils.py
 ./tests/test-linux-testcontainers.sh
 ```
 
@@ -762,3 +762,9 @@ fresh-image unattended GPU installation, or long-term reliability. A separate
 pre-existing default-window OpenGL readback issue remains outside this bundle.
 Keep consuming-project acceptance artifacts private and rerun the full suite,
 screenshots and warm recovery when qualifying a newly built complete runtime.
+
+## Offline Shell boundary regressions
+
+Run the Python suites from the `me` source checkout, where the shared fixture and
+command ownership runtime are available. See [repository development](../../DEVELOPMENT.md#shell-boundary-regression-tests)
+for prerequisites, the contract inventory and the retained platform tests.

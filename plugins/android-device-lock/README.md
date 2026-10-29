@@ -93,3 +93,7 @@ or create detached sessions). If tree cleanup cannot be confirmed, the lease and
 owner token remain for recovery. Windows shebang entrypoints run through Git Bash
 with their declared interpreter and original arguments; that interpreter must be
 available in the Git Bash environment.
+
+## Development
+
+See [repository development](../../DEVELOPMENT.md#shell-boundary-regression-tests) for the offline regression suites and their source-checkout prerequisites.

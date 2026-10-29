@@ -107,10 +107,10 @@ Codex skills remain unchanged copies of their portable sources.
 Focused audit regressions:
 
 ```bash
-bash plugins/qemu-guests/tests/test-port-ranges.sh
-bash plugins/android-device-lock/tests/test-device-lock.sh
-bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
-bash plugins/android-emulator-profile/tests/test-install-sdk.sh
+python plugins/qemu-guests/tests/test-port-ranges.py
+python plugins/android-device-lock/tests/test-device-lock.py
+python plugins/android-emulator-profile/tests/test-start-avd-docker.py
+python plugins/android-emulator-profile/tests/test-install-sdk.py
 bash plugins/test-report-sharing/tests/test-collect-test-results.sh
 python3 tests/test-report-launchers.py
 python3 tests/test-validation-workflow.py
@@ -127,7 +127,7 @@ disks/images and existing report services are outside these fixtures.
 
 Run `bash scripts/build-claude-plugin-package.sh --all` and `bash scripts/build-codex-plugin-package.sh --all` to generate sibling directories. Inspect existing sibling checkouts first: generated `plugins/`, marketplace directories, and README are replaced; unrelated files are preserved. Do not commit or push generated repositories locally.
 
-Run `python scripts/validate-plugin-packages.py --client claude ../me.claude` and `python scripts/validate-plugin-packages.py --client codex ../me.codex`, plus `bash tests/test-build-plugin-cli.sh` and `python tests/test-plugin-packages.py`. The Python test covers generated content, routing, regeneration, cleanup, and path protection; the shell test covers both client command entries, help, arguments, and dispatch. Validation dependencies are in `scripts/requirements-validation.txt`.
+Run `python scripts/validate-plugin-packages.py --client claude ../me.claude` and `python scripts/validate-plugin-packages.py --client codex ../me.codex`, plus `python tests/test-build-plugin-cli.py` and `python tests/test-plugin-packages.py`. The Python test covers generated content, routing, regeneration, cleanup, and path protection; the CLI suite covers both client command entries, help, arguments, and dispatch. Validation dependencies are in `scripts/requirements-validation.txt`.
 
 The sync workflow needs `UPSTREAM_GITHUB_TOKEN` with repository write and pull-request permissions for both existing destination repositories. It opens a separate generated PR for each client; destination PRs must merge before users receive updates. Start a new Codex thread after synchronized plugin updates are published and installed.
 
@@ -189,6 +189,58 @@ with `go test -race ./...` in `plugins/qemu-guests/scripts/docker-proxy`.
 The container job requires Docker and a Linux runtime; see its workflow steps
 for the build and execution commands.
 
+## Shell boundary regression tests
+
+The complex Shell regression drivers now use Python `unittest`. Run them from
+the `me` source checkout with Python 3.10+ and Bash on PATH (Git Bash on Windows).
+`BASH_TEST_BINARY` can select a specific Bash executable. Package suites also
+need `python -m pip install -r scripts/requirements-validation.txt`.
+For example, `python plugins/qemu-guests/tests/test-port-ranges.py -v` runs one
+suite; append a class or test name to select an individual contract.
+These developer tests require repository-level helpers and are not standalone
+installed-plugin commands.
+
+`tests/shell_test_support.py` owns private temporary directories, executable
+command fixtures and bounded subprocess waits. It reuses the repository's
+`scripts/process-runtime/command_tree.py` to stop fixture descendants after both
+success and failure, using process groups on Unix and Job Objects on Windows.
+It chooses the running Python interpreter instead of Windows' `python3` app
+alias. Fixtures under each plugin's `tests/fixtures/` simulate external commands;
+they do not implement the production controller or duplicate guest templates.
+
+| Migrated suite (run with `python`) | Retained contracts |
+| --- | --- |
+| `plugins/android-emulator-profile/tests/test-install-sdk.py` | Project archive preservation, no sudo, newer-tool reuse, upgrade backup |
+| `plugins/android-emulator-profile/tests/test-start-avd-docker.py` | Real profile/create/start Shell bridges, exact AVD names, lock and wipe refusal, config/argv propagation, first boot and resize idempotence, Unix cancellation |
+| `plugins/android-device-lock/tests/test-device-lock.py` | Real CLI and remote template through fake adb: expired-lease races, wrong owner, renewal, invalid JSON/types, publication failure, control characters, command status and recovery tokens |
+| `plugins/qemu-guests/tests/test-apk-mirror-selection.py` | Automatic/manual selection, HTTPS validation, fallback and invalid inputs |
+| `plugins/qemu-guests/tests/test-port-ranges.py` | Platform/default/explicit bounds, collisions, outbound separation, rendered guest supervisor startup/restore failures, seed cleanup and signal cleanup |
+| `plugins/qemu-guests/tests/test-sync-workspace.py` | Real archive filtering and staged transfer, unsafe destination and missing-source rejection |
+| `plugins/qemu-guests/tests/test-build-docker-proxy.py` | Bootstrap/cross build, failed build/download preservation, staging cleanup, global serialization across VM/output roots, default storage, timeout/cancellation/stale-owner refusal |
+| `plugins/qemu-guests/tests/test-vm-utils.py` | Template rendering, Shell configuration/tool/acceleration boundaries, callback guards, lock races, stop protection and SSH-key recovery; existing source wiring checks remain separately labelled |
+| `tests/test-build-plugin-cli.py` | Both client launchers' help, invalid arguments, default dispatch and output override |
+| `tests/test-plugin-packages.py` | Independently reported integrity, regeneration, unsafe paths, invalid routing and development-artifact exclusion |
+| `tests/test-report-launchers.py` | Six independent plugin/mode cases, preserving each server's startup/publication/cancellation lifecycle; the optional plugin-name filter still works |
+
+Native `test-controller.py`, `test-profile-controller.py`, `test-vm-state.py`,
+`test-vm-transitions.py` and `test-vm-shell-handoff.py` retain ownership of their
+direct controller/state-machine tests. The migrated suites test actual Shell
+entrypoints and remote templates instead of adding another mock-only copy of
+those algorithms. The reversed VM range assertion is covered by the port-bound
+matrix rather than duplicated in the utility suite. Parameterized inputs use
+`subTest`; independent operations get separate test methods. Dependent flows
+such as failed cleanup followed by token recovery stay together.
+
+Linux CI retains these runtime entries and Windows CI runs the eight plugin
+Shell boundary suites too. Git Bash cannot deliver graceful signals to native
+Windows Python: the AVD Unix signal case skips there and the existing native
+profile suite verifies Ctrl+Break. `test-msys2-path.sh`,
+`test-linux-testcontainers.sh`, `test-container-runtime.sh`, the report plugins'
+small Shell compatibility checks, and Go/Node tests retain their existing
+platform/runtime contracts. No physical device, live VM or external network is
+needed by the migrated Shell suites; launcher integration binds private loopback
+ports and simulates ngrok.
+
 ## Device lease controller
 
 `android-device-lock/scripts/adb-device-lock.py` owns host lease operations.
@@ -196,7 +248,7 @@ The shell entry selects Python 3.10+; `lock-metadata.py` remains an importable
 strict metadata validator with a compatible command entry. Device mutations
 remain serialized through the remote mkdir guard. The owner token is persisted
 before metadata publication and retained on remote deletion failure.
-Run `bash plugins/android-device-lock/tests/test-device-lock.sh` for fake-device
+Run `python plugins/android-device-lock/tests/test-device-lock.py` for fake-device
 races and failures, and `python plugins/android-device-lock/tests/test-controller.py`
 for native controller and cancellation checks. No real-device result is implied.
 
@@ -232,7 +284,7 @@ are not interpreted as MSYS PIDs. Unknown identity inspection returns a distinct
 failure status from a confirmed absent/unrelated QEMU process.
 
 Run `python plugins/qemu-guests/tests/test-vm-state.py`, the existing
-`test-vm-utils.sh` shell suite, `python plugins/qemu-guests/tests/test-vm-transitions.py`,
+`test-vm-utils.py` Shell boundary suite, `python plugins/qemu-guests/tests/test-vm-transitions.py`,
 and `test-vm-lifecycle.py` with real QEMU and
 `GVPROXY_BINARY` set to an existing verified helper. The lifecycle fixture uses
 private state, mocked guest IO and an untouched synthetic disk; Windows launches
@@ -341,7 +393,7 @@ emulator process. Shell installation orchestration uses only the internal `profi
 `args` bridge modes, without eval. AVD path resolution and INI reads/updates are
 called directly by the native startup controller. Native Windows waits are bounded so Ctrl+Break reaches cleanup;
 only the owned process tree is terminated. Run the existing fake SDK/emulator
-shell suites and `python plugins/android-emulator-profile/tests/test-profile-controller.py`.
+Python Shell boundary suites and `python plugins/android-emulator-profile/tests/test-profile-controller.py`.
 The native test covers spaces/Unicode paths, CRLF, expansion rejection,
 arguments, duplicate keys, native locks, competition, failure and cancellation,
 plus ignored inherited configuration/wipe permission and batch trailing-backslash

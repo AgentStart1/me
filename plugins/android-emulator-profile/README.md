@@ -93,3 +93,7 @@ the same directories. Empty values remain empty.
 
 Read Git Bash path-conversion output as UTF-8, independent of the Windows ANSI
 code page, so Unicode SDK and AVD directory names remain intact.
+
+## Development
+
+See [repository development](../../DEVELOPMENT.md#shell-boundary-regression-tests) for the offline regression suites and their source-checkout prerequisites.

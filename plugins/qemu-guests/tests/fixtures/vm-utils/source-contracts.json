@@ -1,0 +1,302 @@
+[
+  [
+    "scripts/vm-lifecycle-step.sh",
+    true,
+    "configure_qemu_acceleration \"$QEMU_BIN\"",
+    "start script selects the configured accelerator"
+  ],
+  [
+    "scripts/vm-lifecycle-step.sh",
+    true,
+    "\"${QEMU_ACCEL_ARGS[@]}\"",
+    "start script uses shared acceleration arguments"
+  ],
+  [
+    "scripts/vm-lifecycle-step.sh",
+    false,
+    "enable-kvm",
+    "start script excludes KVM"
+  ],
+  [
+    "scripts/vm-lifecycle-step.sh",
+    true,
+    "ssh_exec poweroff",
+    "stop script uses Alpine's poweroff command"
+  ],
+  [
+    "scripts/connect-vm.sh",
+    false,
+    "sync-code.sh",
+    "VM connection script omits obsolete rename history"
+  ],
+  [
+    "scripts/connect-vm.sh",
+    true,
+    "--sftp",
+    "VM connection script supports SFTP"
+  ],
+  [
+    "scripts/connect-vm.sh",
+    true,
+    "ssh -o",
+    "VM connection script supports SSH"
+  ],
+  [
+    "scripts/setup.sh",
+    false,
+    "rsync",
+    "setup omits obsolete code-sync tooling"
+  ],
+  [
+    "scripts/setup.sh",
+    false,
+    "code sync",
+    "setup omits obsolete code-sync messaging"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "configure_qemu_acceleration \"$QEMU_BIN\"",
+    "provisioning selects the configured accelerator"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "\"${QEMU_ACCEL_ARGS[@]}\"",
+    "provisioning and verification use shared acceleration arguments"
+  ],
+  [
+    "templates/setup.start.tpl",
+    true,
+    "apk add docker docker-cli-compose openssh",
+    "guest template installs Docker and SSH"
+  ],
+  [
+    "templates/setup.start.tpl",
+    false,
+    "cgroupfs-mount",
+    "guest uses Alpine OpenRC cgroups without a foreign package"
+  ],
+  [
+    "templates/setup.start.tpl",
+    true,
+    "rc-update add cgroups default",
+    "guest enables the OpenRC cgroups service"
+  ],
+  [
+    "templates/setup.start.tpl",
+    true,
+    "lbu include /usr/local/libexec/dockerd-with-port-range",
+    "system install persists the supervised Docker wrapper"
+  ],
+  [
+    "templates/setup.start.tpl",
+    true,
+    "rc-update add local default",
+    "guest template enables local DNS selection"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "VM_DISK_NATIVE=\"$(qemu_native_path \"$VM_DISK\")\"",
+    "disk path is converted explicitly"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "MODIFIED_ISO_NATIVE=\"$(qemu_native_path \"$MODIFIED_ISO\")\"",
+    "ISO path is converted explicitly"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "cp \"${SCRIPT_DIR}/select-apk-mirror.sh\"",
+    "mirror selector is copied into guest overlay"
+  ],
+  [
+    "templates/setup.start.tpl",
+    true,
+    "/usr/local/libexec/select-apk-mirror",
+    "guest template runs mirror selector"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "render_template \"${TEMPLATE_DIR}/setup-alpine.answers.tpl\"",
+    "answers use template rendering"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "render_template \"${TEMPLATE_DIR}/testcontainers-ports.conf.tpl\"",
+    "sysctl config uses template rendering"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "render_template \"${TEMPLATE_DIR}/docker-daemon.json.tpl\"",
+    "Docker config uses template rendering"
+  ],
+  [
+    "scripts/create-vm.sh",
+    true,
+    "render_template \"${TEMPLATE_DIR}/setup.start.tpl\"",
+    "guest setup uses template rendering"
+  ],
+  [
+    "scripts/create-vm.sh",
+    false,
+    "cat >",
+    "provisioning does not generate product config with heredocs"
+  ],
+  [
+    "scripts/create-vm.sh",
+    false,
+    "mirrors.aliyun.com",
+    "provisioning is not tied to Aliyun"
+  ],
+  [
+    "profiles/dev.profile",
+    true,
+    "ALPINE_MIRROR_BASE=auto",
+    "default profile enables mirror detection"
+  ],
+  [
+    "profiles/dev.profile",
+    true,
+    "VM_ACCELERATOR=auto",
+    "default profile selects the fastest available accelerator"
+  ],
+  [
+    "profiles/dev.profile",
+    true,
+    "VM_MEMORY=4096",
+    "default profile provides multi-container memory headroom"
+  ],
+  [
+    "profiles/dev.profile",
+    true,
+    "VM_CPUS=4",
+    "default profile provides CPU headroom for JVM containers under TCG"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1",
+    "host override"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock",
+    "Ryuk guest socket"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "env \"${COMMAND_ENV[@]}\" \"$@\"",
+    "Testcontainers command receives its environment"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "if env \"${COMMAND_ENV[@]}\" \"$@\"; then exit 0; else exit \"$?\"; fi",
+    "metrics-disabled mode preserves the command exit status"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "trap finish_resource_metrics EXIT",
+    "metrics finalize after successful or failed commands"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "exit \"$command_status\"",
+    "metrics preserve the command exit code"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "metrics/latest.json",
+    "metrics overwrite the stable latest report"
+  ],
+  [
+    "scripts/collect-resource-metrics.ps1",
+    true,
+    "ConvertTo-Json -Depth 6",
+    "metrics report uses structured JSON"
+  ],
+  [
+    "scripts/collect-resource-metrics.ps1",
+    true,
+    "Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor",
+    "metrics sample host CPU"
+  ],
+  [
+    "scripts/collect-resource-metrics.ps1",
+    true,
+    "head -n 1 /proc/stat",
+    "metrics sample guest CPU"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "\"TEMP=${WINDOWS_TEMP}\"",
+    "Windows tests use a writable native temp directory"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "\"TMP=${WINDOWS_TEMP}\"",
+    "Windows tests keep TEMP and TMP aligned"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "SOCKET_ENV_EXCLUSION+=\"TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE\"",
+    "MSYS preserves the guest Docker socket path"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "\"TESTCONTAINERS_PULL_PAUSE_TIMEOUT=${TESTCONTAINERS_PULL_PAUSE_TIMEOUT_VALUE}\"",
+    "wrapper passes the image pull pause timeout"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    true,
+    "\"TESTCONTAINERS_PULL_TIMEOUT=${TESTCONTAINERS_PULL_TIMEOUT_VALUE}\"",
+    "wrapper passes the total image pull timeout"
+  ],
+  [
+    "scripts/run-test-env.sh",
+    false,
+    "TESTCONTAINERS_RYUK_DISABLED=true",
+    "Ryuk remains enabled"
+  ],
+  [
+    "profiles/dev.profile",
+    true,
+    "TESTCONTAINERS_PULL_PAUSE_TIMEOUT=300",
+    "default profile tolerates slow TCG layer extraction"
+  ],
+  [
+    "profiles/dev.profile",
+    true,
+    "TESTCONTAINERS_PULL_TIMEOUT=1800",
+    "default profile allows large image pulls"
+  ],
+  [
+    "profiles/dev.profile",
+    true,
+    "TESTCONTAINERS_RESOURCE_METRICS=auto",
+    "default profile selects platform-appropriate metrics"
+  ],
+  [
+    "profiles/dev.profile",
+    true,
+    "TESTCONTAINERS_RESOURCE_METRICS_INTERVAL=1",
+    "default profile samples resource metrics each second"
+  ]
+]

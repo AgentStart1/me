@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = "--list_installed" ]; then
+    printf '%s\n' 'system-images;android-36.1;google_apis;x86_64 | 1 | installed'
+    printf '%s\n' 'system-images;android-36.1;google_apis;arm64-v8a | 1 | installed'
+fi
+exit 0

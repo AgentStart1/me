@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qemu-guests",
-  "version": "0.10.0-20261027231140",
+  "version": "0.10.1-20261028150543",
   "description": "Concurrent QEMU Appium test guests with unattended provisioning and an independent Alpine Docker backend.",
   "author": {
     "name": "QEMU Guests Maintainers",

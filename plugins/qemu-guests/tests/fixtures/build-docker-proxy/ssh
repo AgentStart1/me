@@ -1,0 +1,22 @@
+#!/bin/bash
+printf '%s\n' "$*" >> "$PROXY_SSH_LOG"
+case "${*: -1}" in
+    mktemp*) echo /tmp/qemu-docker-proxy.mock123 ;;
+    *'tar -xf -'*) tar -tf - > "$PROXY_ARCHIVE_LOG" ;;
+    *'ash ./guest-build.sh'*)
+        if [ -n "${PROXY_EVENTS:-}" ]; then
+            echo "start ${PROXY_CALL}" >> "$PROXY_EVENTS"
+            if [ "$PROXY_CALL" = first ]; then
+                for ((attempt=0; attempt<1000; attempt++)); do
+                    [ ! -f "$FIXTURE/release-first" ] || break
+                    sleep 0.02
+                done
+                [ -f "$FIXTURE/release-first" ] || exit 90
+            fi
+            echo "end ${PROXY_CALL}" >> "$PROXY_EVENTS"
+        fi
+        [ "${PROXY_FAIL:-}" != build ] ;;
+    cat*) [ "${PROXY_FAIL:-}" != download ] || exit 1; printf 'proxy executable' ;;
+    'rm -rf'*) ;;
+    *) exit 1 ;;
+esac

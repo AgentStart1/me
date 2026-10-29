@@ -101,8 +101,8 @@ Use `bash scripts/run-test-env.sh --config <project-environment.json> -- <host t
 - `templates/`: Alpine answers, guest setup, sysctl, and Docker daemon configuration templates
 - `scripts/lib/gvproxy.sh` and `scripts/gvproxy-control.py`: verified helper lifecycle, readiness, forwarding registration and cleanup
 - `profiles/dev.profile`
-- `tests/test-vm-utils.sh`
-- `tests/test-apk-mirror-selection.sh`
+- `tests/test-vm-utils.py`
+- `tests/test-apk-mirror-selection.py`
 
 ## Linux containers
 
@@ -189,14 +189,16 @@ resource metrics, bind-mount behavior, or incomplete provisioning recovery.
 
 ## Validation
 
+Run the Python regression suites from this plugin directory in the `me` source checkout; they require the repository test helpers. These fixtures do not use a live VM.
+
 On Windows, the status collector translates Git Bash/MSYS PIDs before verifying the native QEMU process and accelerator. A missing process is stopped; failed inspection remains unknown. Rebuild the panel with Node on Windows or Linux after UI changes.
 
 ```bash
-./tests/test-apk-mirror-selection.sh
-./tests/test-vm-utils.sh
-bash ./tests/test-port-ranges.sh
-./tests/test-sync-workspace.sh
-./tests/test-build-docker-proxy.sh
+python ./tests/test-apk-mirror-selection.py
+python ./tests/test-vm-utils.py
+python ./tests/test-port-ranges.py
+python ./tests/test-sync-workspace.py
+python ./tests/test-build-docker-proxy.py
 ./scripts/build-docker-proxy.sh
 ```
 

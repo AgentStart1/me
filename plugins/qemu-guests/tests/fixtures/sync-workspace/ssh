@@ -1,0 +1,5 @@
+#!/bin/bash
+printf '%s\n' "$*" >> "$MOCK_SSH_LOG"
+case "$*" in
+    *"tar -xf -"*) tar -tf - > "$MOCK_ARCHIVE_LOG" ;;
+esac

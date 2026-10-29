@@ -613,12 +613,8 @@ Host and QEMU CPU percentages are normalized across all host logical processors;
 
 ## Validation
 
-```bash
-./tests/test-apk-mirror-selection.sh
-./tests/test-vm-utils.sh
-```
-
-The smoke tests use deterministic command mocks; they do not boot QEMU or use the network.
+Contributor test commands and the offline regression inventory are documented in
+[DEVELOPMENT.md](DEVELOPMENT.md#offline-shell-boundary-regressions).
 
 ## VM & Containers status panel
 

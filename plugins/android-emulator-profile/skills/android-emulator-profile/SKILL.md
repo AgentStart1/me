@@ -18,8 +18,8 @@ Paths resolve relative to this plugin root:
 - `scripts/create-avd.sh`
 - `scripts/start-avd.sh`
 - `scripts/profile-utils.sh`
-- `tests/test-start-avd-docker.sh`
-- `tests/test-install-sdk.sh`
+- `tests/test-start-avd-docker.py`
+- `tests/test-install-sdk.py`
 - `profiles/mobile.profile`
 - `profiles/watch.profile`
 - `profiles/tablet.profile`
@@ -46,10 +46,10 @@ Start a configured emulator:
 ./scripts/start-avd.sh ./profiles/mobile.profile
 ```
 
-Run the fake-command smoke test from the plugin root:
+Run the fake-command regression suite from this plugin directory in the `me` source checkout (requires the repository test helpers):
 
 ```bash
-tests/test-start-avd-docker.sh
+python tests/test-start-avd-docker.py
 ```
 
 ## Configuration Rules
@@ -71,7 +71,7 @@ tests/test-start-avd-docker.sh
 
 - Resolve the installed plugin root from this skill location and use absolute script/profile paths. Keep the target project's working directory unchanged.
 - Ensure SDK downloads and emulator startup are covered by the user's request or existing authorization; ask only if that scope is missing. Do not request approval again for an already authorized operation.
-- `test-start-avd-docker.sh` uses fake `emulator` and `adb` commands; it does not start Docker or a real emulator.
+- `test-start-avd-docker.py` uses fake `emulator` and `adb` commands; it does not start Docker or a real emulator.
 - Distinguish the host ADB server (5037) from the selected emulator's ADB endpoint
   (often 5555, but determined by its console/ADB port pair). Verify the VM route first;
   gvproxy's host alias can reach host loopback. Add a scoped port proxy/firewall rule
