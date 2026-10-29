@@ -207,6 +207,9 @@ success and failure, using process groups on Unix and Job Objects on Windows.
 It chooses the running Python interpreter instead of Windows' `python3` app
 alias. Fixtures under each plugin's `tests/fixtures/` simulate external commands;
 they do not implement the production controller or duplicate guest templates.
+When a fixture passes a Bash command through a native controller, pass the
+selected shell's absolute `$BASH` path. A bare `bash` can resolve to the Windows
+system WSL launcher even when the outer fixture is running under Git Bash.
 
 | Migrated suite (run with `python`) | Retained contracts |
 | --- | --- |

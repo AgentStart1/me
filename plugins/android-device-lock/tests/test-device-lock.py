@@ -102,7 +102,8 @@ printf '%s %s' "$a_status" "$b_status" > "$FIXTURE/status"''')
         self.assert_released()
 
     def test_run_preserves_child_failure_and_cleans_lease(self):
-        self.command('run', extra="-- bash -c 'exit 23'", status=23)
+        # Native Windows process creation can resolve bare bash to the WSL launcher.
+        self.command('run', extra="-- \"$BASH\" -c 'exit 23'", status=23)
         self.assert_released()
 
     def test_failed_remote_cleanup_keeps_recovery_token(self):
@@ -112,7 +113,7 @@ printf '%s %s' "$a_status" "$b_status" > "$FIXTURE/status"''')
                 if mode == 'release':
                     self.command('acquire')
                     before = self.read('owner.token')
-                result = self.command(mode, extra=f"-- bash -c 'exit {child_status}'" if mode == 'run' else '',
+                result = self.command(mode, extra=f"-- \"$BASH\" -c 'exit {child_status}'" if mode == 'run' else '',
                                       env={'FAIL_REMOTE_RM': '1'}, status=None)
                 self.assertNotEqual(result.returncode, 0)
                 if child_status:
