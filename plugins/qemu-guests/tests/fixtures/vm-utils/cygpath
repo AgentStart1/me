@@ -1,0 +1,3 @@
+#!/bin/bash
+if [ "${1:-}" = "-m" ]; then shift; fi
+printf 'C:/native/%s\n' "${1##*/}"

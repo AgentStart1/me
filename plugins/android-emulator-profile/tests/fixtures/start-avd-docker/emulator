@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf "%s\n" "$@" > "${EMULATOR_ARGS_LOG}"
+printf "DISPLAY=%s\n" "${DISPLAY:-}" > "${EMULATOR_ENV_LOG}"
+cp "${ANDROID_AVD_HOME}/docker-test-avd.avd/config.ini" "${EMULATOR_CONFIG_LOG}"
+if [ "${FAKE_EMULATOR_HOLD:-0}" = 1 ]; then
+    echo $$ > "$FAKE_EMULATOR_PID"
+    trap 'exit 0' TERM INT
+    while :; do sleep 0.1; done
+fi
+exit 0

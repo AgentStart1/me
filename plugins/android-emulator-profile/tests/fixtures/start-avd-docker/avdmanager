@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = "list" ] && [ "${2:-}" = "avd" ]; then
+    printf 'Name: %s\n' "${LISTED_AVD_NAME:-docker-test-avd}"
+else
+    printf '%s\n' "$@" > "$AVDMANAGER_ARGS_LOG"
+fi
+exit 0

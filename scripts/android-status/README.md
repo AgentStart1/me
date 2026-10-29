@@ -11,7 +11,7 @@ npm test --prefix scripts/android-status
 uv run --script tests/android-status/test-status.py
 uv run --with playwright==1.62.0 playwright install chromium
 uv run --script tests/android-status/test-panels.py
-bash plugins/android-emulator-profile/tests/test-start-avd-docker.sh
+python plugins/android-emulator-profile/tests/test-start-avd-docker.py
 bash scripts/build-codex-plugin-package.sh --all
 python3 scripts/validate-generated-codex-skills.py ../me.codex
 ```

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf "%s\n" "$@" >> "${ADB_ARGS_LOG}"
+exit 0

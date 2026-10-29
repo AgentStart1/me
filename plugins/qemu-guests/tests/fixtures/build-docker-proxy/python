@@ -1,0 +1,3 @@
+#!/bin/bash
+[[ "$1" == *qemu-control.py ]] || exit 99
+exit 0

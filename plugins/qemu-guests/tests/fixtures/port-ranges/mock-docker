@@ -1,0 +1,11 @@
+#!/bin/bash
+shift 2
+case "$1" in
+    info) [ -f "$MOCK_DIR/ready" ];;
+    ps) [ "${EXISTING_MAPPING:-0}" != 1 ] || echo existing-container;;
+    import) echo seed-image;;
+    run) cat "$MOCK_DIR/current-range" > "$MOCK_DIR/cache-on-mapping"; echo seed-container;;
+    port) echo "127.0.0.1:${PROBE_PORT:-20000}";;
+    rm|image) echo "$*" >> "$MOCK_DIR/seed-cleanup";;
+    *) exit 1;;
+esac

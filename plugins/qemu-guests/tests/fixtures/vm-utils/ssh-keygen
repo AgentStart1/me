@@ -1,0 +1,12 @@
+#!/bin/bash
+if [ "${1:-}" = -y ]; then printf '%s\n' 'ssh-ed25519 recovered-public'; exit 0; fi
+while [ $# -gt 0 ]; do
+    if [ "$1" = "-f" ]; then
+        shift
+        printf '%s\n' "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI mock-key" > "$1"
+        printf '%s\n' "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI mock-key" > "$1.pub"
+        exit 0
+    fi
+    shift
+done
+exit 1

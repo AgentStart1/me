@@ -1,0 +1,4 @@
+#!/bin/bash
+printf '%s\n' "${*:2}" >> "$MOCK_DIR/sysctl-log"
+printf '%s\n' "${*:2}" > "$MOCK_DIR/current-range"
+if [ "${FAIL_RESTORE:-0}" = 1 ] && [[ "$*" == *'32768 60999'* ]]; then exit 1; fi
