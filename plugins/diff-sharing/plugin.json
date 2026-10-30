@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "diff-sharing",
-  "version": "0.2.6-20261019151438",
+  "version": "0.2.7-20261030120429",
   "description": "Generate Git or Difftastic code-diff sites for local preview or ngrok sharing.",
   "author": {
     "name": "Diff Sharing"
@@ -19,8 +19,8 @@
       "skills": "./skills/",
       "interface": {
         "displayName": "Diff Sharing",
-        "shortDescription": "Share Difftastic-first code diffs through ngrok.",
-        "longDescription": "Generates a static Difftastic-first structural diff site with a Git fallback, inline and side-by-side layouts, then exposes it through ngrok.",
+        "shortDescription": "Preview code-diff reports locally or share a public URL.",
+        "longDescription": "Generates a browsable Difftastic-first structural diff site with a Git fallback and inline or side-by-side layouts. The skill uses local previews unless public sharing is requested.",
         "developerName": "Diff Sharing",
         "category": "Developer Tools",
         "capabilities": [
@@ -29,7 +29,8 @@
           "Ngrok Tunnel"
         ],
         "defaultPrompt": [
-          "Generate a Difftastic-first code diff and expose it publicly."
+          "Preview this branch's changes as a local diff report.",
+          "Generate a code-diff report and share its public URL."
         ],
         "brandColor": "#2563EB"
       }

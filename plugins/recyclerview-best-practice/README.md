@@ -2,6 +2,8 @@
 
 This portable plugin provides Android RecyclerView guidance for creating, reviewing, and refactoring list UI code.
 
+Use the general RecyclerView skill for list implementation and bugs in updates, recycling, pagination or row state. The sentinel skill is narrower: diagnose prepend visibility, anchoring or insertion-animation problems and evaluate a sentinel only when appropriate, or implement one explicitly requested by the user.
+
 Feature state and effects follow the framework-independent Host contract; Android
 ViewModels may adapt that Host to the view lifecycle. A prepend sentinel changes
 diff positions but does not guarantee visibility or anchoring when offscreen.

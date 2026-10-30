@@ -1,6 +1,6 @@
 # Diff Sharing Plugin
 
-Generate a Difftastic-first Git diff site and share it through ngrok. Git remains available as a fallback renderer when `difft` is unavailable.
+Generate a browsable Difftastic-first Git diff site for local preview or requested public sharing. Git remains available as a fallback renderer when `difft` is unavailable. Use this skill for a diff-report or preview/share-URL request; ordinary Git inspection, code review and patch editing do not need a report server.
 
 ## Project independence
 
@@ -11,7 +11,7 @@ Sharing uses external helpers and a report cache without adding AI-plugin script
 ```bash
 plugins/diff-sharing/scripts/generate-diff-report.sh
 plugins/diff-sharing/scripts/generate-diff-site.sh
-plugins/diff-sharing/scripts/start-ngrok.sh
+plugins/diff-sharing/scripts/start-ngrok.sh --local-only
 ```
 
 When `difft` successfully renders the comparison, the page opens with Difftastic selected. Otherwise it selects Git diff and explains the missing or failed renderer.
@@ -21,6 +21,8 @@ any directory inside the Git repository. All commands automatically use its root
 normal launcher also stays local if ngrok is absent or fails to authenticate, using
 saved ngrok credentials or `NGROK_AUTHTOKEN` when available. Keep the launcher running
 while using the URL; Ctrl+C stops only its own server and tunnel.
+
+The skill selects local-only mode for a preview or unspecified audience. Public sharing must be requested; saved ngrok credentials alone do not select it. The launcher's normal mode still attempts a tunnel when invoked without `--local-only`.
 
 The `.sh` files are thin compatibility launchers. Every command also has a same-named `.py` entrypoint, for example `python /path/to/plugin/scripts/start-ngrok.py --local-only`. Generation, site assembly and serving share a cache keyed by the Git repository root, including when invoked from different subdirectories.
 

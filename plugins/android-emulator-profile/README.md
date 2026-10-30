@@ -2,6 +2,8 @@
 
 This plugin provides profile-driven Android Virtual Device creation and emulator startup for local and Docker-friendly environments.
 
+Ask to prepare or start an emulator for an Android run/test, or to view emulator status and screens; naming a profile or setup script is unnecessary. The skill checks requested device/API requirements and reuses a suitable emulator or AVD before preparing a new one. Editing Android code alone does not require emulator setup, and a status request remains read-only.
+
 ## Project independence
 
 SDK/AVD preparation stays in the operator environment. Consuming projects retain standard Android tool requirements and test commands without depending on this AI plugin's installation or private provisioning profiles; normal Android build plugins remain supported.

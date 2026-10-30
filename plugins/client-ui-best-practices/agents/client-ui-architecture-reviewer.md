@@ -1,6 +1,6 @@
 ---
 name: client-ui-architecture-reviewer
-description: Review Android, iOS, React, desktop, and other client UI code for Host architecture, UI-thread, state, lifecycle, scheduler, and effect problems.
+description: Review client UI responsiveness, asynchronous updates, and lifecycle behavior for state ownership, scheduling, and rendering errors.
 model: sonnet
 effort: high
 ---

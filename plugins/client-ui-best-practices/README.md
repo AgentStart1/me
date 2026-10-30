@@ -4,6 +4,8 @@ This portable plugin provides client UI threading and state-driven rendering gui
 platform-independent `Host` boundary that owns observable UI-ready state and asynchronous
 business tasks, so feature behavior can be tested without a UI runtime.
 
+Use the skill when implementing or investigating UI state, asynchronous updates, lifecycle, rendering or responsiveness. The Host contract is applied within the skill; users need not request that architecture by name.
+
 Cancellation remains control flow, and serial dispatchers/actors can interleave
 asynchronous requests at suspension points. The examples preserve cancellation and
 use request generations to reject superseded completions. Claude agent routing
