@@ -4,6 +4,8 @@ Use this skill when asking to run desktop application tests, test in an environm
 
 The skill selects and coordinates the required environment internally, reusing suitable configured environments before provisioning. It can combine a desktop guest with an independent Docker backend when the tests need both. Activation does not imply creating a VM, and explicit target requirements remain authoritative. Ordinary host-local unit tests and unrelated Docker work are outside this entry point; explicit management, status and screen requests for QEMU test environments remain supported.
 
+The [skill entry point](skills/qemu-guests/SKILL.md) keeps environment selection, shared execution rules and read-only status guidance together. It loads separate references for work-guest preparation, macOS, host-driven tests, Alpine operations/configuration and plugin maintenance only when needed. Ordinary test runs reuse suitable environments; new installation qualification uses isolated resources. Alpine's automatic accelerator fallback and its live Go proxy build are backend-specific and do not relax work-guest accelerator or build-placement rules.
+
 This plugin runs concurrent QEMU work VMs alongside one persistent Alpine Linux Docker backend, inside Linux containers and on Windows. Work guests have independent disks and unattended installation media. Work guests are independent test environments with Appium; host-side test runners connect over SSH. The Alpine backend remains available independently for host Docker/Testcontainers.
 
 For Docker-only workflows on ordinary Linux hosts, use Docker directly. The work-guest supervisor also runs on Linux hosts with QEMU and Python installed.
