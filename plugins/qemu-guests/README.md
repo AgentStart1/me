@@ -1,5 +1,9 @@
 # QEMU Guests
 
+Use this skill when asking to run desktop application tests, test in an environment different from the current host, or prepare a Docker environment for tests (including Testcontainers). Requests can describe the testing outcome, such as "Run the desktop tests", "Test this application on Linux from this Windows host", or "Prepare Docker for the integration tests"; naming QEMU, Appium or an installation procedure is unnecessary.
+
+The skill selects and coordinates the required environment internally, reusing suitable configured environments before provisioning. It can combine a desktop guest with an independent Docker backend when the tests need both. Activation does not imply creating a VM, and explicit target requirements remain authoritative. Ordinary host-local unit tests and unrelated Docker work are outside this entry point; explicit management, status and screen requests for QEMU test environments remain supported.
+
 This plugin runs concurrent QEMU work VMs alongside one persistent Alpine Linux Docker backend, inside Linux containers and on Windows. Work guests have independent disks and unattended installation media. Work guests are independent test environments with Appium; host-side test runners connect over SSH. The Alpine backend remains available independently for host Docker/Testcontainers.
 
 For Docker-only workflows on ordinary Linux hosts, use Docker directly. The work-guest supervisor also runs on Linux hosts with QEMU and Python installed.

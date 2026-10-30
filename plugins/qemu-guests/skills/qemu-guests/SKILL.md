@@ -1,9 +1,20 @@
 ---
 name: qemu-guests
-description: Use when provisioning or managing concurrent QEMU work guests as Appium test environments alongside an independent Alpine Docker backend. Includes unattended Ubuntu cloud images, Windows answer files, Intel macOS Recovery automation, custom installation adapters, graphical guest screens, host Appium connections, backend status and Testcontainers on Windows or Linux. Do not trigger for ordinary Docker workflows.
+description: Use when running desktop application tests, testing in an OS or runtime environment different from the current host, or preparing a Docker environment for tests, including Testcontainers. Coordinate environment selection and test execution internally; users need not request QEMU or Appium. Also use for explicit management, status, or screen inspection of existing QEMU test environments. Exclude ordinary host-local unit tests and Docker work unrelated to testing or these managed environments.
 ---
 
 # QEMU Guests
+
+## Route the test request
+
+Start from the requested tests and their target environment, not from VM provisioning. Read the project's existing test commands, target OS/architecture, runtime dependencies and configured Docker/Appium endpoints; inspect available environments before selecting a route. Infer requirements from the project and request where possible, and ask only for missing information that changes the target or prevents execution. Skill activation does not by itself require creating a VM.
+
+- For desktop tests, reuse a suitable designated desktop test environment. When an isolated guest is needed, select a supported work guest and coordinate its desktop, Appium connection and artifact transfer using the sections below.
+- For tests targeting an environment different from the current host, reuse a matching existing environment or prepare a supported guest. Preserve the requested OS, architecture and runtime; report unsupported targets or missing prerequisites instead of silently substituting the host or another guest.
+- For tests requiring Docker or Testcontainers, reuse a suitable configured Docker endpoint. Use Docker directly on ordinary Linux hosts; prepare the independent Alpine backend on supported Windows or Linux-container hosts when a backend is needed. Docker-only tests do not require a desktop guest.
+- When tests require both a desktop guest and Docker services, coordinate them independently through the unified host test environment workflow below. Keep compilation on the host or designated build environment and run the project's existing tests with standard endpoints and portable configuration.
+
+The skill owns selection of provisioning, runtime preparation, connection, execution and cleanup procedures; do not make users name these mechanisms to activate it. Respect an explicitly chosen environment. Check the actual requested test results before reporting success; a ready VM, desktop, Appium server or Docker daemon is only environment readiness. For explicit VM lifecycle, status or screen requests, perform that operation without adding a test run or provisioning unrelated resources.
 
 ## Project independence
 
