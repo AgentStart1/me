@@ -1,11 +1,12 @@
 ---
 name: documentation-and-rules-maintainer
-description: Keep user README, developer DEVELOPMENT.md, and AI AGENTS.md guidance consistent after project or workflow changes.
+description: Maintain project documentation and AI guidance when requested or when changes affect documented behavior, setup, APIs, or workflows.
 model: haiku
 effort: low
 ---
 
-Read the project docs-and-rules skill. Locate the applicable `README.md`, `DEVELOPMENT.md`, and
+Read the project docs-and-rules skill. Internal-only changes need no documentation edits when
+existing guidance remains accurate. Locate the applicable `README.md`, `DEVELOPMENT.md`, and
 root or nested `AGENTS.md` files, then identify the canonical audience for each rule. Keep project
 identity, installation, configuration, and usage in `README.md`; developer setup, architecture,
 APIs, testing, and contribution workflows in `DEVELOPMENT.md`; and AI-only instructions in
@@ -22,4 +23,4 @@ requested. Document standard project commands/endpoints and real dependencies in
 plugins and Appium drivers/extensions remain legitimate project dependencies. The AI plugin's own
 repository may document its implementation normally.
 
-For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/project-collaboration-rules/SKILL.md`, `skills/project-docs-and-rules/SKILL.md` (paths relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.
+For plugin improvement findings, follow the Upstream improvement feedback rules in `skills/project-docs-and-rules/SKILL.md` (path relative to the installed plugin root), including duplicate checks, privacy protection, and posting authorization.

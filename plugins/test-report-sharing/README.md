@@ -1,6 +1,6 @@
 # Test Report Sharing Plugin
 
-Collect test reports, then share a static report site through ngrok.
+Collect existing test reports into a browsable site for local preview or requested public sharing. Use this skill for report collection, preview or sharing; merely running tests or diagnosing failures does not request a report site or another test run.
 
 ## Project independence
 
@@ -11,7 +11,7 @@ The collector reads existing reports without making project tests depend on this
 ```bash
 plugins/test-report-sharing/scripts/collect-test-results.sh
 plugins/test-report-sharing/scripts/generate-report-site.sh
-plugins/test-report-sharing/scripts/start-ngrok.sh
+plugins/test-report-sharing/scripts/start-ngrok.sh --local-only
 ```
 
 `test-report-operator` coordinates the same workflow when Claude agent routing is available.
@@ -27,6 +27,8 @@ from the site. Keep the output outside a report being copied.
 also stays local if ngrok is absent or authentication fails. Credentials may come
 from saved configuration or `NGROK_AUTHTOKEN`. Keep the launcher running while using
 its URL; Ctrl+C stops only that launcher's server and tunnel.
+
+The skill selects local-only mode for a preview or unspecified audience. Public sharing must be requested; saved ngrok credentials alone do not select it. The launcher's normal mode still attempts a tunnel when invoked without `--local-only`.
 
 The `.sh` files are thin compatibility launchers. Every command also has a same-named `.py` entrypoint, for example `python /path/to/plugin/scripts/start-ngrok.py --local-only`. Use the same `--project-dir` for collection, site assembly and serving to share the default cache.
 

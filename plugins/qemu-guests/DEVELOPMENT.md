@@ -1,4 +1,10 @@
-# QEMU status panel development
+# QEMU Guests development
+
+## Skill guidance and validation scope
+
+The skill entry point owns common environment selection, project independence, build placement, ownership and status interpretation. Its references separate work-guest preparation, macOS-specific procedures, host-driven tests, Alpine backend operations/configuration and implementation maintenance. Keep platform qualifications and failure contracts in the relevant reference; keep historical experimental evidence here rather than repeating it in every invocation.
+
+For guidance-only edits, validate portable frontmatter, relative links and both generated distributions. The backend helper suites listed in the maintenance reference use fixtures. `scripts/build-docker-proxy.sh` is a live backend operation that can install Go and compile the proxy; it must not appear in an offline-only validation list. Native VM, reboot, desktop and Testcontainers acceptance remain separate scoped tests on isolated resources.
 
 ## Windows fallback tool paths
 

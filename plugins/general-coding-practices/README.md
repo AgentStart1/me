@@ -2,6 +2,8 @@
 
 This plugin provides project collaboration rules plus focused README and project-guidance maintenance. The plugin root also contains a portable Claude-compatible documentation agent prompt.
 
+The collaboration skill applies across coding-project tasks; code-design guidance focuses on control flow, asynchronous ownership and state models. Documentation guidance applies to documentation requests and changes affecting documented behavior or workflows. Internal-only changes do not require documentation edits when the existing guidance remains accurate.
+
 ## Project independence
 
 The guidance keeps consuming projects independent of AI-plugin implementation details: standard project commands and normal dependencies remain usable without this assistant plugin. Gradle plugins, Appium drivers/extensions and required libraries remain ordinary project dependencies; the collaboration and documentation skills distinguish them from assistant installation paths and orchestration.

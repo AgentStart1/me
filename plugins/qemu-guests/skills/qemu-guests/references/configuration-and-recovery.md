@@ -1,4 +1,6 @@
-# Configuration and Recovery
+# Alpine Backend Configuration and Recovery
+
+This reference applies to Alpine `.profile` files, not work-guest JSON profiles. Apply the common ownership rules in SKILL.md.
 
 ## Profiles and ports
 
@@ -70,3 +72,14 @@ records to bypass an unknown launch. Developer transition rules are in DEVELOPME
 Because Docker runs in a remote guest, Host or outer-container paths cannot be used as ordinary Docker bind mounts. Prefer Docker build contexts, named volumes, or test fixtures copied through the Docker API.
 
 If provisioning leaves a disk without a ready marker, inspect the install and verify console logs. When installation is known to be complete and only verification failed, set `VERIFY_EXISTING=true` in a recovery profile and run `./scripts/create-vm.sh <recovery-profile>` to resume verification. Do not remove the VM directory unless the user explicitly chooses to rebuild it.
+
+## Profile and host controls
+
+Read VM settings directly from the selected profile. Do not set VM configuration,
+lifecycle timeouts, `FORCE`, `VERIFY_EXISTING`, ports or provisioning options through
+environment variables; inherited values are ignored. Missing required file values
+fail, while optional values use built-in defaults. Profile values are non-exported
+shell configuration; only explicit tool/test contracts receive derived settings.
+Unknown keys are rejected. Keep host/tool controls such as `QEMU_ALPINE_BASE_DIR`,
+profile/interpreter selection, `GVPROXY_BINARY` and proxy helper paths in the host
+environment. See the plugin README for the configuration boundary.

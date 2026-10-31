@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "client-ui-best-practices",
-  "version": "0.3.3-20261019151438",
+  "version": "0.3.4-20261030120429",
   "description": "Cross-platform Host architecture for client UI state, effects, lifecycle, and thread confinement.",
   "author": {
     "name": "Local developer"
