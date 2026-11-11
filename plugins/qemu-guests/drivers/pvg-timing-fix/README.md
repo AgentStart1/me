@@ -1,22 +1,9 @@
 # PvgTimingFix
 
-This independent Lilu plugin publishes AppleParavirtFramebuffer's existing
-fixed-rate detailed timing. It prevents virtual-machine scheduling jitter from
-becoming the nominal display period used by CoreVideo. It does not implement
-video decoding or replace application presentation commands.
+此独立 Lilu 插件发布 AppleParavirtFramebuffer 已有的固定频率详细时序，避免虚拟机调度抖动成为 CoreVideo 使用的标称显示周期。它不实现视频解码，也不替换应用呈现命令。
 
-The included `PvgTimingFix` is the qualified x86-64 Mach-O kext bundle.
-`artifact.json` records its checksum, source files and dependency revisions.
-The driver only routes the audited 52-byte method on Darwin 24; a different
-method remains untouched. Packaging requires macOS 15.8.1 build **24H32** and
-Lilu **1.7.2**. Other versions, display-mode changes and sleep/resume are not
-qualified. `-pvgtimingoff` disables the plugin.
+随包 `PvgTimingFix` 是已验证的 x86-64 Mach-O kext 包。`artifact.json` 记录校验和、源文件及依赖修订。驱动只路由 Darwin 24 上审计过的 52 字节方法，不触碰其他方法。打包要求 macOS 15.8.1 构建 **24H32** 和 Lilu **1.7.2**。其他版本、显示模式变化及睡眠恢复未验证。`-pvgtimingoff` 禁用插件。
 
-Keep firmware, private credentials and VM state outside consuming projects.
-Prepare a new copy of an operator-owned OpenCore image with the plugin's
-`prepare-macos-gpu-boot.py`; see the plugin README. Neither the system volume
-nor the supplied original firmware is modified.
+固件、私有凭据和虚拟机状态留在使用插件的项目外。通过插件 `prepare-macos-gpu-boot.py` 准备操作者自有 OpenCore 镜像的新副本，见插件 README。不修改系统卷或提供的原始固件。
 
-For contributor rebuilds and qualification, see the plugin DEVELOPMENT.md.
-Lilu's applicable source/binary redistribution terms are retained in
-`LICENSE-Lilu.txt`. The new timing hook is distributed under `LICENSE`.
+贡献者重建和验证见插件 DEVELOPMENT.md。Lilu 适用的源码和二进制再分发条款保留在 `LICENSE-Lilu.txt`，新增时序钩子按 `LICENSE` 分发。

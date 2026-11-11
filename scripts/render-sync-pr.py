@@ -39,17 +39,17 @@ def main():
         source_sha=sha,
         source_url=f"{server}/{repository}/commit/{sha}",
         run_url=f"{server}/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
-        plugins="\n".join(rows) or "- Distribution metadata only; no plugin files changed.",
+        plugins="\n".join(rows) or "- 仅发行元数据变化，没有插件文件变更。",
         diff_stat=git(args.distribution, "diff", "--stat", "HEAD^", "HEAD"),
         client_validation=(
-            "Codex marketplace registration, listing, and installation of every generated plugin."
+            "Codex 插件市场注册、列表及全部生成插件的安装。"
             if client == "codex" else
-            "Claude marketplace and plugin validation, registration, and installation of every generated plugin."
+            "Claude 插件市场与插件校验、注册及全部生成插件的安装。"
         ),
     )
     template = (Path(__file__).parent / "templates" / "sync-pr.md.template").read_text(encoding="utf-8")
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    title = f"chore({client}): sync {subject}"
+    title = f"chore({client}): 同步 {subject}"
     if len(title) > 120:
         title = title[:119] + "…"
     (args.output_dir / "title.txt").write_text(title + "\n", encoding="utf-8")

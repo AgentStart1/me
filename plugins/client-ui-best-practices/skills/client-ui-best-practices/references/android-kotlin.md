@@ -1,6 +1,6 @@
-# Android and Kotlin Host
+# Android 与 Kotlin Host
 
-Use a `CoroutineScope` with an injected application-defined serial dispatcher for Host coordination. Do not confuse that dispatcher with `Dispatchers.Main`, which remains reserved for Android UI work.
+使用注入了应用自定义串行调度器的 `CoroutineScope` 协调 Host。不要将此调度器与 `Dispatchers.Main` 混淆，后者仍专用于 Android UI 工作。
 
 ```kotlin
 class ProfileHost(
@@ -12,7 +12,7 @@ class ProfileHost(
     val state = _state.asStateFlow()
     private val _effects = MutableSharedFlow<ProfileEffect>()
     val effects = _effects.asSharedFlow()
-    private var refreshGeneration = 0L // Mutated only by hostScope coordination.
+    private var refreshGeneration = 0L // 仅由 hostScope 的协调流程修改。
 
     fun refresh() = hostScope.launch {
         val generation = ++refreshGeneration
@@ -34,11 +34,9 @@ class ProfileHost(
 }
 ```
 
-- Collect render state with lifecycle-aware APIs such as `collectAsStateWithLifecycle()` or `repeatOnLifecycle`.
-- Collect one-time effects in a lifecycle-aware coroutine launched by the UI owner.
-- Put CPU-heavy Flow operators upstream of `flowOn(dispatcher.default)`.
-- Propagate `CancellationException`; cancellation must not publish a failure state.
-- A serial dispatcher serializes execution between suspensions, not an entire
-  asynchronous request. For overlapping refreshes, cancel prior work, serialize
-  complete operations, or reject completions with a request identity before reduction.
-- Use `StrictMode`, explicit Looper assertions, and profilers when diagnosing main-thread work.
+- 通过 `collectAsStateWithLifecycle()` 或 `repeatOnLifecycle` 等感知生命周期的 API 收集渲染状态。
+- 在 UI 管理者启动、感知生命周期的协程中收集一次性副作用。
+- CPU 密集的 Flow 操作符放在 `flowOn(dispatcher.default)` 上游。
+- 传播 `CancellationException`，取消不能发布失败状态。
+- 串行调度器只让挂起点之间的执行串行化，不会让整个异步请求串行化。刷新重叠时，取消先前任务、串行执行完整操作，或在归约前通过请求标识拒绝过时的完成结果。
+- 诊断主线程工作时，使用 `StrictMode`、显式 Looper 断言和性能分析器。

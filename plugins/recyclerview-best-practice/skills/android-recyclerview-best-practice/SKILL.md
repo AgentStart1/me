@@ -1,27 +1,27 @@
 ---
 name: android-recyclerview-best-practice
-description: Use when implementing, debugging, reviewing, or refactoring Android RecyclerView lists, including adapter updates, row state, recycling, pagination, lifecycle, and performance.
+description: 实现、调试、审查或重构 Android RecyclerView 列表时使用，涵盖 adapter 更新、行状态、回收、分页、生命周期和性能。
 ---
 
-# Android RecyclerView Best Practice
+# Android RecyclerView 最佳实践
 
-## Project independence
+## 使用项目的独立性
 
-Use the project's own adapter/state code and normal AndroidX RecyclerView/Paging dependencies. Do not add this AI plugin as a build/runtime prerequisite, copy its installation paths into the project, or require its skill invocation in project documentation. Android Gradle/compiler plugins and other required libraries remain legitimate project dependencies.
+使用项目自身的 adapter、状态代码及正常 AndroidX RecyclerView、Paging 依赖。不要将本 AI 插件作为构建或运行前提，不向项目复制其安装路径，也不在项目文档中要求调用其 skill。Android Gradle、编译器插件和其他必需库仍是合法项目依赖。
 
-## Core Decision
+## 核心选择
 
-Always choose an adapter with built-in diffing unless the codebase has a strong existing abstraction that prevents it.
+除非代码库已有难以兼容的成熟抽象，否则始终选择内置差异计算的 adapter。
 
-1. Use `PagingDataAdapter<T, VH>` when the data is paged, infinite, remotely loaded page-by-page, or already exposed as `Flow<PagingData<T>>`.
-2. Use `ListAdapter<T, VH>` when the UI receives complete immutable list snapshots.
-3. Use `RecyclerView.Adapter<VH>` plus `AsyncListDiffer<T>` when a custom adapter base is required but the data is still list-like.
-4. Use `DiffUtil.calculateDiff` manually only when the update operation cannot fit `ListAdapter`, `PagingDataAdapter`, or `AsyncListDiffer`.
-5. Avoid `notifyDataSetChanged()`. Use precise adapter notifications only for truly imperative, small, non-list state changes, and prefer payloads for partial binds.
+1. 数据分页、无限加载、从远端逐页加载，或已经以 `Flow<PagingData<T>>` 暴露时，使用 `PagingDataAdapter<T, VH>`。
+2. UI 接收完整不可变列表快照时，使用 `ListAdapter<T, VH>`。
+3. 需要自定义 adapter 基类，但数据仍是列表时，使用 `RecyclerView.Adapter<VH>` 配合 `AsyncListDiffer<T>`。
+4. 只有更新操作无法适配 `ListAdapter`、`PagingDataAdapter` 或 `AsyncListDiffer` 时，才手动使用 `DiffUtil.calculateDiff`。
+5. 避免 `notifyDataSetChanged()`。只有确属命令式、规模很小且不涉及列表的数据状态变更，才使用精确 adapter 通知；局部绑定优先使用 payload。
 
-## Diff Rules
+## 差异计算规则
 
-Every list-like adapter must have a clear diff contract.
+每个列表型 adapter 都必须有清楚的差异计算约定。
 
 ```kotlin
 object ItemDiff : DiffUtil.ItemCallback<ItemUiModel>() {
@@ -39,15 +39,15 @@ object ItemDiff : DiffUtil.ItemCallback<ItemUiModel>() {
 }
 ```
 
-- `areItemsTheSame` checks stable identity, usually a database id, server id, or generated local id.
-- `areContentsTheSame` checks rendered content, not only the raw entity when UI fields are derived.
-- Use immutable UI models so equality is meaningful.
-- Never use adapter position, object reference, or list index as identity unless the list is truly static.
-- If stable IDs are enabled with `setHasStableIds(true)`, `getItemId()` must match the same identity used by `areItemsTheSame`.
+- `areItemsTheSame` 检查稳定标识，通常为数据库 ID、服务端 ID 或生成的本地 ID。
+- `areContentsTheSame` 检查渲染内容；UI 字段有派生值时，不能只比较原始实体。
+- 使用不可变 UI 模型，让相等判断有意义。
+- 除非列表确实静态，否则绝不使用 adapter 位置、对象引用或列表下标作为标识。
+- 通过 `setHasStableIds(true)` 启用稳定 ID 时，`getItemId()` 必须与 `areItemsTheSame` 使用的标识一致。
 
-## Adapter Patterns
+## Adapter 模式
 
-For `ListAdapter`:
+`ListAdapter` 示例：
 
 ```kotlin
 class ItemAdapter(
@@ -79,7 +79,7 @@ class ItemAdapter(
 }
 ```
 
-For Paging 3:
+Paging 3 示例：
 
 ```kotlin
 viewLifecycleOwner.lifecycleScope.launch {
@@ -89,69 +89,68 @@ viewLifecycleOwner.lifecycleScope.launch {
 }
 ```
 
-- Use `LoadStateAdapter` for prepend/append headers, footers, retry, and end-of-pagination UI.
-- Observe `adapter.loadStateFlow` for screen-level loading, empty, and error states.
-- Do not mix Paging snapshots with manual mutable lists inside the adapter.
+- 前置和后置加载的页眉、页脚、重试及分页结束 UI 使用 `LoadStateAdapter`。
+- 页面级加载、空状态和错误状态观察 `adapter.loadStateFlow`。
+- 不在 adapter 内混用 Paging 快照与手动可变列表。
 
-## ViewHolder Rules
+## ViewHolder 规则
 
-- Bind from the item passed to `bind`, not from stored adapter positions.
-- Register click listeners once in the `ViewHolder` constructor when possible, then read `bindingAdapterPosition` and guard against `NO_POSITION`, or pass the current bound item from `bind`.
-- Clear or reset transient view state in every full bind: checkbox state, enabled state, alpha, progress, selected state, image placeholders, and listeners that depend on item identity.
-- Cancel or replace asynchronous image or coroutine work when views are rebound. Prefer lifecycle-aware image loaders.
-- Keep formatting and expensive computation outside `onBindViewHolder`; precompute in UI models or use cached formatters.
-- Do not keep references from a `ViewHolder` to a `Fragment`, `Activity`, `ViewModel`, or long-lived scope.
+- 使用传给 `bind` 的条目绑定，不依赖保存的 adapter 位置。
+- 尽可能在 `ViewHolder` 构造函数中一次注册点击监听器，点击时读取 `bindingAdapterPosition` 并检查 `NO_POSITION`，或从 `bind` 传递当前绑定条目。
+- 每次完整绑定都清除或重置临时视图状态：复选框、启用状态、透明度、进度、选中状态、图片占位，以及依赖条目标识的监听器。
+- 视图重新绑定时，取消或替换异步图片或协程工作。优先使用感知生命周期的图片加载器。
+- 格式化和昂贵计算放在 `onBindViewHolder` 外；在 UI 模型中预计算或使用缓存格式化器。
+- `ViewHolder` 不持有 `Fragment`、`Activity`、`ViewModel` 或长生命周期作用域的引用。
 
-## Fragment And Lifecycle
+## Fragment 与生命周期
 
-- Create the adapter once per view lifecycle, usually in `onViewCreated`.
-- Clear binding references in `onDestroyView`.
-- Collect flows with `viewLifecycleOwner.repeatOnLifecycle`.
-- Submit immutable lists; do not mutate a list after passing it to `submitList`.
-- Route item callbacks through the UI adapter into the framework-independent Host.
-  Keep navigation and other effects in the Host's effect channel; the view renders them.
+- 每个视图生命周期只创建一次 adapter，通常在 `onViewCreated`。
+- 在 `onDestroyView` 清除 binding 引用。
+- 通过 `viewLifecycleOwner.repeatOnLifecycle` 收集 flow。
+- 提交不可变列表；传给 `submitList` 后不再修改。
+- 条目回调经 UI 适配层进入独立于框架的 Host。导航和其他副作用留在 Host 副作用通道，由视图呈现。
 
-## Layout And Performance
+## 布局与性能
 
-- Use the right `LayoutManager`: `LinearLayoutManager`, `GridLayoutManager`, `StaggeredGridLayoutManager`, or a tested custom manager.
-- For grids with loading footers, configure `SpanSizeLookup` so full-width rows span all columns.
-- Use `setHasFixedSize(true)` only when RecyclerView size does not change with item content.
-- Disable change animations only when they cause visual glitches and payloads cannot solve the issue.
-- For nested RecyclerViews, use a shared `RecycledViewPool`, stable child adapters, and measured prefetch settings.
-- Avoid nested scrolling conflicts; prefer a single RecyclerView with multiple view types or `ConcatAdapter` for composite screens.
+- 选择合适的 `LayoutManager`：`LinearLayoutManager`、`GridLayoutManager`、`StaggeredGridLayoutManager` 或经过测试的自定义管理器。
+- 网格有加载页脚时，配置 `SpanSizeLookup`，让全宽行跨越全部列。
+- 只有 RecyclerView 尺寸不随条目内容变化时，才使用 `setHasFixedSize(true)`。
+- 只有变化动画导致视觉异常且 payload 无法解决时，才禁用变化动画。
+- 嵌套 RecyclerView 使用共享 `RecycledViewPool`、稳定的子 adapter，以及经测量确定的预取设置。
+- 避免嵌套滚动冲突；复合页面优先用单个多视图类型 RecyclerView 或 `ConcatAdapter`。
 
-## UI State
+## UI 状态
 
-- Represent screen state outside the adapter: loading, empty, content, error, offline, and refreshing.
-- Represent row state with stable ids, not positions.
-- Selection, expansion, swipe state, and pending operations live in the framework-independent Host and are projected into immutable UI models. A ViewModel may adapt Host lifetime/state to Android.
-- Avoid letting recycled views carry old visual state. Every bind should produce the same row for the same item.
+- 页面状态放在 adapter 外：加载、空、内容、错误、离线和刷新。
+- 用稳定 ID 表示行状态，不用位置。
+- 选中、展开、滑动状态和待执行操作由独立于框架的 Host 管理，再映射到不可变 UI 模型。ViewModel 可将 Host 生命周期和状态适配到 Android。
+- 不让回收视图携带旧视觉状态。同一条目每次绑定都应得到相同行表现。
 
-## Multiple View Types
+## 多视图类型
 
-- Prefer sealed UI models for heterogeneous rows.
-- Keep each ViewHolder small and type-specific.
-- Diff by stable id plus row type; two different row types should not be treated as the same item.
-- Use `ConcatAdapter` for headers, content, empty rows and footers when sections have independent ownership, loading states, or update cadence.
+- 异构行优先使用密封 UI 模型。
+- 每种 ViewHolder 保持小型、专一。
+- 通过稳定 ID 加行类型判断差异；不把不同类型的行视为同一条目。
+- 各区段的管理责任、加载状态或更新节奏独立时，页眉、内容、空行和页脚使用 `ConcatAdapter`。
 
-## Testing Guidance
+## 测试指引
 
-- Unit test custom `DiffUtil.ItemCallback` behavior for identity, content equality, and payloads.
-- Test Host list mapping separately from adapter rendering.
-- For Paging, test `PagingData` transformations and load-state handling.
-- Add UI or screenshot tests only when the change affects row layout, selection, empty/error states, or load-state presentation.
+- 单元测试自定义 `DiffUtil.ItemCallback` 的标识、内容相等和 payload 行为。
+- Host 列表映射与 adapter 渲染分别测试。
+- Paging 测试 `PagingData` 转换和加载状态处理。
+- 只有变更影响行布局、选中、空或错误状态、加载状态呈现时，才添加 UI 或截图测试。
 
-## Implementation Style
+## 实现风格
 
-- Follow the app's existing architecture, package layout, naming, binding technology, and dependency versions.
-- Prefer Kotlin examples unless the target module is Java.
-- Keep adapter APIs small: data in via `submitList` or `submitData`, events out via callbacks.
-- Do not introduce a new architecture framework just to improve a RecyclerView.
-- When refactoring, keep behavior equivalent first, then improve diffing, state, and lifecycle safety.
+- 遵循应用已有架构、包结构、命名、绑定技术和依赖版本。
+- 除非目标模块使用 Java，否则优先使用 Kotlin 示例。
+- adapter API 保持小型：通过 `submitList` 或 `submitData` 输入数据，通过回调输出事件。
+- 不要仅为改进 RecyclerView 就引入新架构框架。
+- 重构先保持行为等价，再改进差异计算、状态和生命周期安全。
 
-## Upstream improvement feedback
+## 上游改进反馈
 
-- Report actionable plugin bugs or reusable improvements to [storytellerF/me](https://github.com/storytellerF/me/issues), identifying the plugin and skill. Exclude project-only problems without evidence of a plugin defect. Finish the primary task before non-blocking feedback work.
-- Before searching or posting, reduce evidence to a minimal privacy-safe summary or synthetic reproduction. Never disclose raw conversations, private code, logs, screenshots, credentials, personal/account data, or private paths/URLs. Keep findings local if safe disclosure is impossible.
-- Search open and closed issues and read likely matches and resolutions. Reuse matching reports; a distinct regression or uncovered case may need a linked new issue. Posting a new issue or a materially useful comment requires existing user authorization; this rule grants none. Without authorization, prepare an unsubmitted draft.
-- Include the plugin/skill version, observed and expected behavior, reproduction or proposal, and duplicate-search results; prefix new issue titles with the plugin name. On access or submission failure, retain the draft and explain the blocker. After an uncertain submission, check whether it succeeded before retrying. Return the report link or clearly label the draft as unsubmitted.
+- 发现有明确改进方向的插件缺陷或可复用的改进建议时，向 [storytellerF/me](https://github.com/storytellerF/me/issues) 反馈，并注明插件和 skill。若问题仅属于当前项目，且没有插件缺陷的证据，则不在此范围内。先完成主要任务，再处理不影响当前工作的反馈。
+- 搜索或发布之前，将证据整理为不含隐私的最小摘要或合成复现案例。不得泄露原始对话、私有代码、日志、截图、凭据、个人或账户信息，以及私有路径和 URL。如果无法安全披露，就只在本地保留发现。
+- 搜索已打开和已关闭的 issue，阅读可能匹配的报告及其解决方案。优先复用已有报告；如果是不同的回归问题或尚未覆盖的场景，可另建 issue 并关联原报告。发布新 issue 或有实质帮助的评论必须已经获得用户授权；本规则本身不授予发布权限。未获授权时，准备一份尚未提交的草稿。
+- 反馈应包含插件和 skill 版本、实际与预期行为、复现步骤或建议，以及重复报告的检索结果。新 issue 的标题应以插件名开头。访问或提交失败时，保留草稿并说明阻碍。提交结果不确定时，先确认是否已成功，再考虑重试。返回报告链接，或明确标注草稿尚未提交。

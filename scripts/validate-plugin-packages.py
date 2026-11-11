@@ -18,17 +18,17 @@ spec.loader.exec_module(skills)
 
 
 def frontmatter(path):
-    content = path.read_text()
+    content = path.read_text(encoding="utf-8")
     match = re.match(r'^---\n(.*?)\n---', content, re.S)
     assert match, f'missing frontmatter: {path}'
     return yaml.safe_load(match[1])
 
 
 def validate(client, output):
-    schema = json.loads((ROOT / 'scripts/schemas/plugin.schema.json').read_text())
+    schema = json.loads((ROOT / 'scripts/schemas/plugin.schema.json').read_text(encoding="utf-8"))
     sources = sorted((ROOT / 'plugins').glob('*/plugin.json'))
     marketplace_path = output / ('.agents/plugins' if client == 'codex' else '.claude-plugin') / 'marketplace.json'
-    marketplace = json.loads(marketplace_path.read_text())
+    marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
     assert marketplace['name'] == 'me'
     names = [p.parent.name for p in sources]
     assert sorted(p['name'] for p in marketplace['plugins']) == names
@@ -37,14 +37,14 @@ def validate(client, output):
         expected = './plugins/' + entry['name']
         assert (entry['source']['path'] if client == 'codex' else entry['source']) == expected
     for path in sources:
-        portable = json.loads(path.read_text())
+        portable = json.loads(path.read_text(encoding="utf-8"))
         jsonschema.Draft202012Validator(schema).validate(portable)
         assert re.fullmatch(r'\d+\.\d+\.\d+-\d{14}', portable['version'])
         for namespace in portable.get('extensions', {}):
             assert re.fullmatch(r'[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+', namespace)
         source = path.parent
         generated = output / 'plugins' / source.name
-        manifest = json.loads((generated / f'.{client}-plugin/plugin.json').read_text())
+        manifest = json.loads((generated / f'.{client}-plugin/plugin.json').read_text(encoding="utf-8"))
         expected = {k: v for k, v in portable.items() if k in builder.CORE}
         expected.update({k: v for k, v in portable['extensions'][builder.NAMESPACES[client]].items() if k != 'skillFrontmatter'})
         assert manifest == expected, f'manifest mismatch: {source.name}'
@@ -62,8 +62,8 @@ def validate(client, output):
             if relative.parts[0] == 'skills' and file.name == 'SKILL.md':
                 route = portable['extensions']['com.anthropic.claude'].get('skillFrontmatter', {}).get(file.parent.name, {})
                 assert frontmatter(copy) == {**frontmatter(file), **(route if client == 'claude' else {})}
-                source_body = re.split(r'^---$', file.read_text(), maxsplit=2, flags=re.M)[2]
-                copied_body = re.split(r'^---$', copy.read_text(), maxsplit=2, flags=re.M)[2]
+                source_body = re.split(r'^---$', file.read_text(encoding="utf-8"), maxsplit=2, flags=re.M)[2]
+                copied_body = re.split(r'^---$', copy.read_text(encoding="utf-8"), maxsplit=2, flags=re.M)[2]
                 assert copied_body == source_body, f'changed instructions: {copy}'
                 if client == 'codex':
                     assert not skills.validate_skill(copy.parent), f'invalid skill: {copy}'

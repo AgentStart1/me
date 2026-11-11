@@ -1,39 +1,17 @@
-# Python and asyncio
+# Python 与 asyncio
 
-- In asyncio code prefer `async`/`await` and `asyncio.TaskGroup` when supported by
-  the project's Python version (3.11+). For independently created tasks, retain an
-  owner/reference, observe exceptions, and cancel and await them on shutdown.
-- Propagate `asyncio.CancelledError` after cleanup in `finally` or a narrow handler.
-  Swallowing it can break task-group and timeout behavior. Do not catch
-  `BaseException` merely to convert failures into application state.
-- Avoid `time.sleep`, blocking I/O, and thread locks on the event-loop thread.
-  Use `asyncio.sleep`, async clients, and asyncio primitives. Use `asyncio.to_thread`
-  for appropriate blocking I/O; choose processes or another suitable executor for
-  CPU-bound work according to the interpreter/workload. Cancelling the await does
-  not forcibly stop the worker thread.
-- `asyncio.run` belongs at a synchronous entry boundary, not inside an already
-  running loop. Use the project's async test integration for async tests.
-- Prefer frozen dataclasses, tuples, and immutable snapshots where useful. Frozen
-  dataclasses are shallow; their mutable members still require ownership.
+- asyncio 代码优先使用 `async`/`await`；项目 Python 版本支持时（3.11+），使用 `asyncio.TaskGroup`。独立创建的任务应保留管理者或引用、观察异常，并在关闭时取消并等待其结束。
+- 在 `finally` 或范围明确的处理函数中完成清理后，继续传播 `asyncio.CancelledError`。吞掉该异常可能破坏任务组和超时行为。不要仅为将失败转换成应用状态而捕获 `BaseException`。
+- 事件循环线程上避免 `time.sleep`、阻塞 I/O 和线程锁。使用 `asyncio.sleep`、异步客户端和 asyncio 同步原语。适合的阻塞 I/O 可使用 `asyncio.to_thread`；CPU 密集型工作应根据解释器和负载选择进程或其他适当执行器。取消 await 不会强制停止工作线程。
+- `asyncio.run` 应位于同步入口边界，不应放入已经运行的事件循环。异步测试使用项目已有的异步测试集成。
+- 合适时优先使用冻结 dataclass、元组和不可变快照。冻结 dataclass 仅是浅层限制，其可变成员仍需明确管理责任。
 
-Model states as a union of separate dataclasses, such as `Idle`, `Loading`,
-`Success(value)`, and `Failure(cause)`. Put required data in constructors, use
-`None` only for valid absence, and validate external inputs. Python annotations
-and `match` do not themselves guarantee runtime type validity or exhaustive cases;
-use the project's type checker and explicit unsupported-event handling.
+将状态建模为独立 dataclass 的联合，例如 `Idle`、`Loading`、`Success(value)` 和 `Failure(cause)`。必需数据通过构造函数传入，只有缺失合法时才使用 `None`，并验证外部输入。Python 类型注解和 `match` 本身不保证运行时类型有效或分支穷尽；使用项目的类型检查器，并显式处理不支持的事件。
 
-Document ownership, cancellation, yielded values, and cleanup in docstrings.
-Verify task cleanup, exception propagation, and stale completions using controlled
-futures/events rather than wall-clock sleeps.
+在 docstring 中说明管理责任、取消、产出的值和清理。通过受控 future 或 event 验证任务清理、异常传播和过时结果，避免依赖实际时间的休眠。
 
-## Callback and listener adaptation
+## 回调与监听器适配
 
-Prefer coroutine APIs. Bridge a one-shot callback with a loop-owned future and
-await it. Schedule callbacks from other threads with `loop.call_soon_threadsafe`;
-check and settle the future on its owning loop so cancellation or duplicate
-completion cannot cause invalid-state errors. Unregister the callback in cleanup.
-For repeated events use an async iterator or an owned `asyncio.Queue` with an
-explicit capacity/overflow contract and shutdown path. Do not call `asyncio.run`
-inside callbacks on the running loop to force sequential behavior.
+优先使用协程 API。单次回调用事件循环管理的 future 桥接，并等待其结果。其他线程发起的回调通过 `loop.call_soon_threadsafe` 调度；在 future 所属事件循环上检查和结算，避免取消或重复完成导致无效状态错误。清理时注销回调。重复事件使用异步迭代器或有明确管理者的 `asyncio.Queue`，定义容量、溢出约定和关闭路径。不要在运行中的事件循环回调内调用 `asyncio.run` 来强行实现顺序行为。
 
-Official reference: [asyncio coroutines and tasks](https://docs.python.org/3/library/asyncio-task.html).
+官方参考：[asyncio 协程与任务](https://docs.python.org/3/library/asyncio-task.html)。

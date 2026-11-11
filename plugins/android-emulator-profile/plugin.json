@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-emulator-profile",
-  "version": "0.5.3-20261030120429",
-  "description": "Prepare Android emulators for runs and tests, with profile-based SDK/AVD setup and read-only status previews.",
+  "version": "0.5.4-20261107120055",
+  "description": "为 Android 运行和测试准备模拟器，提供基于配置文件的 SDK、AVD 准备及只读状态预览。",
   "author": {
     "name": "Android Emulator Profile Maintainers",
     "email": "fake@example.com",
@@ -22,9 +22,9 @@
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
-        "displayName": "Android Emulator Profile",
-        "shortDescription": "Prepare Android emulators for runs and tests; inspect status.",
-        "longDescription": "Reuses suitable emulators or AVDs for Android runs and tests, prepares SDK tools and profiles when needed, and provides read-only status and screen previews. Bundled helpers support profile-based local and Docker-friendly setup.",
+        "displayName": "Android 模拟器配置",
+        "shortDescription": "准备 Android 运行和测试模拟器，查看状态。",
+        "longDescription": "为 Android 运行和测试复用合适的模拟器或 AVD，按需准备 SDK 工具及配置，并提供只读状态和屏幕预览。随包工具支持基于配置文件的本地及适合 Docker 的环境准备。",
         "developerName": "Android Emulator Profile Maintainers",
         "category": "Productivity",
         "capabilities": [
@@ -35,9 +35,9 @@
         "privacyPolicyURL": "https://github.com/storytellerF/me",
         "termsOfServiceURL": "https://github.com/storytellerF/me",
         "defaultPrompt": [
-          "Prepare a suitable Android emulator for this project's tests.",
-          "Start the configured Android emulator.",
-          "Show the Android emulator status panel."
+          "为本项目测试准备合适的 Android 模拟器。",
+          "启动已配置的 Android 模拟器。",
+          "显示 Android 模拟器状态面板。"
         ],
         "brandColor": "#3B82F6"
       },

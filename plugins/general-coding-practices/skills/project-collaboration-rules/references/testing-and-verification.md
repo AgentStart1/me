@@ -1,39 +1,39 @@
-# Testing and Verification
+# 测试与验证
 
-## Test contracts and overloaded tests
+添加、修改、重构或审查单元、集成、Compose 及其他 UI、端到端测试时，应用以下检查。普通改动检查新增和受影响测试；只有用户要求时才审计整个仓库。
 
-Apply these checks to unit, integration, Compose and other UI, and end-to-end tests when adding, modifying, refactoring, or reviewing them. For ordinary changes, inspect new and affected tests; audit the whole repository only when requested.
+## 测试约定与职责过多的用例
 
-- Center each test on one clear, nameable primary behavior contract. Multiple assertions may be needed to verify that contract.
-- Match the name to the actual action and assertions. Verify every outcome promised by the name: clicking an action or finding a common control does not establish that the business operation succeeded.
-- Separate fixture setup, the primary action, and outcome verification. Multiple production API calls used to prepare shared data do not by themselves overload a test.
-- Look for independent production APIs, unrelated business operations or state transitions chained in one case, a fresh fixture/reset/clear starting another scenario, or helpers concealing multiple responsibilities. An earlier behavior's failure should not prevent an independent contract from being exercised and reported.
-- Inspect parameter and platform branches: an unexecuted branch is not covered. Parameterization should express an input matrix for the same contract, including the same storage contract across backends.
-- Judge behavioral independence, not line count, click count, assertion count, or the number of production calls.
+- 每个测试围绕一个清楚、可命名的主要行为约定展开。验证同一约定可以需要多个断言。
+- 名称应匹配实际操作与断言。验证名称承诺的每项结果：点击操作或找到通用控件，不能证明业务操作成功。
+- 区分夹具准备、主要操作和结果验证。为共享数据准备而调用多个生产 API，本身不代表测试职责过多。
+- 检查是否在同一用例串联独立生产 API、无关业务操作或状态转换，是否通过新夹具、重置、清理开始另一个场景，或让辅助方法隐藏多重职责。前一行为失败不应阻止独立约定被执行和报告。
+- 检查参数与平台分支：未执行的分支不算覆盖。参数化应表达同一约定的输入矩阵，包括跨后端相同的存储约定。
+- 根据行为是否独立判断，不根据行数、点击数、断言数或生产调用数判断。
 
-Split independent behaviors into cases that can run and report failures separately, sharing necessary fixture setup. Preserve the original business assertions when splitting; do not simplify by deleting coverage or hiding independent scenarios inside a helper.
+独立行为拆成可分别运行和报告失败的用例，共享必要夹具准备。拆分时保留原业务断言，不通过删除覆盖或把独立场景藏进辅助方法来简化。
 
-Keep multiple assertions for related consequences of one event or fields of one object. Keep flows whose dependency is necessary to establish the contract, such as write/read persistence, recovery after failure, or resource release after cancellation. A continuous E2E user journey may remain together when its steps have real dependencies and its overall contract is stated; do not chain unrelated business operations into one smoke test.
+同一事件的相关后果或同一对象字段可保留多个断言。确有依赖才能成立的流程应保留，例如写入后读取验证持久化、失败后恢复、取消后释放资源。连续 E2E 用户旅程若步骤确有依赖且整体约定明确，可保持在一起；不把无关业务操作串成一个冒烟测试。
 
-In review findings, identify the concrete test, its independent contracts, and a proposed split. Distinguish confirmed contract or overload problems from optional cleanup and dependent flows that should remain together.
+审查发现应指出具体测试、其中独立的约定和建议拆分方式。区分已确认的约定或职责问题、可选清理，以及应保留的依赖流程。
 
-### Examples
+### 示例
 
-| Scenario | Expected judgment |
+| 场景 | 预期判断 |
 | --- | --- |
-| Call independent `runAlphaJob()` and `runBetaJob()`, then assert each job's records. | Split by job contract; retain shared data preparation in the fixture and both sets of business assertions. |
-| Call `save()`, create a new instance, then `load()` and assert the same value. | Keep together: the calls establish one persistence contract. |
-| Check several inputs to the same filter function. | Keep an input matrix or parameterize the same filtering contract; do not require one assertion per test. |
-| Verify that a refresh failure leaves another data source intact, then click an item to verify navigation. | Split navigation into its own case with an independent fixture; preserve the refresh-isolation assertions. |
-| Cancel an operation, then verify task completion, handle closure, and preservation of the cancellation exception. | Keep together: these are consequences of one cancellation-cleanup contract. |
+| 调用独立 `runAlphaJob()` 和 `runBetaJob()`，再断言各自记录。 | 按任务约定拆分；夹具保留共享数据准备，两组业务断言都保留。 |
+| 调用 `save()`，创建新实例，再 `load()` 并断言相同值。 | 保留：这些调用共同构成持久化约定。 |
+| 用多个输入检查同一过滤函数。 | 保留输入矩阵或参数化同一过滤约定，不要求每个测试只有一个断言。 |
+| 验证刷新失败不影响其他数据源，再点击条目验证导航。 | 导航拆为使用独立夹具的测试，保留刷新隔离断言。 |
+| 取消操作，再验证任务完成、句柄关闭和取消异常保留。 | 保留：这些都是同一取消清理约定的后果。 |
 
-## Execution and reporting
+## 执行与报告
 
-- Tie verification to the actual changed surface and add focused coverage when behavior changes.
-- When end-to-end coverage is needed and the target environment is available, prefer manually exercising the complete critical flow first and confirm it is repeatable before encoding it as a test.
-- If manual end-to-end validation is unavailable, write the most meaningful automated coverage supported by the project and report the missing manual verification.
-- Run corresponding tests after code changes, starting with the narrowest meaningful project-supported command.
-- When Gradle, Makefile, CMakeLists.txt, package scripts, or other build definitions change, run the corresponding build or compilation.
-- Run relevant formatters, lint, type checks, static analysis, and build checks configured by the project.
-- Report every relevant check that could not run and why.
-- Do not run unrelated expensive suites when narrower checks provide useful coverage.
+- 验证针对实际改动部分；行为变化时补充聚焦覆盖。
+- 需要端到端覆盖且目标环境可用时，优先手动走通完整关键流程，确认可重复后再写成测试。
+- 无法手动端到端验证时，编写项目支持的最有意义的自动化覆盖，并报告缺失的手动验证。
+- 代码变化后运行对应测试，从项目支持的最小且有意义的命令开始。
+- Gradle、Makefile、CMakeLists.txt、package scripts 等构建定义变化时，运行对应构建或编译。
+- 运行项目配置的相关格式化、lint、类型检查、静态分析和构建检查。
+- 报告每项未能运行的相关检查及原因。
+- 较小范围检查已提供有效覆盖时，不运行无关的昂贵套件。

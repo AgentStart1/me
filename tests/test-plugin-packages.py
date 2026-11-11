@@ -5,8 +5,11 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
+import warnings
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -28,6 +31,27 @@ class PackageTests(unittest.TestCase):
         shutil.copytree(ROOT / 'scripts/templates', fixture / 'scripts/templates')
         return fixture
 
+    def test_utf8_documentation_survives_generation_without_locale_defaults(self):
+        if not sys.flags.warn_default_encoding:
+            subprocess.run([sys.executable, '-X', 'warn_default_encoding', __file__,
+                            'PackageTests.test_utf8_documentation_survives_generation_without_locale_defaults'],
+                           check=True)
+            return
+        for client in ('claude', 'codex'):
+            with self.subTest(client=client):
+                output = self.root / ('me.' + client)
+                with warnings.catch_warnings():
+                    warnings.simplefilter('error', EncodingWarning)
+                    build(client, output)
+                    validation.validate(client, output)
+                expected_readme = ROOT / 'scripts/templates' / f'{client}-readme.md.template'
+                self.assertEqual((output / 'README.md').read_text(encoding='utf-8'),
+                                 expected_readme.read_text(encoding='utf-8'))
+                source_skill = ROOT / 'plugins/general-coding-practices/skills/project-docs-and-rules/SKILL.md'
+                bundled_skill = output / 'plugins/general-coding-practices/skills/project-docs-and-rules/SKILL.md'
+                source_body = source_skill.read_text(encoding='utf-8').split('---', 2)[2]
+                self.assertEqual(bundled_skill.read_text(encoding='utf-8').split('---', 2)[2], source_body)
+
     def test_distribution_integrity_and_runtime_resources(self):
         for client in ('claude', 'codex'):
             with self.subTest(client=client):
@@ -36,7 +60,7 @@ class PackageTests(unittest.TestCase):
                 validation.validate(client, output)
                 for name in ('qemu-guests', 'android-emulator-profile', 'android-device-lock'):
                     plugin = output / 'plugins' / name
-                    manifest = json.loads((plugin / f'.{client}-plugin/plugin.json').read_text())
+                    manifest = json.loads((plugin / f'.{client}-plugin/plugin.json').read_text(encoding="utf-8"))
                     self.assertEqual(manifest['mcpServers'], './.mcp.json')
                     for resource in ('.mcp.json', 'templates/status-panel.html', 'scripts/status-server.py'):
                         self.assertTrue((plugin / resource).is_file(), str(plugin / resource))
@@ -48,20 +72,20 @@ class PackageTests(unittest.TestCase):
             with self.subTest(client=client):
                 output = self.root / ('me.' + client)
                 output.mkdir()
-                (output / 'unrelated.txt').write_text('keep')
+                (output / 'unrelated.txt').write_text('keep', encoding="utf-8")
                 build(client, output)
                 before = {p.relative_to(output): hashlib.sha256(p.read_bytes()).hexdigest()
                           for p in output.rglob('*') if p.is_file()}
                 marketplace = output / ('.agents/plugins' if client == 'codex' else '.claude-plugin')
-                (marketplace / 'stale.txt').write_text('stale')
+                (marketplace / 'stale.txt').write_text('stale', encoding="utf-8")
                 stale = output / 'plugins/stale'
                 stale.mkdir()
-                (stale / 'stale.txt').write_text('stale')
+                (stale / 'stale.txt').write_text('stale', encoding="utf-8")
                 build(client, output)
                 after = {p.relative_to(output): hashlib.sha256(p.read_bytes()).hexdigest()
                          for p in output.rglob('*') if p.is_file()}
                 self.assertEqual(before, after)
-                self.assertEqual((output / 'unrelated.txt').read_text(), 'keep')
+                self.assertEqual((output / 'unrelated.txt').read_text(encoding="utf-8"), 'keep')
 
     def test_unsafe_output_paths_are_rejected(self):
         for client in ('codex', 'claude'):
@@ -74,15 +98,15 @@ class PackageTests(unittest.TestCase):
         fixture = self.source_fixture()
         output = self.root / 'me.claude'
         output.mkdir()
-        (output / 'README.md').write_text('preserve before validation')
+        (output / 'README.md').write_text('preserve before validation', encoding="utf-8")
         manifest_path = fixture / 'plugins/android-device-lock/plugin.json'
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest['extensions']['com.anthropic.claude']['skillFrontmatter']['android-device-lock']['agent'] = 'missing-agent'
-        manifest_path.write_text(json.dumps(manifest))
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         with patch.object(validation.builder, 'ROOT', fixture):
             with self.assertRaisesRegex(ValueError, 'missing Claude agent'):
                 build('claude', output)
-        self.assertEqual((output / 'README.md').read_text(), 'preserve before validation')
+        self.assertEqual((output / 'README.md').read_text(encoding="utf-8"), 'preserve before validation')
 
     def test_development_artifacts_are_excluded_from_bundled_resources(self):
         fixture = self.source_fixture()
@@ -90,7 +114,7 @@ class PackageTests(unittest.TestCase):
                          'skills/qemu-guests/node_modules/dependency/index.js'):
             artifact = fixture / 'plugins/qemu-guests' / relative
             artifact.parent.mkdir(parents=True, exist_ok=True)
-            artifact.write_text('development artifact')
+            artifact.write_text('development artifact', encoding="utf-8")
         with patch.object(validation.builder, 'ROOT', fixture):
             for client in ('codex', 'claude'):
                 with self.subTest(client=client):

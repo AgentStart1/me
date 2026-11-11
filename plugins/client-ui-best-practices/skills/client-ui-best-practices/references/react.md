@@ -1,6 +1,6 @@
 # React Host
 
-Keep the Host independent of React components and hooks. Components subscribe to immutable Host snapshots and dispatch actions; they do not own feature business logic.
+Host 不依赖 React 组件和 hook。组件订阅 Host 的不可变快照并分发操作，不管理功能业务逻辑。
 
 ```typescript
 interface ProfileHost {
@@ -19,10 +19,8 @@ function ProfileScreen({ host }: { host: ProfileHost }) {
 }
 ```
 
-- Use `useSyncExternalStore` or the project's equivalent adapter to bridge Host state into rendering.
-- Keep effects in a separate consumable channel rather than encoding transient events as durable render state.
-- Do not perform expensive transformations during render; compute them in the Host or a worker.
-- Tie subscriptions and cancellation to component ownership and unmounting.
-- One JavaScript event loop does not serialize complete asynchronous requests.
-  Use abort signals and/or request identities so superseded completions cannot
-  overwrite the current snapshot, and do not publish cancellation as an error.
+- 使用 `useSyncExternalStore` 或项目等效适配层，将 Host 状态接入渲染。
+- 副作用使用独立的可消费通道，不将临时事件编码为持久渲染状态。
+- 不在渲染期间执行昂贵转换；交给 Host 或 worker 计算。
+- 将订阅和取消与组件管理责任及卸载关联。
+- 单个 JavaScript 事件循环不会让完整异步请求串行化。通过中止信号和／或请求标识，防止已被取代的完成结果覆盖当前快照；不要将取消发布为错误。

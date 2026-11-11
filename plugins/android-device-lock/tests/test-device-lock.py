@@ -47,7 +47,9 @@ b=$!
 a_status=0; wait "$a" || a_status=$?
 b_status=0; wait "$b" || b_status=$?
 printf '%s %s' "$a_status" "$b_status" > "$FIXTURE/status"''')
-        self.assertIn(self.read('status'), ('0 1', '1 0'))
+        statuses = self.read('status')
+        self.assertIn(statuses, ('0 1', '1 0'),
+                      f"contender outputs:\na: {self.read('a.log')}\nb: {self.read('b.log')}")
         token = 'a.token' if self.read('status').startswith('0') else 'b.token'
         self.assertIn(self.read(token).strip(), self.read('device/test.lock.d/lock.json'))
         for name in ('a.log', 'b.log'):

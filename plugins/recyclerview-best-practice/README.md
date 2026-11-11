@@ -1,29 +1,25 @@
-# RecyclerView Best Practice Plugin
+# RecyclerView 最佳实践插件
 
-This portable plugin provides Android RecyclerView guidance for creating, reviewing, and refactoring list UI code.
+本可移植插件提供 Android RecyclerView 指引，用于创建、审查和重构列表 UI 代码。
 
-Use the general RecyclerView skill for list implementation and bugs in updates, recycling, pagination or row state. The sentinel skill is narrower: diagnose prepend visibility, anchoring or insertion-animation problems and evaluate a sentinel only when appropriate, or implement one explicitly requested by the user.
+列表实现及更新、回收、分页或行状态问题使用通用 RecyclerView skill。哨兵 skill 范围更窄：诊断前插可见性、锚定或插入动画问题，适合时才评估哨兵，或实现用户明确要求的哨兵。
 
-Feature state and effects follow the framework-independent Host contract; Android
-ViewModels may adapt that Host to the view lifecycle. A prepend sentinel changes
-diff positions but does not guarantee visibility or anchoring when offscreen.
-Validate actual layout and state-restoration behavior; Paging headers use
-`ConcatAdapter` or `insertHeaderItem`.
+功能状态和副作用遵循独立于框架的 Host 约定；Android ViewModel 可将 Host 适配到视图生命周期。前插哨兵会改变差异位置，但屏幕外的哨兵不保证可见性或锚定。验证实际布局和状态恢复行为；Paging 页眉使用 `ConcatAdapter` 或 `insertHeaderItem`。
 
-## Project independence
+## 使用项目的独立性
 
-Adapter and sentinel implementations belong to the consuming project and use normal AndroidX dependencies. Neither skill makes the project depend on this AI plugin's installation; required Android/Gradle/compiler plugins remain ordinary dependencies.
+adapter 和哨兵实现归使用插件的项目所有，使用正常 AndroidX 依赖。两个 skill 均不让项目依赖本 AI 插件安装；所需 Android、Gradle 和编译器插件仍为普通依赖。
 
-## Contents
+## 内容
 
-- `plugin.json` declares the portable plugin and client extensions.
-- `skills/android-recyclerview-best-practice/SKILL.md` contains the RecyclerView guidance.
-- `skills/recyclerview-sentinel-viewholder/SKILL.md` contains the start-sentinel ViewHolder trick for prepend anchoring.
+- `plugin.json` 声明可移植插件和客户端扩展。
+- `skills/android-recyclerview-best-practice/SKILL.md` 提供 RecyclerView 指引。
+- `skills/recyclerview-sentinel-viewholder/SKILL.md` 提供通过起始哨兵 ViewHolder 改善前插锚定的方法。
 
-## Plugin packaging
+## 插件打包
 
-`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.
+`plugin.json` 是可移植元数据的权威来源。客户端清单与完整 skill 资源会生成到 `me.claude` 和 `me.codex`，请从这两个仓库安装。源 skill 使用可移植的 frontmatter。Claude 路由按 skill 目录保存在 `extensions.com.anthropic.claude.skillFrontmatter` 中，仅注入生成的 Claude skill。Codex 的 skill 文件保持源文件原样复制。
 
-## Improvement feedback
+## 改进反馈
 
-Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+插件问题向 [storytellerF/me issues](https://github.com/storytellerF/me/issues) 反馈。报告前，skill 要求检索已打开和已关闭的 issue，使用脱敏或合成示例，并遵循用户已有的发布授权。优先复用已有报告；无法访问时，保留尚未提交的草稿。

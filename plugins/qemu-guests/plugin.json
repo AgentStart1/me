@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qemu-guests",
-  "version": "0.10.2-20261030122357",
-  "description": "Coordinate desktop tests, tests beyond the host environment, and Docker test environments using reusable QEMU guests and an independent backend.",
+  "version": "0.10.3-20261107120055",
+  "description": "通过可复用 QEMU 客户机和独立后端，协调桌面、跨宿主环境及 Docker 测试。",
   "author": {
     "name": "QEMU Guests Maintainers",
     "url": "https://github.com/storytellerF/me"
@@ -30,9 +30,9 @@
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
-        "displayName": "QEMU Guests",
-        "shortDescription": "Desktop, cross-environment and Docker test coordination.",
-        "longDescription": "Coordinates desktop tests, tests targeting environments different from the host, and Docker-backed integration tests. Reuses suitable environments and selects provisioning and connection procedures internally. Manages concurrent QEMU work guests alongside one persistent Alpine Docker backend on Windows and in Linux containers. Includes Ubuntu cloud-init, Windows answer files and Intel macOS Recovery automation using prepared Apple media and a bootstrap package. Work guests install Appium for host-connected and manual testing, with no guest Docker proxy or backend credentials. The status panel lists work VMs and displays live read-only screens for supported graphical backends. Windows 11 hosts use a plugin-managed WHPX-only QEMU build for four-vCPU Windows guests and warm reboots. A unified run-test-env.sh entry point selects Docker/Testcontainers and transparent Appium artifact/file/service transport from project environment configuration; compilation stays on the host. Opt-in Ubuntu OpenGL uses a pinned Windows/WHPX VirGL runtime and a dedicated GPU desktop; its panel captures the GPU scanout through QMP on demand.",
+        "displayName": "QEMU 客户机",
+        "shortDescription": "协调桌面、跨环境及 Docker 测试。",
+        "longDescription": "协调桌面测试、目标环境不同于宿主机的测试及依赖 Docker 的集成测试。复用合适环境，在内部选择安装和连接流程。在 Windows 和 Linux 容器中管理并发 QEMU 工作客户机及一个持久 Alpine Docker 后端。支持 Ubuntu cloud-init、Windows 应答文件，以及使用已准备 Apple 介质和 bootstrap 包的 Intel macOS Recovery 自动化。工作客户机安装 Appium，供宿主机连接及手动测试，不安装客户机 Docker 代理或后端凭据。状态面板列出工作虚拟机，并为支持的图形后端显示实时只读屏幕。Windows 11 宿主机使用插件管理、仅含 WHPX 的 QEMU 构建，支持四 vCPU Windows 客户机及热重启。统一 run-test-env.sh 入口根据项目环境配置选择 Docker、Testcontainers 及透明 Appium 产物、文件和服务传输，编译保留在宿主机。可选 Ubuntu OpenGL 使用固定版本 Windows/WHPX VirGL 运行时及专用 GPU 桌面；面板按需通过 QMP 捕获 GPU 扫描输出。",
         "developerName": "QEMU Guests Maintainers",
         "category": "Developer Tools",
         "capabilities": [
@@ -43,9 +43,9 @@
         "privacyPolicyURL": "https://github.com/storytellerF/me",
         "termsOfServiceURL": "https://github.com/storytellerF/me",
         "defaultPrompt": [
-          "Run this project's desktop application tests in a suitable test environment.",
-          "Run this project's tests on Linux from this Windows host.",
-          "Prepare a Docker environment and run this project's integration tests."
+          "在合适测试环境中运行本项目桌面应用测试。",
+          "从当前 Windows 宿主机运行本项目的 Linux 测试。",
+          "准备 Docker 环境并运行本项目集成测试。"
         ],
         "brandColor": "#3B82F6"
       },

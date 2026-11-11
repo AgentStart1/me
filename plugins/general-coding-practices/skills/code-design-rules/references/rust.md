@@ -1,21 +1,10 @@
-# Rust and Async Runtimes
+# Rust 与异步运行时
 
-- Reuse the project's async runtime. Own spawned tasks and observe their outcomes;
-  dropping a Tokio `JoinHandle` detaches the task rather than cancelling it. Use
-  task collections and the project's shutdown mechanism where appropriate.
-- Cancellation commonly drops a future; verify cancellation safety of operations
-  used in `select!` or timeouts. Drop does not roll back external side effects or
-  provide asynchronous cleanup. Define an explicit shutdown/acknowledgment path
-  for resources that need asynchronous cleanup.
-- In Tokio, use async I/O, timers, and channels. Isolate blocking work with
-  `spawn_blocking` or an appropriate pool; started blocking tasks cannot generally
-  be aborted, so give long work a cooperative stop protocol when needed.
-- Prefer ownership and message passing. A standard mutex can be appropriate for
-  short critical sections without `.await`; use an async mutex only when the
-  design needs it. Do not hold a blocking mutex guard across suspension.
-- Prefer immutable bindings and enums carrying state-specific data. Borrow checking
-  does not eliminate logical stale-result races; validate operation identity at
-  publication. Interior mutability and shared ownership still need a clear contract.
+- 复用项目的异步运行时。管理派生任务并观察其结果；丢弃 Tokio `JoinHandle` 会让任务脱离管理，而非取消任务。适当使用任务集合和项目的关闭机制。
+- 取消通常通过丢弃 future 实现；验证 `select!` 或超时中使用的操作是否具备取消安全性。Drop 不会回滚外部副作用，也不提供异步清理。需要异步清理的资源应有显式的关闭与确认路径。
+- Tokio 中使用异步 I/O、计时器和 channel。通过 `spawn_blocking` 或适当执行池隔离阻塞工作；已经开始的阻塞任务通常无法中止，因此较长的任务应按需提供协作式停止协议。
+- 优先使用所有权和消息传递。不含 `.await` 的短临界区可以使用标准 mutex；只有设计需要时才使用异步 mutex。不要持有阻塞 mutex 的 guard 跨越挂起点。
+- 优先使用不可变绑定和携带各状态专属数据的枚举。借用检查无法消除逻辑上的过时结果竞态；发布结果时验证操作标识。内部可变性和共享所有权仍需明确约定。
 
 ```rust
 enum LoadState<T, E> {
@@ -26,19 +15,10 @@ enum LoadState<T, E> {
 }
 ```
 
-Use exhaustive `match`. Use `Option<T>` inside `Success` only for legitimate
-absence; avoid `unwrap` to repair an invalid state model. Use rustdoc (`///`) for
-ownership, cancellation safety, panic/error behavior, and runtime requirements.
-Verify shutdown and dropped-future behavior, owned task completion, and superseded
-results with runtime-supported test controls.
+使用穷尽的 `match`。仅当缺失值合法时，才在 `Success` 内使用 `Option<T>`；不要靠 `unwrap` 补救无效的状态模型。使用 rustdoc（`///`）说明所有权、取消安全性、panic 和错误行为，以及运行时要求。使用运行时支持的测试控制机制，验证关闭、future 被丢弃时的行为、所管理任务的完成和被取代的结果。
 
-## Callback and listener adaptation
+## 回调与监听器适配
 
-Prefer a native future API. Bridge a one-shot callback with the runtime's oneshot
-channel and await its receiver; transfer or guard the sender so only one callback
-can complete it. Define cleanup when the receiver/future is dropped and release
-resources from late callbacks. Use a stream or an owned channel for repeated
-events, with a capacity/backpressure policy and unsubscribe/close behavior. Do not
-block a runtime worker waiting for a callback to simulate an async return value.
+优先使用原生 future API。通过运行时的 oneshot channel 桥接单次回调，等待其接收端；转交或保护发送端，确保只有一个回调能完成它。定义接收端或 future 被丢弃时的清理，并释放迟到回调交付的资源。重复事件使用 stream 或有明确管理者的 channel，定义容量、背压策略和退订或关闭行为。不要阻塞运行时工作线程等待回调，以模拟异步返回值。
 
-Official reference: [Tokio graceful shutdown](https://tokio.rs/tokio/topics/shutdown).
+官方参考：[Tokio 平滑关闭](https://tokio.rs/tokio/topics/shutdown)。

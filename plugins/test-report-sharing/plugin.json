@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "test-report-sharing",
-  "version": "0.4.6-20261030120429",
-  "description": "Collect test reports into a static site for local preview or ngrok sharing.",
+  "version": "0.4.7-20261107120055",
+  "description": "将测试报告收集为静态站点，用于本地预览或 ngrok 分享。",
   "author": {
     "name": "Test Report Sharing"
   },
@@ -16,9 +16,9 @@
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
-        "displayName": "Test Report Sharing",
-        "shortDescription": "Preview existing test reports locally or share a public URL.",
-        "longDescription": "Collects existing test reports into a browsable static site. The skill uses local previews unless public sharing is requested; report collection does not rerun tests.",
+        "displayName": "测试报告分享",
+        "shortDescription": "本地预览已有测试报告，或分享公开 URL。",
+        "longDescription": "将已有测试报告收集为可浏览静态站点。除非要求公开分享，否则 skill 使用本地预览；收集报告不会重新运行测试。",
         "developerName": "Test Report Sharing",
         "category": "Developer Tools",
         "capabilities": [
@@ -26,8 +26,8 @@
           "Ngrok Tunnel"
         ],
         "defaultPrompt": [
-          "Collect existing test reports and show a local preview.",
-          "Share the existing test reports through a public URL."
+          "收集已有测试报告并显示本地预览。",
+          "通过公开 URL 分享已有测试报告。"
         ],
         "brandColor": "#2563EB"
       }

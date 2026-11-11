@@ -1,101 +1,66 @@
-# Android Emulator Profile Plugin
+# Android 模拟器配置插件
 
-This plugin provides profile-driven Android Virtual Device creation and emulator startup for local and Docker-friendly environments.
+本插件在本地及适合 Docker 的环境中，通过配置文件创建 Android Virtual Device 并启动模拟器。
 
-Ask to prepare or start an emulator for an Android run/test, or to view emulator status and screens; naming a profile or setup script is unnecessary. The skill checks requested device/API requirements and reuses a suitable emulator or AVD before preparing a new one. Editing Android code alone does not require emulator setup, and a status request remains read-only.
+可以直接要求为 Android 运行或测试准备、启动模拟器，或查看状态和屏幕，无需指定配置文件或安装脚本。skill 检查设备和 API 要求，优先复用合适的模拟器或 AVD，再考虑新建。仅编辑 Android 代码不需要准备模拟器，状态查询保持只读。
 
-## Project independence
+## 使用项目的独立性
 
-SDK/AVD preparation stays in the operator environment. Consuming projects retain standard Android tool requirements and test commands without depending on this AI plugin's installation or private provisioning profiles; normal Android build plugins remain supported.
+SDK 和 AVD 准备留在操作者环境。使用插件的项目保留标准 Android 工具要求和测试命令，不依赖 AI 插件安装或私有配置；正常 Android 构建插件仍受支持。
 
-## Included tooling
+## 包含的工具
 
-- Install Android SDK command-line tools and accept licenses.
-- Create AVDs from mobile, tablet, desktop, TV, and watch profiles.
-- Start emulators with architecture-aware defaults.
-- Run a fake-command smoke test without starting a real emulator.
+- 安装 Android SDK 命令行工具并接受许可证。
+- 根据手机、平板、桌面、TV 和手表配置创建 AVD。
+- 使用感知架构的默认值启动模拟器。
+- 通过模拟命令执行冒烟测试，不启动真实模拟器。
 
-Use Bash 4.3+ and GNU-compatible shell utilities for these scripts. Resolve their
-absolute paths from the installed plugin root; supplied profiles are literal data.
-The SDK installer downloads outside the project directory, respects existing SDK
-ownership and keeps replaced tools in a `cmdline-tools/previous.*` directory. Its
-bundled command-line-tools release is a minimum setup choice, not a claim to always
-download the latest upstream release; newer installed tools are reused.
+这些脚本需要 Bash 4.3+ 和 GNU 兼容 Shell 工具。从已安装插件根目录定位绝对路径；随包配置是字面数据。SDK 安装器在项目目录外下载，遵循现有 SDK 归属，将被替换工具保存在 `cmdline-tools/previous.*` 目录。随包命令行工具版本是最低环境选择，不保证始终下载最新上游版本；已安装的更新工具会被复用。
 
-Emulator startup preserves existing `DISPLAY` unless the profile overrides it.
-It refuses an occupied/interrupted AVD start guard or native lock, and shutdown
-targets only the process it launched. Confirm all owners have stopped before manual
-lock recovery. A new AVD can set its partition size before first boot; resizing
-existing or custom userdata requires explicit `EMULATOR_ALLOW_DATA_WIPE=true`.
-This setting authorizes a destructive reset of that AVD and should not be a routine default.
+除非配置明确覆盖，启动时保留已有 `DISPLAY`。AVD 启动 guard 或原生锁被占用或处于中断状态时拒绝启动；关闭只针对自己启动的进程。手动恢复锁前，确认所有管理者已停止。新 AVD 可在首次启动前设置分区大小；调整已有或自定义 userdata 需要显式设置 `EMULATOR_ALLOW_DATA_WIPE=true`。此设置授权破坏性重置该 AVD，不应作为日常默认值。
 
-For ordinary device management, consult the current [Android CLI guidance](https://developer.android.com/studio/run/emulator-commandline).
-The bundled scripts remain available for the profile/configuration workflow; check
-installed emulator flags rather than assuming every SDK version supports them.
+普通设备管理请参考当前 [Android CLI 指引](https://developer.android.com/studio/run/emulator-commandline)。随包脚本继续用于配置文件流程；核对已安装模拟器的参数，不假定每个 SDK 版本都支持相同选项。
 
-## Android Emulators status panel
+## Android Emulators 状态面板
 
-Open **Android Emulators** from a supporting MCP Apps host's global sidebar or thread tabs, or call `android_emulator_status`. The read-only panel lists configured AVDs and connected emulators, including boot readiness, serial, Android/API version, ABI, configured memory, and resolution. It supports filtering, manual refresh, and optional ten-second auto-refresh while visible. Failed probes remain unknown or unavailable. A configured AVD without an observed ADB connection is marked disconnected; that does not assert that its process stopped.
+在支持 MCP Apps 的宿主应用全局侧栏或对话标签页打开 **Android Emulators**，或调用 `android_emulator_status`。只读面板列出已配置 AVD 和已连接模拟器，包括启动就绪状态、序列号、Android 和 API 版本、ABI、配置内存及分辨率。支持过滤、手动刷新，以及可见时每十秒自动刷新。探测失败保持未知或不可用。未观察到 ADB 连接的已配置 AVD 标记为断开连接，不代表其进程已停止。
 
-**Capture screen** is available for booted emulators. Each click calls the app-only `android_emulator_screenshot` tool with an explicit serial. It captures one PNG through `adb exec-out screencap -p`; refresh does not capture screens, no screenshot is saved on the device, and physical phones are rejected. Closing the preview discards the displayed image. The panel does not start, stop, reset, or unlock an emulator.
+已启动的模拟器可使用 **Capture screen**。每次点击以明确序列号调用仅供应用使用的 `android_emulator_screenshot`，通过 `adb exec-out screencap -p` 捕获一张 PNG。刷新不会截屏，不在设备保存截图，也拒绝真实手机。关闭预览即丢弃显示图像。面板不会启动、停止、重置或解锁模拟器。
 
-Install [uv](https://docs.astral.sh/uv/) and make ADB available in the same environment as the MCP server. The manifests register the local stdio service automatically in compatible hosts:
+安装 [uv](https://docs.astral.sh/uv/)，让 ADB 在 MCP 服务所在环境可用。兼容宿主应用会根据清单自动注册本地 stdio 服务：
 
 ```bash
 uv run --script scripts/status-server.py
-# JSON fallback when the host cannot render MCP Apps:
+# 宿主应用无法呈现 MCP Apps 时使用 JSON：
 python3 scripts/emulator_status.py
 ```
 
-ADB resolution honors `ANDROID_ADB_COMMAND`, PATH, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then `~/android-sdk`. ADB's usual server environment variables remain available; invoking ADB may start its local server. AVD inventory honors `ANDROID_AVD_HOME` or `ANDROID_USER_HOME`, falling back to `~/.android/avd`. It reads existing `.ini` files and never evaluates profiles or rewrites configuration. TCP-connected emulators are identified by the Android QEMU property; an offline TCP device cannot be conclusively classified as an emulator. Unmapped/offline emulator instances prevent unknown local AVDs from being reported as disconnected.
+ADB 查找依次考虑 `ANDROID_ADB_COMMAND`、PATH、`ANDROID_HOME`、`ANDROID_SDK_ROOT` 和 `~/android-sdk`。常用 ADB 服务环境变量仍可用；调用 ADB 可能启动本地服务。AVD 清单优先使用 `ANDROID_AVD_HOME` 或 `ANDROID_USER_HOME`，回退到 `~/.android/avd`。只读取已有 `.ini`，不执行配置文件或重写配置。TCP 连接的模拟器通过 Android QEMU 属性识别；离线 TCP 设备无法确认为模拟器。未匹配或离线的模拟器实例会阻止将未知本地 AVD 报告为断开连接。
 
-Native rendering requires MCP Apps and OpenAI thread-entrypoint support. This is a local MCP service, not a deployed remote ChatGPT application. See the repository's `scripts/android-status/README.md` for shared UI build and validation instructions.
+原生呈现要求支持 MCP Apps 和 OpenAI 对话入口。这是本地 MCP 服务，不是已部署的远程 ChatGPT 应用。共享 UI 构建与验证见仓库中的 `scripts/android-status/README.md`。
 
-## Plugin packaging
+## 插件打包
 
-`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.
+`plugin.json` 是可移植元数据的权威来源。客户端清单与完整 skill 资源会生成到 `me.claude` 和 `me.codex`，请从这两个仓库安装。源 skill 使用可移植的 frontmatter。Claude 路由按 skill 目录保存在 `extensions.com.anthropic.claude.skillFrontmatter` 中，仅注入生成的 Claude skill。Codex 的 skill 文件保持源文件原样复制。
 
-## Improvement feedback
+## 改进反馈
 
-Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+插件问题向 [storytellerF/me issues](https://github.com/storytellerF/me/issues) 反馈。报告前，skill 要求检索已打开和已关闭的 issue，使用脱敏或合成示例，并遵循用户已有的发布授权。优先复用已有报告；无法访问时，保留尚未提交的草稿。
 
-## Python profile controller
+## Python 配置控制器
 
-Run `python /absolute/plugin/scripts/start-avd.py /absolute/profile` directly
-with Python 3.10+ on Windows or Unix. The shell startup entry only selects the
-interpreter (`ANDROID_PROFILE_PYTHON` overrides lookup) and forwards arguments.
-SDK installation remains Bash orchestration; its compatibility utilities use
-the same Python profile parser, tool resolver and argument mapper. The native
-startup controller owns AVD configuration updates.
-Profiles remain literal data. Native Windows batch tools reject command
-metacharacters and arguments ending in a backslash that cannot be safely forwarded; executable tools receive argument
-lists. Use Ctrl+C or native Windows Ctrl+Break for graceful cancellation. Git
-Bash `kill -TERM` forcibly terminates native Windows programs and cannot run
-Python cleanup; inspect any remaining guard before recovery.
+在 Windows 或 Unix 上，可通过 Python 3.10+ 直接运行 `python /absolute/plugin/scripts/start-avd.py /absolute/profile`。Shell 启动入口只选择解释器并转发参数（`ANDROID_PROFILE_PYTHON` 可覆盖自动查找）。SDK 安装仍由 Bash 编排，其兼容工具使用同一套 Python 配置解析器、工具解析器和参数映射器。原生启动控制器负责更新 AVD 配置。
 
-Profile configuration is read directly from the file, preserving key and option
-case. AVD names, custom paths, emulator options, INI overrides and wipe permission
-are not inherited from environment variables. Put these settings in the profile.
-The shell creation entry keeps profile values in a separate map rather than
-exporting them. Only `ANDROID_HOME`, `ANDROID_AVD_HOME`, `ANDROID_USER_HOME` and
-the `EMULATOR_DISPLAY` to `DISPLAY` mapping are forwarded explicitly for Android
-tools. Host PATH, HOME and profile/interpreter selection still use the environment.
+配置文件始终是字面数据。原生 Windows 批处理工具拒绝命令元字符，以及无法安全转发的以反斜杠结尾的参数；可执行工具接收参数列表。使用 Ctrl+C 或 Windows 原生 Ctrl+Break 平滑取消。Git Bash 的 `kill -TERM` 会强制终止原生 Windows 程序，无法执行 Python 清理；恢复前检查遗留的 guard。
 
+配置直接从文件读取，保留键和选项的大小写。AVD 名称、自定义路径、模拟器选项、INI 覆盖值和擦除权限不继承环境变量，应写入配置文件。Shell 创建入口将配置值保存在独立映射中，不导出为环境变量。只为 Android 工具显式转发 `ANDROID_HOME`、`ANDROID_AVD_HOME`、`ANDROID_USER_HOME`，以及 `EMULATOR_DISPLAY` 到 `DISPLAY` 的映射。宿主机 PATH、HOME、配置文件及解释器选择仍使用环境变量。
 
-Startup keeps its configuration guard until the whole owned command tree stops,
-even if the command root exits first. If cleanup fails, leave the guard in place
-and inspect the owning processes before recovery. Windows script tools use their
-shebang interpreter through Git Bash. Device workers on Unix must stay in the
-original process group; detached sessions are outside the launcher's ownership.
+即使命令根进程先退出，启动控制器也会保持配置 guard，直到其管理的整棵命令进程树停止。清理失败时保留 guard，恢复前检查归属进程。Windows 脚本工具通过 Git Bash 使用其 shebang 解释器。Unix 设备工作进程必须留在原进程组；脱离的会话不在启动器管理范围内。
 
-On Windows, the shared tool environment boundary converts inherited and profile
-`ANDROID_HOME`, `ANDROID_AVD_HOME`, and `ANDROID_USER_HOME` paths from Git Bash
-notation before launching native tools, so tools and configuration lookup use
-the same directories. Empty values remain empty.
+在 Windows 上，共享工具环境边界在启动原生工具前，将继承和配置文件中的 `ANDROID_HOME`、`ANDROID_AVD_HOME`、`ANDROID_USER_HOME` 从 Git Bash 路径转换为原生路径，使工具与配置查找使用相同目录。空值保持为空。
 
-Read Git Bash path-conversion output as UTF-8, independent of the Windows ANSI
-code page, so Unicode SDK and AVD directory names remain intact.
+Git Bash 路径转换输出按 UTF-8 读取，不受 Windows ANSI 代码页影响，保证 Unicode SDK 和 AVD 目录名完整。
 
-## Development
+## 开发
 
-See [repository development](../../DEVELOPMENT.md#shell-boundary-regression-tests) for the offline regression suites and their source-checkout prerequisites.
+离线回归套件及源码检出前提见[仓库开发文档](../../DEVELOPMENT.md#shell-边界回归测试)。

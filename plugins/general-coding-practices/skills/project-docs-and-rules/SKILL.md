@@ -1,63 +1,71 @@
 ---
 name: project-docs-and-rules
-description: Use when maintaining project documentation or AI guidance, or when changes affect documented behavior, setup, commands, APIs, workflows, or conventions. Internal-only changes do not automatically require documentation edits.
+description: 在维护项目文档或 AI 工作指引，或变更影响已记录的行为、环境配置、命令、API、流程和约定时使用。仅涉及内部实现的变更不一定需要修改文档。
 ---
 
-# Project Docs and Rules
+# 项目文档与规则
 
-Check whether the change affects documented behavior or guidance before editing documentation. Internal-only changes need no documentation churn when the existing guidance remains accurate.
+编辑文档前，先确认变更是否影响已有的行为说明或工作指引。如果只改动内部实现，现有说明仍然准确，就不必为此修改文档。
 
-Keep project documentation aligned with current behavior, using one canonical file for each audience:
+让项目文档与实际行为保持一致，并为每类读者保留唯一的权威文档：
 
-- `README.md` is for users installing, configuring, and using the project.
-- `DEVELOPMENT.md` is for developers building, testing, debugging, or contributing to the project.
-- `AGENTS.md` is for AI agents working in the repository.
+- `README.md` 面向安装、配置和使用项目的用户。
+- `DEVELOPMENT.md` 面向构建、测试、调试或参与开发的贡献者。
+- `AGENTS.md` 面向在仓库内工作的 AI agent。
 
-Do not create or maintain `CLAUDE.md`, `.cursorrules`, or `.github/copilot-instructions.md`. Put generally applicable AI guidance in `AGENTS.md` instead.
+不创建或继续维护 `CLAUDE.md`、`.cursorrules` 或 `.github/copilot-instructions.md`。通用的 AI 工作指引统一放在 `AGENTS.md` 中。
 
-## Project independence
+## 文档语言与表达
 
-Document the project's supported tools, normal commands, endpoints and portable configuration. Do not write AI-plugin installation paths, cache versions, orchestration helpers, provider-specific environment switches or operator maintenance procedures into a consuming project's README, DEVELOPMENT.md or AGENTS.md merely because a skill was used. Keep those instructions in the owning AI plugin or operator environment. This also applies when saving newly learned project rules.
+- 用户明确指定文档语言时，遵循用户要求。
+- 修改已有文档时，优先沿用该文档的主要语言；保留已有多语言版本各自的语言分工，不因当前对话语言不同而切换整篇文档的语言。
+- 新建文档时，默认使用用户当前对话所用的语言。
+- 使用自然、准确的技术文档表达。翻译时可按目标语言的习惯调整语序和拆分长句，但要保留条件、限制、适用范围和要求强度，不擅自增加或删减规则。
+- 保留命令、路径、配置键、API 名称和机器标识的原有写法。
 
-Preserve documentation for actual project dependencies such as Gradle plugins and Appium drivers/extensions, including required versions and setup. These are distinct from AI assistant plugins. When the user explicitly requests AI-plugin integration, document only that requested scope; the AI plugin's own repository may describe its implementation and installation normally.
+## 使用项目的独立性
 
-## Locate the canonical guidance
+记录项目支持的工具、常规命令、端点和可移植配置。不能仅因使用了某个 skill，就把 AI 插件的安装路径、缓存版本、编排辅助程序、提供方专用环境开关或操作者维护流程写入使用该插件的项目的 README、DEVELOPMENT.md 或 AGENTS.md。这些说明应留在所属 AI 插件或操作者环境中。保存新发现的项目规则时也遵守此要求。
 
-- Inspect existing `README.md`, `DEVELOPMENT.md`, and applicable root or nested `AGENTS.md` files before adding documentation.
-- Classify each statement by audience and place it in the corresponding canonical file.
-- Link between canonical files when another audience needs a pointer; do not copy the same instructions into multiple files.
-- When relevant content exists in a deprecated AI instruction file, migrate the unique, still-applicable guidance to the appropriate `AGENTS.md` rather than continuing to maintain both.
+保留项目实际依赖的文档，例如 Gradle 插件和 Appium 驱动或扩展，包括所需版本和配置。这些依赖与 AI 助手插件不同。用户明确要求集成 AI 插件时，只记录获准集成的部分；AI 插件自身的仓库可以正常介绍其实现和安装方式。
 
-## README content
+## 找到权威指引
 
-- Update README files when user-facing features, installation, deployment, configuration, supported integrations, examples, or usage flows change.
-- Describe what the project is, what it provides, and how users install, configure, and use it.
-- Keep examples practical and runnable, with the paths, commands, inputs, and expected high-level outcomes users need.
-- Do not put contributor setup, architecture, internal APIs, test commands, lint commands, CI details, repository conventions, or AI instructions in README files.
-- Add a concise link to `DEVELOPMENT.md` when contributors need a clear entry point.
+- 添加文档前，先查看已有的 `README.md`、`DEVELOPMENT.md`，以及适用的根目录或子目录 `AGENTS.md`。
+- 按读者分类，将每条说明放入对应的权威文档。
+- 另一类读者需要了解相关内容时，链接到权威文档，不在多个文件中重复同一套指引。
+- 废弃的 AI 指令文件中若有独有且仍适用的内容，将其迁入合适的 `AGENTS.md`，不要继续同时维护两套说明。
 
-## DEVELOPMENT.md content
+## README 内容
 
-- Update `DEVELOPMENT.md` when developer setup, architecture, internal or public APIs, build, test, lint, debugging, release, or contribution workflows change.
-- Keep commands runnable and document prerequisites, paths, inputs, and expected outcomes that developers need.
-- Record project conventions that human contributors need to make correct changes, but keep AI-only operating instructions in `AGENTS.md`.
+- 用户功能、安装、部署、配置、支持的集成、示例或使用流程变化时，更新 README。
+- 说明项目是什么、提供什么，以及如何安装、配置和使用。
+- 示例应实用且可执行，包含必要的路径、命令、输入和预期的主要结果。
+- 不把贡献者环境配置、架构、内部 API、测试命令、lint 命令、CI 细节、仓库约定或 AI 指令放入 README。
+- 贡献者需要明确入口时，添加指向 `DEVELOPMENT.md` 的简短链接。
 
-## AGENTS.md content
+## DEVELOPMENT.md 内容
 
-- Update the applicable root or nested `AGENTS.md` when AI-specific repository guidance, constraints, generated-file ownership, validation expectations, or collaboration workflows change.
-- Keep instructions scoped to the directory tree governed by that `AGENTS.md`; use nested files only when a subtree genuinely needs different guidance.
-- Prefer concise commands, paths, decision rules, and concrete conventions over broad advice.
-- Keep generated-file ownership and canonical-source instructions explicit.
+- 开发环境配置、架构、内部或公开 API、构建、测试、lint、调试、发布或贡献流程变化时，更新 `DEVELOPMENT.md`。
+- 保证命令可执行，并记录所需前提、路径、输入和预期结果。
+- 记录人类贡献者正确修改项目所需的约定；仅供 AI 使用的操作指令放在 `AGENTS.md`。
 
-## Cleanup
+## AGENTS.md 内容
 
-- Remove stale paths, commands, integration lists, agent references, and unsupported workflows.
-- Preserve useful existing guidance outside the changed scope.
-- Verify links, commands, names, file ownership, and cross-file references against the repository after editing.
+- AI 专用的仓库指引、约束、生成文件归属、验证要求或协作流程变化时，更新适用的根目录或子目录 `AGENTS.md`。
+- 指令只约束该 `AGENTS.md` 所管辖的目录树；只有子目录确实需要不同指引时，才创建嵌套文件。
+- 优先使用简洁的命令、路径、决策规则和具体约定，避免宽泛建议。
+- 明确生成文件的归属和权威源文件。
 
-## Upstream improvement feedback
+## 清理
 
-- Report actionable plugin bugs or reusable improvements to [storytellerF/me](https://github.com/storytellerF/me/issues), identifying the plugin and skill. Exclude project-only problems without evidence of a plugin defect. Finish the primary task before non-blocking feedback work.
-- Before searching or posting, reduce evidence to a minimal privacy-safe summary or synthetic reproduction. Never disclose raw conversations, private code, logs, screenshots, credentials, personal/account data, or private paths/URLs. Keep findings local if safe disclosure is impossible.
-- Search open and closed issues and read likely matches and resolutions. Reuse matching reports; a distinct regression or uncovered case may need a linked new issue. Posting a new issue or a materially useful comment requires existing user authorization; this rule grants none. Without authorization, prepare an unsubmitted draft.
-- Include the plugin/skill version, observed and expected behavior, reproduction or proposal, and duplicate-search results; prefix new issue titles with the plugin name. On access or submission failure, retain the draft and explain the blocker. After an uncertain submission, check whether it succeeded before retrying. Return the report link or clearly label the draft as unsubmitted.
+- 删除过时的路径、命令、集成列表、agent 引用和已不支持的流程。
+- 保留变更范围之外仍有价值的指引。
+- 编辑后，结合仓库实际内容核对链接、命令、名称、文件归属和文档之间的引用。
+
+## 上游改进反馈
+
+- 发现有明确改进方向的插件缺陷或可复用的改进建议时，向 [storytellerF/me](https://github.com/storytellerF/me/issues) 反馈，并注明插件和 skill。若问题仅属于当前项目，且没有插件缺陷的证据，则不在此范围内。先完成主要任务，再处理不影响当前工作的反馈。
+- 搜索或发布之前，将证据整理为不含隐私的最小摘要或合成复现案例。不得泄露原始对话、私有代码、日志、截图、凭据、个人或账户信息，以及私有路径和 URL。如果无法安全披露，就只在本地保留发现。
+- 搜索已打开和已关闭的 issue，阅读可能匹配的报告及其解决方案。优先复用已有报告；如果是不同的回归问题或尚未覆盖的场景，可另建 issue 并关联原报告。发布新 issue 或有实质帮助的评论必须已经获得用户授权；本规则本身不授予发布权限。未获授权时，准备一份尚未提交的草稿。
+- 反馈应包含插件和 skill 版本、实际与预期行为、复现步骤或建议，以及重复报告的检索结果。新 issue 的标题应以插件名开头。访问或提交失败时，保留草稿并说明阻碍。提交结果不确定时，先确认是否已成功，再考虑重试。返回报告链接，或明确标注草稿尚未提交。

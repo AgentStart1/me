@@ -1,31 +1,31 @@
-# Diagnostic Logging
+# 诊断日志
 
-## Inspect existing conventions
+## 查看已有约定
 
-- Find the project's logger, log-level configuration, formatting conventions, and redaction helpers before editing code.
-- Search nearby code for comparable events and reuse established event names and fields.
-- Identify operation boundaries, failure paths, state transitions, and external calls that need diagnosis. Do not add logs merely because a line is important.
+- 编辑代码前，找到项目的日志工具、级别配置、格式约定和脱敏辅助方法。
+- 搜索附近处理类似事件的代码，复用已有事件名称和字段。
+- 找出需要诊断的操作边界、失败路径、状态转换和外部调用。不要仅因某行代码重要就加日志。
 
-## Select meaningful events
+## 选择有意义的事件
 
-- Log stable start or completion events for significant operations when timing or outcome matters.
-- Log network, database, file, queue, subprocess, or device boundaries with operation, outcome, useful duration, and retry attempt.
-- Log meaningful state transitions and lifecycle milestones, especially when an operation can stall, retry, cancel, or fail.
-- Use `warn` for recoverable unexpected conditions and `error` for terminal failures, including the exception and stable diagnostic context.
-- Reserve `debug` or `trace` for high-volume diagnostic details. Avoid every loop iteration, UI render, recomposition, adapter bind, poll, or ordinary accessor.
+- 重要操作的耗时或结果有诊断价值时，记录稳定的开始或完成事件。
+- 在网络、数据库、文件、队列、子进程或设备边界，记录操作、结果、有用的耗时和重试次数。
+- 记录有意义的状态转换和生命周期节点，尤其是可能停滞、重试、取消或失败的操作。
+- 可恢复的意外情况使用 `warn`，终止性失败使用 `error`，并包含异常和稳定的诊断上下文。
+- 高频诊断细节使用 `debug` 或 `trace`。避免记录每次循环、UI 渲染、重组、adapter 绑定、轮询或普通属性访问。
 
-## Structure and protect data
+## 结构化并保护数据
 
-- Prefer structured fields over concatenated prose. Reuse stable names such as `operation`, `component`, `outcome`, `duration_ms`, `attempt`, and existing correlation identifiers.
-- Keep event messages concise and stable. Do not use user-provided text as an event name.
-- Never log passwords, access tokens, API keys, cookies, authorization headers, secrets, private keys, raw credentials, or complete request and response bodies without an approved redaction-safe path.
-- Treat personal data, payment data, device identifiers, location, and user-generated content as sensitive. Log safe classifications, counts, approved hashes, or redacted identifiers instead.
-- Apply existing sanitization helpers. If none exist, add only the smallest local sanitization needed and document the assumption.
+- 优先使用结构化字段，而非拼接文字。复用 `operation`、`component`、`outcome`、`duration_ms`、`attempt` 等稳定字段名和已有的关联标识。
+- 事件消息应简洁、稳定。不要使用用户输入作为事件名称。
+- 不得记录密码、访问令牌、API 密钥、Cookie、授权请求头、机密、私钥或原始凭据。完整请求与响应正文只有通过获准且可安全脱敏的方式才能记录。
+- 将个人信息、支付数据、设备标识、位置和用户生成内容视为敏感数据。改为记录安全的分类、计数、获准的哈希值或脱敏标识。
+- 使用已有脱敏辅助方法。项目没有时，只补充必要的最小本地脱敏处理，并说明其假设。
 
-## Place logs at the owning boundary
+## 在负责处理的边界记录
 
-- Log an error where the code has enough context to act or report the final failure. Avoid logging the same exception at every layer.
-- Use identifiers already propagated by the project; do not invent identifiers that cannot connect related events.
-- Do not change control flow, retry policy, exception handling, or user-visible behavior solely to emit a log.
-- Logging must not throw, block critical paths, do unbounded work, or eagerly serialize large payloads. Use supported lazy logging or level guards for expensive diagnostics.
-- In UI code, log user-visible actions, failed loads, and meaningful lifecycle transitions, not render passes or every state emission.
+- 在具备足够上下文、能采取措施或报告最终失败的位置记录错误。避免每层重复记录同一异常。
+- 使用项目已传递的标识，不要创造无法关联事件的新标识。
+- 不要仅为输出日志而修改控制流、重试策略、异常处理或用户可见行为。
+- 日志不能抛出异常、阻塞关键路径、执行无界工作或提前序列化大型数据。昂贵的诊断使用日志工具支持的惰性求值或级别检查。
+- UI 代码记录用户可见操作、加载失败和有意义的生命周期变化，不记录每轮渲染或每次状态发出。

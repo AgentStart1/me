@@ -1,69 +1,69 @@
 ---
 name: qemu-guests
-description: Use when running desktop application tests, testing in an OS or runtime environment different from the current host, or preparing a Docker environment for tests, including Testcontainers. Coordinate environment selection and test execution internally; users need not request QEMU or Appium. Also use for explicit management, status, or screen inspection of existing QEMU test environments. Exclude ordinary host-local unit tests and Docker work unrelated to testing or these managed environments.
+description: 运行桌面应用测试、在不同于当前宿主机的操作系统或运行环境中测试，或准备 Docker 测试环境（含 Testcontainers）时使用。在内部协调环境选择与测试执行，用户不必点名 QEMU 或 Appium。也用于明确管理、查看已有 QEMU 测试环境的状态或屏幕。不包括普通宿主机本地单元测试，以及与测试或这些受管环境无关的 Docker 工作。
 ---
 
-# QEMU Guests
+# QEMU 客户机
 
-## Route the test request
+## 按测试请求选择流程
 
-Start from the requested tests and their target environment, not from VM provisioning. Read the project's existing test commands, target OS/architecture, runtime dependencies and configured Docker/Appium endpoints; inspect available environments before selecting a route. Infer requirements from the project and request where possible, and ask only for missing information that changes the target or prevents execution. Skill activation does not by itself require creating a VM.
+从请求的测试及目标环境出发，不从创建虚拟机出发。阅读项目已有测试命令、目标操作系统和架构、运行依赖及已配置 Docker、Appium 端点；选择流程前先检查可用环境。尽量根据项目和请求推断要求，只有缺失信息会改变目标或阻止执行时才询问。启用 skill 本身不代表需要创建虚拟机。
 
-- For desktop tests, reuse a suitable designated desktop test environment. When an isolated guest is needed, select a supported work guest and coordinate its desktop, Appium connection and artifact transfer using the selected reference below.
-- For tests targeting an environment different from the current host, reuse a matching existing environment or prepare a supported guest. Preserve the requested OS, architecture and runtime; report unsupported targets or missing prerequisites instead of silently substituting the host or another guest.
-- For tests requiring Docker or Testcontainers, reuse a suitable configured Docker endpoint. Use Docker directly on ordinary Linux hosts; prepare the independent Alpine backend on supported Windows or Linux-container hosts when a backend is needed. Docker-only tests do not require a desktop guest.
-- When tests require both a desktop guest and Docker services, coordinate them independently through the host test execution reference below and run the project's existing tests with standard endpoints and portable configuration.
+- 桌面测试优先复用合适的指定桌面测试环境。需要隔离客户机时，选择支持的工作客户机，并依据下方参考协调桌面、Appium 连接和产物传输。
+- 目标环境不同于当前宿主机时，复用匹配环境或准备支持的客户机。保留指定操作系统、架构和运行时；目标不受支持或缺少前提时应报告，不悄悄改用宿主机或其他客户机。
+- 需要 Docker 或 Testcontainers 时，复用合适的已配置 Docker 端点。普通 Linux 宿主机直接使用 Docker；在支持的 Windows 或 Linux 容器宿主环境缺少后端时，准备独立 Alpine 后端。仅用 Docker 的测试不需要桌面客户机。
+- 同时需要桌面客户机和 Docker 服务时，通过下方宿主机驱动测试参考分别协调，使用标准端点和可移植配置运行项目现有测试。
 
-The skill owns selection of provisioning, runtime preparation, connection, execution and cleanup procedures; do not make users name these mechanisms to activate it. Respect an explicitly chosen environment. Check the actual requested test results before reporting success; a ready VM, desktop, Appium server or Docker daemon is only environment readiness. For explicit VM lifecycle, status or screen requests, perform that operation without adding a test run or provisioning unrelated resources.
+skill 负责选择安装、运行时准备、连接、执行和清理流程；用户不必说出这些机制才能触发。遵循明确选定的环境。报告成功前检查实际请求的测试结果；虚拟机、桌面、Appium 服务或 Docker daemon 就绪只代表环境就绪。明确要求虚拟机生命周期、状态或屏幕操作时，只执行所需操作，不额外测试或创建无关资源。
 
-## Project independence and paths
+## 使用项目的独立性与路径
 
-Keep this AI plugin's launcher paths, VM/backend profiles, credentials and lifecycle procedures outside consuming projects. Projects declare portable artifact/service roles and standard Docker/Appium requirements; do not add QEMU/AI-plugin-specific runtime branches or documented helper invocations merely to run tests. Return native diagnostics through the application-side service instead of making clients detect the VM provider. Required Appium drivers/extensions, Gradle plugins and other real project dependencies must still be declared and documented. Explicitly requested provider integration is limited to that requested scope.
+本 AI 插件启动器路径、虚拟机和后端配置、凭据及生命周期流程留在使用插件的项目之外。项目声明可移植产物、服务角色及标准 Docker、Appium 要求；不为运行测试就添加 QEMU 或 AI 插件专用运行时分支或辅助工具调用文档。原生诊断通过应用侧服务返回，不让客户端检测虚拟机提供方。必需 Appium 驱动或扩展、Gradle 插件和其他真实项目依赖仍需声明和记录。明确要求的提供方集成只覆盖指定范围。
 
-Resolve the installed plugin root from this skill's location (`<plugin-root>/skills/qemu-guests/SKILL.md`). Invoke helpers by absolute path while preserving the consuming project's working directory. Script/profile paths in the references are relative to that plugin root; copy private profiles outside the checkout. No other installed skill is required for these boundaries.
+从本 skill 位置（`<plugin-root>/skills/qemu-guests/SKILL.md`）定位已安装插件根目录。保持项目工作目录不变，通过绝对路径调用工具。参考中的脚本和配置路径相对于插件根目录；私有配置复制到检出目录外。这些边界不依赖其他已安装 skill。
 
-## Common execution rules
+## 共同执行规则
 
-- Work VMs are runtime/test environments. Compile applications, test code, native dependencies and installation hooks on the host or a designated preparation environment unless the user explicitly requests work-guest compilation. Runtime setup or a test request does not grant that permission. Do not silently install build tools in the work guest or increase its resources to accommodate a build. Ordinary runtime JIT execution is not a build step. The Alpine backend's Docker CLI proxy build is a separate, documented tooling operation.
-- Reuse suitable initialized environments for ordinary tests. Qualifying a new installation requires independent state directories, disks and ports; never reset an existing VM to validate an installer. Keep media, account credentials, SSH keys, seeds, runtime archives and diagnostic logs private.
-- Verify native process identity and ownership before stopping anything. Do not bypass active leases or clear uncertain state, guards, sessions or reservations. A missing PID file, SSH disconnect or readiness marker alone does not prove process exit or successful cleanup. Retain evidence and inspect the affected resources before recovery.
-- Keep forwards and control endpoints on loopback. Preserve other guests and the independent backend. Keep a work guest's foreground supervisor alive; use another terminal for status or stop.
-- Honor the requested accelerator and runtime. Managed work-guest build, checksum or accelerator failures are terminal; never silently substitute TCG. Only the Alpine backend's automatic acceleration policy permits its documented fallback.
-- Ensure the desktop fits the suite's windows at the configured DPI before testing; do not change geometry or compete with manual console use during a run. A ready SSH/Appium endpoint is not proof of a working or unlocked desktop or of a passing application test.
-- On Windows, use Ctrl+C or native Ctrl+Break for graceful cancellation of Python controllers. Git Bash `kill -TERM` can bypass cleanup; inspect retained ownership after forced termination. Append fallback MSYS2 tool directories to PATH so existing tool choices retain priority.
+- 工作虚拟机是运行和测试环境。应用、测试代码、原生依赖和安装钩子在宿主机或指定准备环境编译，除非用户明确要求在工作客户机内编译。运行时配置或测试请求不授予此权限。不要悄悄安装构建工具或扩容以容纳构建。普通运行时 JIT 不属于构建步骤。Alpine 后端 Docker CLI 代理构建是单独记录的工具操作。
+- 普通测试复用合适的已初始化环境。验证新安装需要独立状态目录、磁盘和端口，绝不重置已有虚拟机来验证安装器。介质、账户凭据、SSH 密钥、seed、运行时归档和诊断日志保持私有。
+- 停止任何资源前验证原生进程身份和归属。不绕过活动租约，不清除归属不确定的状态、guard、会话或预留。缺少 PID 文件、SSH 断开或就绪标记，均不能单独证明进程退出或清理成功。保留证据，检查相关资源后再恢复。
+- 转发和控制端点限制在回环地址。保留其他客户机和独立后端。工作客户机的前台监督进程持续运行；状态和停止操作使用另一个终端。
+- 遵循指定加速器和运行时。受管工作客户机的构建、校验和或加速器失败即终止，绝不悄悄切换 TCG。只有 Alpine 后端自动加速策略允许其文档规定的回退。
+- 测试前确认桌面在配置 DPI 下容纳套件窗口；运行中不改变几何尺寸或与人工控制台操作竞争。SSH 或 Appium 就绪不证明桌面可用、已解锁或应用测试通过。
+- Windows Python 控制器使用 Ctrl+C 或原生 Ctrl+Break 平滑取消。Git Bash `kill -TERM` 可能绕过清理；强制终止后检查保留归属。备用 MSYS2 工具目录追加到 PATH，保留现有工具优先级。
 
-## Read only the relevant workflow
+## 只阅读相关流程
 
-| Task | Required guidance |
+| 任务 | 所需指引 |
 | --- | --- |
-| Prepare/install a Windows or Ubuntu work guest, configure Appium, or select a GPU runtime | [Work guest preparation](references/work-guests.md) |
-| Install Intel macOS or prepare/recover its Appium desktop or GPU runtime | [Intel macOS preparation](references/macos.md) plus common [work guest preparation](references/work-guests.md#provision-and-connect) |
-| Initialize portable project runtime requirements, execute host-driven tests, or collect results | [Host-driven test execution](references/test-execution.md) |
-| Provision/use the independent Alpine Docker backend or build its CLI proxy | [Alpine Docker backend](references/docker-backend.md) |
-| Change Alpine profiles, ports, metrics or recover retained backend state | [Configuration and recovery](references/configuration-and-recovery.md) |
-| Change plugin lifecycle/runtime/transport code or perform plugin regression validation | [Implementation and validation](references/implementation-maintenance.md) |
+| 准备或安装 Windows、Ubuntu 工作客户机，配置 Appium 或选择 GPU 运行时 | [工作客户机准备](references/work-guests.md) |
+| 安装 Intel macOS，或准备、恢复其 Appium 桌面或 GPU 运行时 | [Intel macOS 准备](references/macos.md)，以及共同的[工作客户机准备](references/work-guests.md#安装与连接) |
+| 初始化可移植项目运行需求、执行宿主机驱动测试或收集结果 | [宿主机驱动测试](references/test-execution.md) |
+| 准备或使用独立 Alpine Docker 后端，或构建其 CLI 代理 | [Alpine Docker 后端](references/docker-backend.md) |
+| 修改 Alpine 配置、端口、指标或恢复保留后端状态 | [配置与恢复](references/configuration-and-recovery.md) |
+| 修改插件生命周期、运行时、传输代码，或进行插件回归验证 | [实现与验证](references/implementation-maintenance.md) |
 
-Read the selected guidance before acting; do not load unrelated platform procedures or run maintenance checks as part of an ordinary test request. For supported media, profiles and user-facing commands, follow the linked sections of the [plugin README](../../README.md). Use [DEVELOPMENT.md](../../DEVELOPMENT.md) for implementation evidence and qualifications rather than treating historical experiments as current compatibility guarantees.
+操作前阅读所选指引；普通测试请求不加载无关平台流程或执行维护检查。支持的介质、配置和用户命令见[插件 README](../../README.md)中的相关章节。[DEVELOPMENT.md](../../DEVELOPMENT.md) 用于查看实现证据和已验证范围，不应将历史实验视为当前兼容性保证。
 
-## Read-only status and screens
+## 只读状态与屏幕
 
-For requests to view VM state, service health, or containers, call `qemu_docker_status` to open **VM & Containers** in hosts supporting MCP Apps. It has an `openai/ui` global sidebar and thread entrypoints and takes no arguments. The global entrypoint adds a left-sidebar launch item; the thread entrypoint opens it beside a conversation. Refresh remains within the panel. Never start a VM or provision resources merely to populate this view.
+查看虚拟机状态、服务健康或容器时，调用 `qemu_docker_status`，在支持 MCP Apps 的宿主应用中打开 **VM & Containers**。它提供 `openai/ui` 全局侧栏和对话入口，无需参数。全局入口增加左侧栏启动项，对话入口在会话旁打开面板。刷新在面板内完成。不要仅为填充视图就启动虚拟机或创建资源。
 
-Without MCP Apps support, run `scripts/status.py` with Python 3 and summarize its JSON snapshot. Read `QEMU_STATUS_PROFILE` for a custom profile and `QEMU_ALPINE_BASE_DIR` for existing state overrides; do not invent a running state from the ready marker. Unknown probes, unavailable lists, and stale PID files must be reported as such. SSH health means a banner was received, not successful authentication. Resource counts and accelerator policy are profile configuration, not measured utilization. The separate accelerator field is read from the running process when available.
+不支持 MCP Apps 时，用 Python 3 运行 `scripts/status.py` 并概述 JSON 快照。自定义配置使用 `QEMU_STATUS_PROFILE`，已有状态覆盖使用 `QEMU_ALPINE_BASE_DIR`；不根据 ready 标记编造运行状态。未知探测、不可用清单和陈旧 PID 文件应如实报告。SSH 健康只表示收到 banner，不代表认证成功。资源数量和加速器策略是配置值，不是实测利用率。单独的加速器字段在可用时从运行进程读取。
 
-The separate `resources` snapshot reports live host-system, QEMU-process, and Alpine-guest CPU/memory; each container's `resources` reports CPU/memory when running. These are refresh samples, not the test wrapper's metrics report. Host/QEMU CPU is normalized over host logical CPUs; guest CPU is normalized over guest CPUs; container CPU uses 100% per core. Linux host-system values reflect the kernel system view, not an outer container's cgroup allocation. Preserve unavailable and not-running states and null CPU baselines. Guest sampling uses only the existing key and fixed read-only `/proc` commands over loopback SSH. Never create keys or install guest tools to populate the panel. The MCP runtime includes psutil; plain Python needs it for host/process samples. Container probes are bounded to 32 running containers with eight workers.
+独立 `resources` 快照报告实时宿主机系统、QEMU 进程和 Alpine 客户机 CPU、内存；运行容器各自的 `resources` 报告其 CPU 和内存。这些是刷新采样，不是测试包装器的指标报告。宿主机和 QEMU CPU 按宿主机逻辑 CPU 数归一化；客户机 CPU 按客户机 CPU 数归一化；容器 CPU 每核为 100%。Linux 宿主机系统值反映内核视图，不反映外层容器 cgroup 配额。保留不可用、未运行状态及空 CPU 基线。客户机采样仅通过回环 SSH 使用现有密钥和固定只读 `/proc` 命令。不为填充面板创建密钥或安装工具。MCP 运行时包含 psutil；普通 Python 需自行具备它才能采集宿主机和进程。容器探测最多查询 32 个运行中容器，使用 8 个 worker。
 
-The panel lists registered work VMs and shows available live read-only screens; it never sends keyboard/mouse input. `qemu_guest_screen` is app-only and accepts a registered guest ID, verifying native identity and QMP listener ownership. Ordinary snapshots contain no image data; temporary capture files are removed. Configure graphical/QMP support during guest preparation, not in response to a read-only status request.
+面板列出已注册工作虚拟机并显示可用的实时只读屏幕，绝不发送键盘或鼠标输入。仅供应用使用的 `qemu_guest_screen` 接受已注册客户机 ID，核实原生身份和 QMP 监听器归属。普通快照不含图像数据，临时捕获文件会删除。在准备客户机时配置图形和 QMP 支持，不因只读状态请求而修改。
 
-Use `scripts/guest-vm.py status <guest.json>` for an individual work guest. The panel is read-only; manual interactive testing needs a separate console. For a status/screen request, do not install tools, generate keys or start a test merely to fill missing data.
+单个工作客户机使用 `scripts/guest-vm.py status <guest.json>`。面板只读，手动交互测试需要独立控制台。状态或屏幕请求不为补齐缺失数据就安装工具、生成密钥或启动测试。
 
-## Finish the requested work
+## 完成请求
 
-Report the actual environment and test result, relevant artifact locations, skipped or unsupported checks, and any retained resources requiring inspection. Distinguish environment readiness from application acceptance. Stop only requested or owned temporary resources, preserving reused services and uncertain ownership. Downloads, provisioning and startup must be within the request or prior authorization; do not ask again for already authorized steps.
+报告实际环境和测试结果、相关产物位置、未执行或不支持的检查，以及需要检查的保留资源。区分环境就绪与应用验收。只停止用户要求或自己管理的临时资源，保留复用服务和归属不确定的资源。下载、安装和启动须在请求或既有授权范围内；已授权步骤不重复询问。
 
-## Upstream improvement feedback
+## 上游改进反馈
 
-- Report actionable plugin bugs or reusable improvements to [storytellerF/me](https://github.com/storytellerF/me/issues), identifying the plugin and skill. Exclude project-only problems without evidence of a plugin defect. Finish the primary task before non-blocking feedback work.
-- Before searching or posting, reduce evidence to a minimal privacy-safe summary or synthetic reproduction. Never disclose raw conversations, private code, logs, screenshots, credentials, personal/account data, or private paths/URLs. Keep findings local if safe disclosure is impossible.
-- Search open and closed issues and read likely matches and resolutions. Reuse matching reports; a distinct regression or uncovered case may need a linked new issue. Posting a new issue or a materially useful comment requires existing user authorization; this rule grants none. Without authorization, prepare an unsubmitted draft.
-- Include the plugin/skill version, observed and expected behavior, reproduction or proposal, and duplicate-search results; prefix new issue titles with the plugin name. On access or submission failure, retain the draft and explain the blocker. After an uncertain submission, check whether it succeeded before retrying. Return the report link or clearly label the draft as unsubmitted.
+- 发现有明确改进方向的插件缺陷或可复用的改进建议时，向 [storytellerF/me](https://github.com/storytellerF/me/issues) 反馈，并注明插件和 skill。若问题仅属于当前项目，且没有插件缺陷的证据，则不在此范围内。先完成主要任务，再处理不影响当前工作的反馈。
+- 搜索或发布之前，将证据整理为不含隐私的最小摘要或合成复现案例。不得泄露原始对话、私有代码、日志、截图、凭据、个人或账户信息，以及私有路径和 URL。如果无法安全披露，就只在本地保留发现。
+- 搜索已打开和已关闭的 issue，阅读可能匹配的报告及其解决方案。优先复用已有报告；如果是不同的回归问题或尚未覆盖的场景，可另建 issue 并关联原报告。发布新 issue 或有实质帮助的评论必须已经获得用户授权；本规则本身不授予发布权限。未获授权时，准备一份尚未提交的草稿。
+- 反馈应包含插件和 skill 版本、实际与预期行为、复现步骤或建议，以及重复报告的检索结果。新 issue 的标题应以插件名开头。访问或提交失败时，保留草稿并说明阻碍。提交结果不确定时，先确认是否已成功，再考虑重试。返回报告链接，或明确标注草稿尚未提交。

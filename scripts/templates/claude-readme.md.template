@@ -1,16 +1,16 @@
 # me.claude
 
-Generated Claude Code plugins from [storytellerF/me](https://github.com/storytellerF/me). Edit the source repository; synchronization pull requests are produced only by its GitHub Actions workflow.
+从 [storytellerF/me](https://github.com/storytellerF/me) 生成的 Claude Code 插件。请编辑源仓库；同步 PR 只由其 GitHub Actions 工作流生成。
 
-## Installation
+## 安装
 
-Add the generated Claude repository as a plugin marketplace:
+将生成的 Claude 仓库添加为插件市场：
 
 ```text
 /plugin marketplace add storytellerF/me.claude
 ```
 
-Install plugins from the marketplace:
+从市场安装插件：
 
 ```text
 /plugin install android-emulator-profile@me
@@ -23,23 +23,20 @@ Install plugins from the marketplace:
 /plugin install qemu-guests@me
 ```
 
-Run `/reload-plugins` after installation to load the installed plugins in the current Claude Code session.
+安装后运行 `/reload-plugins`，将插件加载到当前 Claude Code 会话。
 
-All plugins are listed in `.claude-plugin/marketplace.json`. Agent prompts are bundled at each plugin's `agents/` directory; installation alone does not guarantee agents are loaded by every client.
+所有插件列于 `.claude-plugin/marketplace.json`。agent 提示词打包在各插件 `agents/` 目录；仅安装并不能保证所有客户端都加载 agent。
 
-## Migration from storytellerF/me
+## 从 storytellerF/me 迁移
 
-Remove the old marketplace:
+移除旧市场：
 
 ```text
 /plugin marketplace remove me
 ```
 
-Then follow the installation steps above to add `storytellerF/me.claude` and reinstall the plugins you use. The marketplace name remains `me`.
+再按上方安装步骤添加 `storytellerF/me.claude`，重新安装所用插件。市场名称仍为 `me`。
 
-## Migration from Kotlin Coding Practices
+## 从 Kotlin 编码实践迁移
 
-`kotlin-coding-practices` has been merged into `general-coding-practices`.
-Install or update that plugin and remove the retired Kotlin plugin using your
-client's plugin manager. Replace explicit `kotlin-project-rules` references with
-`code-design-rules`; Kotlin guidance remains in its platform reference.
+`kotlin-coding-practices` 已并入 `general-coding-practices`。安装或更新后者，通过客户端插件管理器移除旧 Kotlin 插件。将显式 `kotlin-project-rules` 引用改为 `code-design-rules`；Kotlin 指引保留在其平台参考中。

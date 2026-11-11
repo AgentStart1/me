@@ -1,61 +1,61 @@
 ---
 name: project-collaboration-rules
-description: Use for coding-project work, including implementation, debugging, review, testing, and maintenance, to apply collaboration, change-scope, privacy, and verification rules.
+description: 在项目实现、调试、审查、测试和维护等开发工作中使用，落实协作、变更范围、隐私和验证规则。
 ---
 
-# Project Collaboration Rules
+# 项目协作规则
 
-## Project independence
+## 使用项目的独立性
 
-- Using an AI plugin or skill must not make the target project depend on that assistant's tooling. Do not add AI-plugin names, installation/cache paths, helper invocations, provider-specific flags or branches, or plugin maintenance instructions to project code, build/CI configuration, documentation, or AGENTS.md merely because the plugin was used.
-- Keep AI-plugin orchestration, private connection profiles, credentials and temporary ownership state in the operator environment. Use the project's existing commands, standard protocols/endpoints and portable configuration for real project requirements. Project behavior and documented commands must remain usable without installing this AI plugin.
-- Normal project dependencies remain valid: declare and document required Gradle plugins, Appium drivers/extensions, compiler plugins, libraries and their configuration. Distinguish these from the AI plugin that arranged their use; do not remove a legitimate dependency because it is called a plugin.
-- An explicit request to integrate an AI plugin permits the requested coupling only. Document its scope and keep ordinary project workflows independent where possible. This rule does not prevent maintaining an AI plugin's own implementation, documentation or explicitly requested agent guidance.
+- 使用 AI 插件或 skill 不应让目标项目依赖该助手的工具。不能仅因使用了插件，就向项目代码、构建或 CI 配置、文档或 AGENTS.md 添加 AI 插件名称、安装或缓存路径、辅助程序调用、提供方专用参数或分支，以及插件维护说明。
+- AI 插件的编排信息、私有连接配置、凭据和临时归属状态应留在操作者环境中。实际项目需求使用项目已有命令、标准协议或端点和可移植配置。项目行为与文档中的命令，应在未安装本 AI 插件时仍可使用。
+- 正常的项目依赖仍然有效：按需声明和记录 Gradle 插件、Appium 驱动或扩展、编译器插件、库及其配置。将这些依赖与负责安排工作的 AI 插件区分开，不要因为名称包含 plugin 就删除合法依赖。
+- 用户明确要求集成 AI 插件时，只允许其请求的耦合范围。记录集成范围，并尽可能保持普通项目流程独立。本规则不妨碍维护 AI 插件自身的实现、文档或用户明确要求的 agent 指引。
 
-## Execution and commit boundaries
+## 执行与提交边界
 
-- Follow the existing plan within the user's requested scope, making routine implementation decisions and resolving issues autonomously. Do not ask the user merely because a problem or new implementation detail appears.
-- Ask the user only when an issue prevents further progress under the existing plan and no safe, reasonable plan-consistent path remains. Explain the blocker, the attempted resolution, and the decision or information needed to continue.
-- When committing is within the requested scope, split independent concerns into focused commits using the project's conventions and any user-specified boundaries.
-- Do not include session-specific identifiers in commit messages.
+- 在用户要求的范围内遵循已有计划，自主完成常规实现决策并解决问题。不要仅因出现新问题或实现细节就询问用户。
+- 只有问题阻止继续按现有计划推进，且不存在安全、合理、符合计划的解决路径时，才询问用户。说明阻碍、已尝试的解决方法，以及继续工作所需的决定或信息。
+- 提交属于任务范围时，遵循项目约定和用户指定边界，将互不相关的事项拆成聚焦的提交。
+- 提交信息中不得包含会话专用标识。
 
-## Project integrity
+## 项目完整性
 
-- Do not put personal private information in code, tests, fixtures, documentation, examples, or commit messages. Use placeholders for real emails, phone numbers, addresses, and similar data.
-- Avoid duplicated code. Reuse existing helpers and patterns, or introduce an abstraction when it meaningfully reduces duplication.
-- When a script generates a maintained configuration, script, or structured data file, keep the body in a template and render explicit placeholders. Reserve direct writes for short runtime state files and test fixtures.
-- Split code files that exceed 1000 lines by feature or responsibility instead of continuing to grow the same file.
-- Rename stale, misleading, overly narrow, or ambiguous classes, functions, files, modules, APIs, tests, and documentation when responsibilities or public behavior change. Preserve compatibility only where explicitly required.
-- Implement the correct solution even when it requires an appropriate dependency.
+- 不要将个人隐私信息写入代码、测试、夹具、文档、示例或提交信息。真实邮箱、电话号码、地址等信息使用占位内容。
+- 避免重复代码。复用已有辅助方法和模式；能明显减少重复时，才引入抽象。
+- 脚本生成需要维护的配置、脚本或结构化数据文件时，将主体保留在模板中，通过显式占位符渲染。直接写入只用于简短的运行时状态文件和测试夹具。
+- 代码文件超过 1000 行时，按功能或职责拆分，不要继续堆积。
+- 职责或公共行为变化时，重命名过时、误导、过窄或含糊的类、函数、文件、模块、API、测试及文档。只有明确要求时才保留兼容性。
+- 实现正确的解决方案，即使需要合适的新依赖。
 
-## Comments and API documentation
+## 注释与 API 文档
 
-- Prefer clear names and small, well-structured code before adding comments. Do not narrate obvious statements or repeat what the code already expresses.
-- Explain non-obvious reasons, business constraints, design tradeoffs, compatibility limits, and required execution order. Place the explanation near the code it governs.
-- Document contracts that callers cannot infer: units, valid ranges, ownership, lifecycle, concurrency requirements, and failure behavior.
-- For necessary workarounds, explain the triggering condition, link the relevant issue or authoritative reference when available, and state when the workaround can be removed.
-- Add API documentation where public APIs or complex contracts need it; do not require boilerplate comments for every internal function.
-- Update or remove comments when behavior changes. Remove commented-out obsolete code; use version control for history.
-- Make TODOs actionable by stating the remaining work and completion condition, with an issue link when available.
-- Follow the project's established comment language and documentation style, and keep comments privacy-safe.
+- 先使用清楚的名称和结构合理的小函数，再考虑添加注释。不要复述显然的操作或代码已经表达的内容。
+- 解释不易看出的原因、业务约束、设计取舍、兼容性限制和执行顺序要求。说明应靠近其约束的代码。
+- 记录调用方无法直接推断的约定：单位、有效范围、资源归属、生命周期、并发要求和失败行为。
+- 必要的变通处理应说明触发条件，尽可能链接相关 issue 或权威资料，并注明何时可以移除。
+- 为公开 API 或复杂约定编写必要的 API 文档；不要求每个内部函数都写模板化注释。
+- 行为变化时，更新或删除注释。删除已注释掉的废弃代码，用版本控制保留历史。
+- TODO 应明确待完成的工作和完成条件；有 issue 时附上链接。
+- 遵循项目已有的注释语言和文档风格，并保护隐私。
 
-## Root-cause-first debugging
+## 先找根因，再修复
 
-- Reproduce or localize bugs, regressions, flaky behavior, unexpected output, build errors, test failures, crashes, and performance anomalies when practical.
-- Identify the first broken assumption or invalid state before choosing a fix.
-- Add fallbacks, guards, retries, defaults, or workarounds only after the root cause shows they are justified.
-- Prefer removing the bad state or broken assumption over hiding its symptoms. For ownership, lifecycle, or boundary problems, follow the structural-fix guidance in [code-design-rules](../code-design-rules/SKILL.md) before adding compensating patches.
-- Keep necessary workarounds narrow and document the condition that requires them.
+- 对缺陷、回归、不稳定行为、异常输出、构建错误、测试失败、崩溃和性能异常，在可行时先复现或定位。
+- 选择修复方案之前，找出最先失效的假设或无效状态。
+- 只有根因证明其必要时，才添加回退、守卫、重试、默认值或变通处理。
+- 优先消除错误状态或失效假设，不要掩盖症状。资源归属、生命周期或边界问题，应先参考 [代码设计规则](../code-design-rules/SKILL.md) 中的结构修正指引，再添加补偿补丁。
+- 必要的变通处理应限制范围，并记录所依赖的条件。
 
-## Conditional guidance
+## 按需阅读
 
-- For implementation or debugging work, read [`references/logging.md`](references/logging.md) and apply its diagnostic logging rules.
-- After code or CI changes, read [`references/testing-and-verification.md`](references/testing-and-verification.md) and verify the changed surface.
-- When adding, modifying, refactoring, or reviewing tests (including code reviews involving tests and test-quality reviews), read the same testing reference and check test names, assertions, and overloaded scenarios. Focus ordinary changes on new and affected tests; expand to a repository-wide audit only when requested.
+- 实现或调试时，阅读 [`references/logging.md`](references/logging.md)，应用诊断日志规则。
+- 修改代码或 CI 后，阅读 [`references/testing-and-verification.md`](references/testing-and-verification.md)，验证受影响的部分。
+- 添加、修改、重构或审查测试时，包括涉及测试的代码审查和测试质量审查，阅读同一测试参考，核对测试名称、断言及一个用例承载多个独立场景的问题。普通变更聚焦新增和受影响的测试；只有用户要求时，才扩展到全仓库审计。
 
-## Upstream improvement feedback
+## 上游改进反馈
 
-- Report actionable plugin bugs or reusable improvements to [storytellerF/me](https://github.com/storytellerF/me/issues), identifying the plugin and skill. Exclude project-only problems without evidence of a plugin defect. Finish the primary task before non-blocking feedback work.
-- Before searching or posting, reduce evidence to a minimal privacy-safe summary or synthetic reproduction. Never disclose raw conversations, private code, logs, screenshots, credentials, personal/account data, or private paths/URLs. Keep findings local if safe disclosure is impossible.
-- Search open and closed issues and read likely matches and resolutions. Reuse matching reports; a distinct regression or uncovered case may need a linked new issue. Posting a new issue or a materially useful comment requires existing user authorization; this rule grants none. Without authorization, prepare an unsubmitted draft.
-- Include the plugin/skill version, observed and expected behavior, reproduction or proposal, and duplicate-search results; prefix new issue titles with the plugin name. On access or submission failure, retain the draft and explain the blocker. After an uncertain submission, check whether it succeeded before retrying. Return the report link or clearly label the draft as unsubmitted.
+- 发现有明确改进方向的插件缺陷或可复用的改进建议时，向 [storytellerF/me](https://github.com/storytellerF/me/issues) 反馈，并注明插件和 skill。若问题仅属于当前项目，且没有插件缺陷的证据，则不在此范围内。先完成主要任务，再处理不影响当前工作的反馈。
+- 搜索或发布之前，将证据整理为不含隐私的最小摘要或合成复现案例。不得泄露原始对话、私有代码、日志、截图、凭据、个人或账户信息，以及私有路径和 URL。如果无法安全披露，就只在本地保留发现。
+- 搜索已打开和已关闭的 issue，阅读可能匹配的报告及其解决方案。优先复用已有报告；如果是不同的回归问题或尚未覆盖的场景，可另建 issue 并关联原报告。发布新 issue 或有实质帮助的评论必须已经获得用户授权；本规则本身不授予发布权限。未获授权时，准备一份尚未提交的草稿。
+- 反馈应包含插件和 skill 版本、实际与预期行为、复现步骤或建议，以及重复报告的检索结果。新 issue 的标题应以插件名开头。访问或提交失败时，保留草稿并说明阻碍。提交结果不确定时，先确认是否已成功，再考虑重试。返回报告链接，或明确标注草稿尚未提交。

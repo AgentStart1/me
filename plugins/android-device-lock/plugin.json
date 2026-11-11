@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-device-lock",
-  "version": "0.5.2-20261030120429",
-  "description": "Project-independent adb device locking for Android tests across projects and frameworks.",
+  "version": "0.5.3-20261107120055",
+  "description": "跨项目、跨测试框架的 Android adb 设备锁，独立于目标项目运行。",
   "author": {
     "name": "Local Android Practices"
   },
@@ -18,9 +18,9 @@
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
-        "displayName": "Android Device Lock",
-        "shortDescription": "Serialize any Android tests on a shared device.",
-        "longDescription": "Manages shared Android device access independently of the target project. Calls the installed adb lock helper, runs existing test commands unchanged, and releases the lease without copying scripts or adding project or CI integration.",
+        "displayName": "Android 设备锁",
+        "shortDescription": "让共享设备上的 Android 测试串行执行。",
+        "longDescription": "在目标项目之外管理共享 Android 设备访问。调用已安装的 adb 锁工具，保持现有测试命令不变并释放租约，无需复制脚本或添加项目、CI 集成。",
         "developerName": "Local Android Practices",
         "category": "Developer Tools",
         "capabilities": [
@@ -29,10 +29,10 @@
           "Android"
         ],
         "defaultPrompt": [
-          "Run this existing Android device test command under the plugin-managed device lock without changing the project.",
-          "Serialize these Android device tests so one device only runs one suite at a time.",
-          "Use adb to wait for an existing device lock before starting tests.",
-          "Show device lock ownership and lease expiry."
+          "在插件管理的设备锁下运行此现有 Android 测试命令，不修改项目。",
+          "将这些 Android 设备测试串行执行，让一台设备每次只运行一套测试。",
+          "测试前通过 adb 等待已有设备锁释放。",
+          "显示设备锁归属和租约到期时间。"
         ],
         "brandColor": "#0F766E"
       },

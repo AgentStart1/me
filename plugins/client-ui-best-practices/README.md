@@ -1,34 +1,29 @@
-# Client UI Best Practices Plugin
+# 客户端 UI 最佳实践插件
 
-This portable plugin provides client UI threading and state-driven rendering guidance. It defines a
-platform-independent `Host` boundary that owns observable UI-ready state and asynchronous
-business tasks, so feature behavior can be tested without a UI runtime.
+本可移植插件提供客户端 UI 线程和状态驱动渲染指引。它定义独立于平台的 `Host` 边界，由 Host 管理可观察、可直接用于 UI 的状态和异步业务任务，让功能行为无需 UI 运行时也能测试。
 
-Use the skill when implementing or investigating UI state, asynchronous updates, lifecycle, rendering or responsiveness. The Host contract is applied within the skill; users need not request that architecture by name.
+实现或调查 UI 状态、异步更新、生命周期、渲染或响应性时，使用此 skill。Host 约定由 skill 内部应用，用户不必点名要求这种架构。
 
-Cancellation remains control flow, and serial dispatchers/actors can interleave
-asynchronous requests at suspension points. The examples preserve cancellation and
-use request generations to reject superseded completions. Claude agent routing
-applies to generated Claude packages; Codex loads the portable skill guidance.
+取消仍属于控制流，串行调度器和 actor 可以在挂起点交错处理异步请求。示例保留取消语义，并通过请求代次拒绝被取代的完成结果。Claude agent 路由适用于生成的 Claude 包；Codex 加载可移植 skill 指引。
 
-## Project independence
+## 使用项目的独立性
 
-Applying this guidance creates project-owned UI architecture without a dependency on the AI plugin or its agent. Required UI libraries, compiler plugins and build plugins remain normal project dependencies.
+应用本指引得到的是项目自身的 UI 架构，不依赖 AI 插件或其 agent。所需 UI 库、编译器插件和构建插件仍是正常项目依赖。
 
-## Contents
+## 内容
 
-- `plugin.json` declares the portable plugin and client extensions.
-- `skills/client-ui-best-practices/SKILL.md` defines main-thread boundaries, a `hostScope` confined to an injected custom serial dispatcher, explicit Default/IO switching, state/effect collection, and UI-free Host tests.
-- `agents/client-ui-architecture-reviewer.md` reviews state ownership, Host boundaries, scheduling, lifecycle, and testability; the parent waits for its final report before editing or responding.
+- `plugin.json` 声明可移植插件及客户端扩展。
+- `skills/client-ui-best-practices/SKILL.md` 定义主线程边界、限制在注入的自定义串行调度器中的 `hostScope`、显式 Default/IO 切换、状态与副作用收集，以及无需 UI 的 Host 测试。
+- `agents/client-ui-architecture-reviewer.md` 审查状态归属、Host 边界、调度、生命周期和可测试性；父 agent 在编辑或回复之前等待其最终报告。
 
-## Local Marketplace Entry
+## 本地插件市场条目
 
-The repository marketplace registers this plugin as `client-ui-best-practices` at `./plugins/client-ui-best-practices`.
+仓库插件市场将此插件注册为 `client-ui-best-practices`，路径为 `./plugins/client-ui-best-practices`。
 
-## Plugin packaging
+## 插件打包
 
-`plugin.json` is the portable metadata source. Client manifests and complete skill resources are generated into `me.claude` and `me.codex`; install from those repositories. Source skills use portable frontmatter. Claude routing is stored in `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and injected only into generated Claude skills. Codex skill files are copied unchanged.
+`plugin.json` 是可移植元数据的权威来源。客户端清单与完整 skill 资源会生成到 `me.claude` 和 `me.codex`，请从这两个仓库安装。源 skill 使用可移植的 frontmatter。Claude 路由按 skill 目录保存在 `extensions.com.anthropic.claude.skillFrontmatter` 中，仅注入生成的 Claude skill。Codex 的 skill 文件保持源文件原样复制。
 
-## Improvement feedback
+## 改进反馈
 
-Plugin findings go to [storytellerF/me issues](https://github.com/storytellerF/me/issues). Skills require checking open and closed issues before reporting, using sanitized or synthetic examples, and honoring the user's authorization before posting. Existing reports are reused; unavailable access leaves an unsubmitted draft.
+插件问题向 [storytellerF/me issues](https://github.com/storytellerF/me/issues) 反馈。报告前，skill 要求检索已打开和已关闭的 issue，使用脱敏或合成示例，并遵循用户已有的发布授权。优先复用已有报告；无法访问时，保留尚未提交的草稿。

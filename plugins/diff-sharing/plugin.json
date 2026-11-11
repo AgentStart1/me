@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "diff-sharing",
-  "version": "0.2.7-20261030120429",
-  "description": "Generate Git or Difftastic code-diff sites for local preview or ngrok sharing.",
+  "version": "0.2.8-20261107120055",
+  "description": "生成 Git 或 Difftastic 代码差异站点，用于本地预览或 ngrok 分享。",
   "author": {
     "name": "Diff Sharing"
   },
@@ -18,9 +18,9 @@
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
-        "displayName": "Diff Sharing",
-        "shortDescription": "Preview code-diff reports locally or share a public URL.",
-        "longDescription": "Generates a browsable Difftastic-first structural diff site with a Git fallback and inline or side-by-side layouts. The skill uses local previews unless public sharing is requested.",
+        "displayName": "代码差异分享",
+        "shortDescription": "本地预览代码差异报告，或分享公开 URL。",
+        "longDescription": "生成优先使用 Difftastic 的可浏览结构化差异站点，提供 Git 回退及行内、并排布局。除非要求公开分享，否则 skill 使用本地预览。",
         "developerName": "Diff Sharing",
         "category": "Developer Tools",
         "capabilities": [
@@ -29,8 +29,8 @@
           "Ngrok Tunnel"
         ],
         "defaultPrompt": [
-          "Preview this branch's changes as a local diff report.",
-          "Generate a code-diff report and share its public URL."
+          "将此分支变更生成为本地差异报告预览。",
+          "生成代码差异报告并分享公开 URL。"
         ],
         "brandColor": "#2563EB"
       }

@@ -1,40 +1,40 @@
-# Repository maintenance rules
+# 仓库维护规则
 
-This repository is the source of truth for the `me` plugin collection and its portable agent prompts.
+本仓库是 `me` 插件集合及其可移植 agent 提示词的权威来源。
 
-## Agent and Claude compatibility
+## Agent 与 Claude 兼容性
 
-- Keep reusable agent prompts at the owning plugin root in `plugins/*/agents/*.md`, alongside that plugin's `skills/` directory.
-- Keep Claude agent instructions in Markdown with only Claude-compatible frontmatter: `name`, `description`, `model`, and `effort`.
-- Keep source skill frontmatter portable. Store Claude `context: fork` and `agent: <agent-name>` routing under `extensions.com.anthropic.claude.skillFrontmatter`, keyed by skill directory, and inject it only into generated Claude skills. Codex copies must preserve source skills unchanged.
-- Do not claim that installing a plugin automatically installs agents.
+- 可复用 agent 提示词保存在所属插件根目录的 `plugins/*/agents/*.md`，与该插件 `skills/` 目录并列。
+- Claude agent 指令使用 Markdown，frontmatter 只包含 Claude 兼容字段：`name`、`description`、`model`、`effort`。
+- 源 skill frontmatter 保持可移植。Claude 的 `context: fork` 和 `agent: <agent-name>` 路由按 skill 目录保存在 `extensions.com.anthropic.claude.skillFrontmatter`，只注入生成的 Claude skill。Codex 副本必须保持源 skill 不变。
+- 不声称安装插件会自动安装 agent。
 
-## Portable sources and client generation
+## 可移植源码与客户端生成
 
-- Maintain plugin identity and version only in `plugins/*/plugin.json`, using the Agent Plugins 1.0.0 schema. Store client manifest fields under `extensions.com.openai.codex` and `extensions.com.anthropic.claude`; generate client manifests instead of maintaining duplicate source manifests.
-- Generate Claude packages with `scripts/build-claude-plugin-package.sh --all` into `../me.claude`, inspecting and preserving unrelated work first. Validate both distributions with `scripts/validate-plugin-packages.py`.
-- `.github/workflows/sync-client-distributions.yml` synchronizes both `me.codex` and `me.claude`; only that workflow may commit, push, or propose generated distribution changes.
+- 插件身份和版本只在 `plugins/*/plugin.json` 维护，使用 Agent Plugins 1.0.0 schema。客户端清单字段放在 `extensions.com.openai.codex` 和 `extensions.com.anthropic.claude`；生成客户端清单，不重复维护源清单。
+- 使用 `scripts/build-claude-plugin-package.sh --all` 将 Claude 包生成到 `../me.claude`，先检查并保留无关工作。使用 `scripts/validate-plugin-packages.py` 验证两套发行包。
+- `.github/workflows/sync-client-distributions.yml` 同步 `me.codex` 与 `me.claude`；只有该工作流可以提交、推送或提出生成发行变更。
 
-## Codex package generation and validation
+## Codex 包生成与验证
 
-- Run `scripts/build-codex-plugin-package.sh --all` after source changes to generate packages into the local sibling `../me.codex` checkout for review and validation. The command replaces previously generated content, so inspect the sibling checkout before running it and preserve unrelated work.
-- Validate the generated skill copies, plugin manifests, marketplace, and relevant plugin installation behavior locally before handoff. Validate portable source skills independently; run Codex-specific checks only against generated Codex packages.
-- Treat `.github/workflows/sync-client-distributions.yml` as the only supported path for committing, pushing, and proposing generated changes to the upstream `me.codex` repository. It runs after changes merge to `main` and may also be started manually through GitHub Actions.
-- Do not commit generated packages in the local `me.codex` checkout, push synchronization branches, or open `me.codex` pull requests manually.
-- Keep generation and validation logic in the source repository so local checks and the workflow remain reproducible.
-- Validate source and locally generated changes before handoff. Tell the user when a new Codex thread is needed after the workflow publishes the synchronized plugin changes.
+- 源码变化后运行 `scripts/build-codex-plugin-package.sh --all`，在本地相邻 `../me.codex` 检出目录生成包，供审阅和验证。命令会替换原生成内容，运行前检查相邻目录并保留无关工作。
+- 交付前，在本地验证生成的 skill 副本、插件清单、市场和相关安装行为。独立验证可移植源 skill；Codex 专用检查只针对生成的 Codex 包运行。
+- `.github/workflows/sync-client-distributions.yml` 是向上游 `me.codex` 提交、推送和提出生成变更的唯一支持路径。它在变更合入 `main` 后运行，也可通过 GitHub Actions 手动启动。
+- 不在本地 `me.codex` 检出目录提交生成包，不推送同步分支，也不手动创建 `me.codex` PR。
+- 生成与验证逻辑留在源仓库，使本地检查和工作流可复现。
+- 交付前验证源码和本地生成变更。工作流发布同步插件变更后，告知用户何时需要开启新的 Codex 对话。
 
-## Documentation and versioning
+## 文档与版本
 
-- When a skill or agent changes, update its owning `SKILL.md`, `README.md`, and any applicable `CLAUDE.md` references. Custom agent prompts remain at the plugin root.
-- Use `MAJOR.MINOR.PATCH-YYYYMMDDHHMMSS` for every plugin version. Keep generated `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` versions identical to the portable manifest, and do not add environment or tool labels.
-- Upgrade a plugin's semantic version (`MAJOR.MINOR.PATCH`) at most once in the same PR. After that first upgrade, keep the semantic version unchanged for later commits in that PR; make a further semantic version upgrade only in a new PR. The `YYYYMMDDHHMMSS` timestamp suffix is excluded from this restriction and may be refreshed for later plugin changes in the same PR. Keep generated client manifest versions identical to the portable manifest.
+- skill 或 agent 变化时，更新所属 `SKILL.md`、`README.md` 及适用的 `CLAUDE.md` 引用。自定义 agent 提示词仍留在插件根目录。
+- 每个插件版本使用 `MAJOR.MINOR.PATCH-YYYYMMDDHHMMSS`。生成的 `.codex-plugin/plugin.json` 和 `.claude-plugin/plugin.json` 版本与可移植清单完全一致，不添加环境或工具标签。
+- 同一 PR 中，插件语义版本（`MAJOR.MINOR.PATCH`）最多升级一次。首次升级后，后续提交保持语义版本不变；只有新 PR 才再次升级。`YYYYMMDDHHMMSS` 时间后缀不受此限制，同 PR 后续插件变更可以刷新。生成客户端清单版本必须与可移植清单一致。
 
-## Consuming-project independence
+## 使用项目的独立性
 
-- Every skill that changes or operates on a consuming project must state its applicable project-independence boundary without requiring another installed skill. Keep agent prompts aligned. The shared principle lives in `plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md`; documentation guidance lives in `project-docs-and-rules`.
-- Keep AI-plugin implementation/orchestration details out of consuming projects unless the user requests that integration. Preserve normal project dependencies such as Gradle plugins and Appium drivers/extensions. This repository owns the AI plugins themselves, so documenting their installation and implementation here remains appropriate.
+- 每个会修改或操作使用插件的项目的 skill，都必须自行说明适用的项目独立性边界，不要求另装 skill。agent 提示词保持一致。共享原则见 `plugins/general-coding-practices/skills/project-collaboration-rules/SKILL.md`；文档指引见 `project-docs-and-rules`。
+- 除非用户要求集成，否则不将 AI 插件实现和编排细节写入使用插件的项目。保留 Gradle 插件、Appium 驱动或扩展等正常项目依赖。本仓库维护 AI 插件本身，因此可以记录其安装和实现。
 
-## Privacy
+## 隐私
 
-- Keep prompts privacy-safe and generalized. Never copy raw account conversation content, secrets, or personal identifiers into this repository.
+- 提示词保持通用并保护隐私。不得向本仓库复制原始账户对话、机密或个人标识。

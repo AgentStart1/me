@@ -1,130 +1,72 @@
 ---
 name: code-design-rules
-description: Use when implementing, debugging, reviewing, or refactoring control flow, callback/listener integrations, asynchronous resource ownership, immutable data, or state machines across languages and platforms.
+description: 在跨语言、跨平台实现、调试、审查或重构控制流、回调和监听器集成、异步资源管理、不可变数据及状态机时使用。
 ---
 
-# Code Design Rules
+# 代码设计规则
 
-Use the project's native asynchronous abstractions and state owner. Preserve the
-principles below without imposing another language's APIs or introducing an async
-runtime into otherwise synchronous code.
+使用项目原生的异步抽象和状态管理者。遵循以下原则，不强加其他语言的 API，也不向原本同步的代码引入异步运行时。
 
-## Project independence
+## 使用项目的独立性
 
-Express the design in project-owned interfaces and normal library/framework dependencies. Do not introduce runtime checks, imports, configuration keys or abstractions tied to this AI plugin's identity, installed path or execution environment merely to apply its guidance. Legitimate compiler/build plugins and runtime libraries remain normal project dependencies; add them when the design requires them, independently of the AI skill.
+通过项目自身的接口和正常的库或框架依赖表达设计。不能仅为应用本指引，就引入依赖于本 AI 插件身份、安装路径或执行环境的运行时检查、导入、配置键或抽象。合法的编译器插件、构建插件和运行时库仍是正常项目依赖；设计需要时可以添加，与是否使用 AI skill 无关。
 
-## Platform references
+## 平台参考
 
-Read only the references relevant to the changed code. For mixed-platform work,
-apply each reference at its own boundary.
+只阅读与改动代码有关的参考资料。跨平台工作中，在各自边界内应用对应指引。
 
-| Language or platform | Reference |
+| 语言或平台 | 参考资料 |
 | --- | --- |
-| Kotlin, Android Kotlin | [Kotlin and Android](references/kotlin.md) |
-| Swift, Apple platforms | [Swift](references/swift.md) |
-| TypeScript, JavaScript, browser or Node.js | [TypeScript and JavaScript](references/typescript-javascript.md) |
-| Python, asyncio | [Python](references/python.md) |
-| Rust, Tokio | [Rust](references/rust.md) |
-| C#, .NET | [C# and .NET](references/csharp.md) |
+| Kotlin、Android Kotlin | [Kotlin 与 Android](references/kotlin.md) |
+| Swift、Apple 平台 | [Swift](references/swift.md) |
+| TypeScript、JavaScript、浏览器或 Node.js | [TypeScript 与 JavaScript](references/typescript-javascript.md) |
+| Python、asyncio | [Python](references/python.md) |
+| Rust、Tokio | [Rust](references/rust.md) |
+| C#、.NET | [C# 与 .NET](references/csharp.md) |
 
-For other languages, map the same principles to their existing task, cancellation,
-synchronization, and data-model facilities. Do not assume every runtime provides
-structured concurrency or exhaustive tagged unions.
+其他语言应将相同原则对应到已有的任务、取消、同步和数据建模机制。不要假定每个运行时都提供结构化并发或支持穷尽检查的带标签联合类型。
 
-## Structural fixes before compensating logic
+## 先修正结构，再添加补偿逻辑
 
-- Prefer correcting ownership, lifecycle, state representation, or an interface
-  boundary at the root cause before adding another retry, flag, fallback, special
-  case, or cleanup patch. Choose the smallest structural change that removes the
-  invalid state; do not introduce a general framework without a concrete need.
-- Give resources and state transitions one clear owner. Distinguish scoped work
-  that must stop on exit from persistent work whose ownership must be explicitly
-  transferred. Keep platform behavior behind a narrow adapter with the same contract.
-- Preserve recovery for failures that structure cannot eliminate: crashes, partial
-  publication, uncertain external effects, and lost connectivity. Keep ownership
-  evidence until cleanup is confirmed; do not mistake fewer branches for safety.
-- Verify the ownership and publication invariants at failure and cancellation
-  boundaries, including late completion and interrupted handoff. When a workaround
-  remains necessary, record its cause, scope, and removal condition near the boundary.
+- 在增加重试、标志位、回退、特例或清理补丁之前，优先从根因上修正资源归属、生命周期、状态表示或接口边界。选择能消除无效状态的最小结构调整；没有具体需要时，不引入通用框架。
+- 为资源和状态转换指定唯一、明确的管理者。区分退出作用域时必须停止的任务与需要显式转交管理责任的持久任务。将平台行为封装在契约一致的小型适配层中。
+- 保留结构本身无法消除的故障所需的恢复机制，例如崩溃、部分发布、结果不确定的外部操作和连接中断。确认清理完成前保留归属证据；分支更少并不代表更安全。
+- 在失败与取消边界验证资源归属和结果发布的不变量，包括迟到的完成结果和中断的交接。仍需变通处理时，在边界附近说明其原因、范围和移除条件。
 
-## Sequential asynchronous control flow
+## 顺序式异步控制流
 
-- Express dependent asynchronous operations as a readable sequence using native
-  suspension/await facilities, with results and error handling near their use.
-  Prefer an existing async API over nested callbacks, listener-driven continuation
-  chains, or state spread across unrelated handlers.
-- At callback-only boundaries, adapt one-shot operations to one awaitable result.
-  Handle success, failure, cancellation, synchronous completion, and duplicate or
-  late callbacks. Complete at most once and release registrations/resources on all
-  terminal paths. Connect cancellation to the underlying API when supported;
-  otherwise prevent late completion from publishing state.
-- Adapt repeated events to a stream, async sequence/iterator, or the project's
-  existing event abstraction. Define subscription ownership, buffering/backpressure,
-  errors, completion, and unsubscription; do not treat a multi-shot listener as a
-  single result. Preserve framework callbacks at their required entry boundaries.
-- Sequential source code does not mean blocking execution. Avoid synchronous waits
-  used to imitate suspension. Keep independent work concurrent when appropriate,
-  and retain its owner, error, and cancellation semantics.
+- 使用原生挂起或 await 机制，将有依赖的异步操作写成清楚的顺序流程，让结果与错误处理靠近使用位置。优先使用已有异步 API，避免嵌套回调、监听器驱动的续接链，或把状态分散在互不相关的处理函数中。
+- 对只提供回调的接口，将单次操作适配为一个可等待的结果。处理成功、失败、取消、同步完成，以及重复或迟到的回调。操作最多完成一次，并在所有终止路径释放注册和资源。底层 API 支持取消时，将取消操作传递到底层；否则，阻止迟到的完成结果发布状态。
+- 对重复事件，适配为流、异步序列或迭代器，或项目已有的事件抽象。明确订阅由谁管理、缓冲和背压策略，以及错误、完成和退订行为。不要把多次触发的监听器视为单次结果；框架要求的回调入口仍需保留。
+- 代码写成顺序执行的形式，并不代表实际执行时必须阻塞。不要通过同步阻塞式等待来模拟异步挂起。适合并发的独立任务应保持并发，并保留其管理责任、错误和取消语义。
 
-## Task ownership and concurrency
+## 任务管理与并发
 
-- Prefer structured concurrency where supported. Give every asynchronous task an
-  explicit owner and lifetime; collect failures and cancel or join owned work on
-  shutdown. Background work that outlives a request needs a longer-lived owner.
-- Prefer native asynchronous I/O, scheduling, and non-blocking synchronization in
-  async paths. Avoid sleeping, busy waiting, blocking bridges, or manual thread
-  management on event loops, UI threads, and cooperative executors.
-- Match execution to the workload. CPU-bound or unavoidable blocking work may
-  need a worker, process, dispatcher, or bounded pool. Keep platform interop behind
-  a small boundary with explicit cancellation, shutdown, and resource ownership.
-  Cancelling an await does not necessarily stop the underlying operation.
-- Preserve cancellation when translating failures into results or state. Do not
-  report cancellation as an ordinary failure or continue obsolete side effects.
-  Use the runtime's cleanup mechanism; bound any intentionally uncancellable cleanup.
-- Prefer one state owner, immutable snapshots, or message passing before adding
-  shared mutation. Where locking is needed, choose a primitive appropriate to the
-  runtime and keep critical sections small. Do not hold a lock across suspension
-  unless the design explicitly requires it and the primitive supports it.
-- Serial execution between suspension points does not serialize an entire async
-  operation. At publication, reject completions superseded by a newer request or
-  transition, using request identity, a generation, or the owner's existing mechanism.
+- 平台支持时，优先使用结构化并发。为每项异步任务明确管理者和生命周期；收集失败，并在关闭时取消或等待所管理的任务。比请求存活更久的后台任务，需要生命周期更长的管理者。
+- 在异步代码中，优先使用原生异步 I/O、任务调度和非阻塞同步机制。避免在事件循环、UI 线程和协作式执行器上休眠、忙等待、使用阻塞桥接或手动管理线程。
+- 根据负载选择执行方式。CPU 密集型任务或无法避免的阻塞操作，可能需要交给工作线程、独立进程、调度器或有界资源池处理。将与平台相关的交互逻辑集中封装在小型接口层中，明确其取消机制、关闭流程和资源管理责任。取消一次 await 不一定能停止底层操作。
+- 将失败转换为结果或状态时，保留取消语义。不要把取消报告为普通失败，也不要继续执行已经失效的副作用。使用运行时的清理机制；确需不可取消的清理时，应限制其执行范围或时长。
+- 在引入共享可变状态之前，优先考虑单一状态管理者、不可变快照或消息传递。确需加锁时，选择适合运行时的同步原语，并缩小临界区。除非设计明确要求且原语支持，否则不要在持锁期间挂起。
+- 挂起点之间的串行执行，并不能让整个异步操作串行化。发布结果时，使用请求标识、代次或现有管理机制，拒绝已被新请求或新状态转换取代的完成结果。
 
-## Immutable values and state models
+## 不可变值与状态模型
 
-- Prefer immutable bindings, values, and expression-oriented construction where
-  idiomatic. Restrict mutation to the owner that needs it. A constant binding does
-  not make the referenced object or collection deeply immutable.
-- When data is required only in certain states, use variants carrying their own
-  required values: sealed types, associated-value enums, discriminated unions, or
-  the closest native model. Avoid independent flags and nullable fields that admit
-  invalid combinations. In dynamic languages, validate variants at boundaries.
-- Keep optional values for genuinely optional data within a valid state. Avoid
-  forced unwraps, placeholder values, or defaults that hide a broken invariant.
-- For workflows whose legal operations depend on state, define states, events,
-  allowed transitions, and handling of unsupported events. Reuse an existing state
-  machine or a small pure transition function; do not require a framework.
-- Publish one immutable snapshot per transition through the existing state owner,
-  so consumers cannot observe new status paired with stale or missing data.
+- 符合语言习惯时，优先使用不可变绑定、不可变值和表达式式构造。将修改限制在确有需要的管理者内部。常量绑定并不意味着其引用的对象或集合也深度不可变。
+- 某些数据只在特定状态下必需时，使用携带各自必需数据的状态变体，例如密封类型、带关联值的枚举、可辨识联合类型，或最接近的原生模型。避免采用可能产生无效状态组合的独立标志位和可空字段来建模状态。动态语言应在边界验证状态变体。
+- 可选值只用于有效状态中确实可有可无的数据。避免强制解包、占位值或掩盖不变量已被破坏的默认值。
+- 合法操作取决于当前状态的流程，应定义状态、事件、允许的转换，以及不支持事件的处理方式。复用已有状态机或小型纯转换函数，不强制引入框架。
+- 每次状态转换通过现有状态管理者发布一份不可变快照，避免使用者观察到新状态与过时或缺失数据的组合。
 
-For example, model `Idle | Loading(requestId) | Success(value) | Failure(cause)`.
-Only `Success` carries the result, and it always carries one. Make its value optional
-only if a successful result may legitimately be absent. Define whether cancellation
-restores an earlier state or enters a separate state according to the workflow.
+例如，可建模为 `Idle | Loading(requestId) | Success(value) | Failure(cause)`。只有 `Success` 携带结果，而且始终携带结果。仅当成功结果确实可以不存在时，才将其值设为可选。根据流程定义取消是恢复先前状态，还是进入单独状态。
 
-## Contracts and verification
+## 接口约定与验证
 
-- Use the platform's API documentation convention for public APIs and non-obvious
-  contracts. Document units, ranges, ownership, lifecycle, cancellation, execution
-  context, failure behavior, and stream/subscription semantics when callers need
-  them. Avoid boilerplate that repeats the signature; keep docs aligned with code.
-- After concurrency changes, verify cancellation propagation, execution context,
-  cleanup, and error propagation. After state changes, verify valid transitions,
-  unsupported events, required data, and superseded completions. Prefer deterministic
-  schedulers or controlled completions over timing-dependent sleeps.
+- 编写公开 API 和隐含接口约定的文档时，应遵循平台既有的 API 文档规范。根据调用方的实际需要，说明单位、取值范围、资源管理责任、生命周期、取消机制、执行上下文、失败处理方式，以及数据流和订阅行为的相关约定。避免重复函数签名的套话，让文档与代码保持一致。
+- 修改并发行为后，验证取消传播、执行上下文、清理和错误传播。修改状态模型后，验证合法转换、不支持的事件、必需数据，以及已被取代的完成结果。优先使用确定性调度器或受控完成机制，避免依赖休眠时序。
 
-## Upstream improvement feedback
+## 上游改进反馈
 
-- Report actionable plugin bugs or reusable improvements to [storytellerF/me](https://github.com/storytellerF/me/issues), identifying the plugin and skill. Exclude project-only problems without evidence of a plugin defect. Finish the primary task before non-blocking feedback work.
-- Before searching or posting, reduce evidence to a minimal privacy-safe summary or synthetic reproduction. Never disclose raw conversations, private code, logs, screenshots, credentials, personal/account data, or private paths/URLs. Keep findings local if safe disclosure is impossible.
-- Search open and closed issues and read likely matches and resolutions. Reuse matching reports; a distinct regression or uncovered case may need a linked new issue. Posting a new issue or a materially useful comment requires existing user authorization; this rule grants none. Without authorization, prepare an unsubmitted draft.
-- Include the plugin/skill version, observed and expected behavior, reproduction or proposal, and duplicate-search results; prefix new issue titles with the plugin name. On access or submission failure, retain the draft and explain the blocker. After an uncertain submission, check whether it succeeded before retrying. Return the report link or clearly label the draft as unsubmitted.
+- 发现有明确改进方向的插件缺陷或可复用的改进建议时，向 [storytellerF/me](https://github.com/storytellerF/me/issues) 反馈，并注明插件和 skill。若问题仅属于当前项目，且没有插件缺陷的证据，则不在此范围内。先完成主要任务，再处理不影响当前工作的反馈。
+- 搜索或发布之前，将证据整理为不含隐私的最小摘要或合成复现案例。不得泄露原始对话、私有代码、日志、截图、凭据、个人或账户信息，以及私有路径和 URL。如果无法安全披露，就只在本地保留发现。
+- 搜索已打开和已关闭的 issue，阅读可能匹配的报告及其解决方案。优先复用已有报告；如果是不同的回归问题或尚未覆盖的场景，可另建 issue 并关联原报告。发布新 issue 或有实质帮助的评论必须已经获得用户授权；本规则本身不授予发布权限。未获授权时，准备一份尚未提交的草稿。
+- 反馈应包含插件和 skill 版本、实际与预期行为、复现步骤或建议，以及重复报告的检索结果。新 issue 的标题应以插件名开头。访问或提交失败时，保留草稿并说明阻碍。提交结果不确定时，先确认是否已成功，再考虑重试。返回报告链接，或明确标注草稿尚未提交。

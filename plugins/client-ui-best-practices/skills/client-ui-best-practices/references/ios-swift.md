@@ -1,6 +1,6 @@
-# iOS and Swift Host
+# iOS 与 Swift Host
 
-Keep the Host independent of `UIView`, `UIViewController`, and SwiftUI `View` types. Use an injected serial executor or actor for Host coordination and publish immutable state and one-time effects through the project's observation mechanism.
+Host 不依赖 `UIView`、`UIViewController` 和 SwiftUI `View` 类型。使用注入的串行执行器或 actor 协调 Host，通过项目观察机制发布不可变状态和一次性副作用。
 
 ```swift
 actor ProfileHost {
@@ -27,9 +27,8 @@ actor ProfileHost {
 }
 ```
 
-- Keep UIKit and SwiftUI rendering on `MainActor` without making the framework-independent Host depend on UI types.
-- Perform blocking or CPU-heavy work through injected worker dependencies rather than on `MainActor`.
-- Model transient navigation and presentation requests separately from durable state.
-- Cancel observation and Host-owned tasks with the owning screen lifecycle.
-- Actors are reentrant across `await`. Reject superseded requests, cancel prior
-  work, or serialize complete operations before applying an asynchronous result.
+- UIKit 和 SwiftUI 渲染保留在 `MainActor`，同时不让独立于框架的 Host 依赖 UI 类型。
+- 阻塞或 CPU 密集工作通过注入的工作依赖执行，不在 `MainActor` 执行。
+- 临时导航和呈现请求与持久状态分别建模。
+- 随所属页面生命周期取消观察和 Host 管理的任务。
+- actor 在跨越 `await` 时可重入。应用异步结果前，拒绝被取代的请求、取消先前工作，或串行执行完整操作。

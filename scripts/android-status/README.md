@@ -1,8 +1,8 @@
-# Android status panel sources
+# Android 状态面板源码
 
-This directory owns the shared MCP Apps UI and ADB read helpers for the emulator and device-lock plugins. Each plugin remains independently installable: `npm run build` writes a self-contained HTML resource and a copy of `android_probe.py` into each owning plugin. Edit shared sources here and regenerate; do not edit generated files directly. Each plugin owns its collector and stdio MCP server.
+本目录维护模拟器和设备锁插件共用的 MCP Apps UI 及 ADB 读取工具。各插件仍可独立安装：`npm run build` 为每个所属插件写入自包含 HTML 资源及 `android_probe.py` 副本。在此修改共享源码后重新生成，不直接编辑生成文件。每个插件自行维护收集器和 stdio MCP 服务。
 
-From the repository root:
+从仓库根目录运行：
 
 ```bash
 npm ci --prefix scripts/android-status
@@ -16,6 +16,6 @@ bash scripts/build-codex-plugin-package.sh --all
 python3 scripts/validate-generated-codex-skills.py ../me.codex
 ```
 
-Browser tests use a simulated MCP Apps host and fake device snapshots; collector/protocol tests use a fake ADB command and never start an emulator or modify a real lock. An existing Chromium can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE`. `ANDROID_PANEL_SCREENSHOTS` optionally writes preview images from the fake snapshots into an existing directory.
+浏览器测试使用模拟 MCP Apps 宿主和伪设备快照；收集器及协议测试使用模拟 ADB，绝不启动模拟器或修改真实锁。可通过 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 选择已有 Chromium。`ANDROID_PANEL_SCREENSHOTS` 可将伪快照预览图输出到已存在目录。
 
-Tests cover initial-result rendering, refresh, stale snapshots, unknown versus free/stopped state, safe text rendering, lease countdowns, explicit serial-scoped screenshots, metadata redaction, and responsive/dark layouts. Runtime hosts must support MCP Apps and the `openai/ui` global sidebar and thread entrypoints. No settings extension is provided.
+测试覆盖初始结果呈现、刷新、过时快照、未知与空闲或停止的区别、安全文本呈现、租约倒计时、显式序列号截屏、元数据脱敏，以及响应式和深色布局。运行宿主需支持 MCP Apps，以及 `openai/ui` 全局侧栏和对话入口。不提供设置扩展。

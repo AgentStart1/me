@@ -1,16 +1,16 @@
 # me.codex
 
-Generated Codex plugins from [storytellerF/me](https://github.com/storytellerF/me). Edit the source repository; synchronization pull requests are produced only by its GitHub Actions workflow.
+从 [storytellerF/me](https://github.com/storytellerF/me) 生成的 Codex 插件。请编辑源仓库；同步 PR 只由其 GitHub Actions 工作流生成。
 
-## Installation
+## 安装
 
-Add the generated Codex repository as a plugin marketplace:
+将生成的 Codex 仓库添加为插件市场：
 
 ```bash
 codex plugin marketplace add https://github.com/storytellerF/me.codex.git
 ```
 
-Install plugins from the marketplace:
+从市场安装插件：
 
 ```bash
 codex plugin add android-emulator-profile@me
@@ -23,23 +23,20 @@ codex plugin add diff-sharing@me
 codex plugin add qemu-guests@me
 ```
 
-Start a new Codex thread after installation so its plugin skills and MCP tools are loaded.
+安装后开启新的 Codex 对话，以加载插件 skill 和 MCP 工具。
 
-All plugins are listed in `.agents/plugins/marketplace.json`. Source skills are copied unchanged from the portable repository; Claude agent prompts and routing are omitted from Codex packages.
+所有插件列于 `.agents/plugins/marketplace.json`。源 skill 从可移植仓库原样复制；Codex 包不包含 Claude agent 提示词和路由。
 
-## Migration from storytellerF/me
+## 从 storytellerF/me 迁移
 
-Remove the old marketplace:
+移除旧市场：
 
 ```bash
 codex plugin marketplace remove me
 ```
 
-Then follow the installation steps above to add `storytellerF/me.codex` and reinstall the plugins you use. The marketplace name remains `me`.
+再按上方安装步骤添加 `storytellerF/me.codex`，重新安装所用插件。市场名称仍为 `me`。
 
-## Migration from Kotlin Coding Practices
+## 从 Kotlin 编码实践迁移
 
-`kotlin-coding-practices` has been merged into `general-coding-practices`.
-Install or update that plugin and remove the retired Kotlin plugin using your
-client's plugin manager. Replace explicit `kotlin-project-rules` references with
-`code-design-rules`; Kotlin guidance remains in its platform reference.
+`kotlin-coding-practices` 已并入 `general-coding-practices`。安装或更新后者，通过客户端插件管理器移除旧 Kotlin 插件。将显式 `kotlin-project-rules` 引用改为 `code-design-rules`；Kotlin 指引保留在其平台参考中。

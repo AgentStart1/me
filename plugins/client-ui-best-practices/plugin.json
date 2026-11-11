@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "client-ui-best-practices",
-  "version": "0.3.4-20261030120429",
-  "description": "Cross-platform Host architecture for client UI state, effects, lifecycle, and thread confinement.",
+  "version": "0.3.5-20261107120055",
+  "description": "通过跨平台 Host 架构管理客户端 UI 状态、副作用、生命周期和线程约束。",
   "author": {
     "name": "Local developer"
   },
@@ -20,9 +20,9 @@
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
-        "displayName": "Client UI Best Practices",
-        "shortDescription": "Keep rendering responsive and state-driven.",
-        "longDescription": "Guides client development so UI-thread work stays focused on view updates and rendering, while business logic and I/O run asynchronously and update screens through observable UI state and one-time effects.",
+        "displayName": "客户端 UI 最佳实践",
+        "shortDescription": "保持界面响应流畅，以状态驱动渲染。",
+        "longDescription": "指导客户端开发，让 UI 线程聚焦视图更新和渲染，业务逻辑与 I/O 异步执行，通过可观察 UI 状态和一次性副作用更新页面。",
         "developerName": "Local developer",
         "category": "Developer Tools",
         "capabilities": [
@@ -31,9 +31,9 @@
           "Debugging"
         ],
         "defaultPrompt": [
-          "Review this client screen for main-thread violations.",
-          "Refactor this UI flow to StateFlow-driven rendering.",
-          "Move business work off the UI thread safely."
+          "检查此客户端页面是否违反主线程约束。",
+          "将此 UI 流程重构为 StateFlow 驱动的渲染。",
+          "安全地将业务工作移出 UI 线程。"
         ],
         "brandColor": "#0F766E"
       }

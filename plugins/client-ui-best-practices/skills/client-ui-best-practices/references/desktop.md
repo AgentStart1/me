@@ -1,11 +1,11 @@
-# Desktop and Event-loop Hosts
+# 桌面与事件循环 Host
 
-Keep the Host independent of windows, controls, scenes, and toolkit event objects. Adapt its immutable state and one-time effects at the UI boundary.
+Host 不依赖窗口、控件、场景和工具包事件对象。在 UI 边界适配其不可变状态和一次性副作用。
 
-- Give the Host an injected serial coordination executor that is distinct from the toolkit UI dispatcher.
-- Perform blocking and CPU-heavy work on injected worker executors.
-- Marshal only rendering and toolkit-required calls onto the UI dispatcher.
-- Dispose subscriptions and cancel Host work when the owning window or screen closes.
-- Test the Host with deterministic executors without starting the desktop UI runtime.
+- 向 Host 注入串行协调执行器，区别于工具包的 UI 调度器。
+- 阻塞和 CPU 密集工作在注入的工作执行器上完成。
+- 只将渲染及工具包要求的调用调度到 UI 调度器。
+- 所属窗口或页面关闭时，释放订阅并取消 Host 工作。
+- 使用确定性执行器测试 Host，不启动桌面 UI 运行时。
 
-Apply the same boundary to Swing/JavaFX, Compose Desktop, .NET desktop frameworks, Qt, Electron, and similar single-event-loop toolkits while using their native lifecycle and scheduling APIs at the adapter layer.
+Swing/JavaFX、Compose Desktop、.NET 桌面框架、Qt、Electron 等单事件循环工具包都应用相同边界，在适配层使用各自原生的生命周期和调度 API。

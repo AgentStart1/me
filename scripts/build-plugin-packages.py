@@ -23,7 +23,7 @@ def build(client, output):
         raise ValueError('output must be outside the source repository')
     if output.name != f'me.{client}':
         raise ValueError(f'output directory must be named me.{client}')
-    manifests = [(p.parent, json.loads(p.read_text())) for p in sorted((ROOT / 'plugins').glob('*/plugin.json'))]
+    manifests = [(p.parent, json.loads(p.read_text(encoding="utf-8"))) for p in sorted((ROOT / 'plugins').glob('*/plugin.json'))]
     if not manifests:
         raise ValueError('no portable plugins found')
     for source, manifest in manifests:
@@ -45,7 +45,7 @@ def build(client, output):
             if not (source / 'agents' / f'{agent}.md').is_file():
                 raise ValueError(f'missing Claude agent: {agent}')
         for skill in (source / 'skills').glob('*/SKILL.md'):
-            match = re.match(r'^---\n(.*?)\n---', skill.read_text(), re.S)
+            match = re.match(r'^---\n(.*?)\n---', skill.read_text(encoding="utf-8"), re.S)
             if not match or re.search(r'^(context|agent):', match[1], re.M):
                 raise ValueError(f'source skill must use portable frontmatter: {skill}')
     marketplace_dir = output / ('.agents/plugins' if client == 'codex' else '.claude-plugin')
@@ -66,10 +66,10 @@ def build(client, output):
             routes = portable.get('extensions', {}).get(NAMESPACES['claude'], {}).get('skillFrontmatter', {})
             for name, route in routes.items():
                 skill = destination / 'skills' / name / 'SKILL.md'
-                content = skill.read_text()
+                content = skill.read_text(encoding="utf-8")
                 match = re.match(r'^---\n(.*?)\n---', content, re.S)
                 additions = ''.join(f'\n{key}: {json.dumps(value)}' for key, value in route.items())
-                skill.write_text('---\n' + match[1] + additions + '\n---' + content[match.end():])
+                skill.write_text('---\n' + match[1] + additions + '\n---' + content[match.end():], encoding='utf-8')
         manifest = {k: v for k, v in portable.items() if k in CORE}
         extra = {k: v for k, v in portable.get('extensions', {}).get(NAMESPACES[client], {}).items() if k != 'skillFrontmatter'}
         if set(extra) & CORE:
@@ -85,10 +85,10 @@ def build(client, output):
         marketplace['interface'] = {'displayName': 'Me'}
     else:
         marketplace['owner'] = {'name': 'storytellerF'}
-        marketplace['description'] = 'Portable Android tooling, coding guidance, and report sharing plugins.'
+        marketplace['description'] = '可移植的 Android 工具、编码指引和报告分享插件。'
     write_json(marketplace_dir / 'marketplace.json', marketplace)
     template = ROOT / 'scripts/templates' / f'{client}-readme.md.template'
-    (output / 'README.md').write_text(template.read_text())
+    (output / 'README.md').write_text(template.read_text(encoding="utf-8"), encoding='utf-8')
     print(f'Generated {len(entries)} {client} plugins in {output}')
 
 

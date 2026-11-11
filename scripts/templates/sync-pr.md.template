@@ -1,30 +1,28 @@
-## Summary
+## 概要
 
-Sync generated **{client}** packages from [{source_subject}]({source_url}).
+从 [{source_subject}]({source_url}) 同步生成的 **{client}** 包。
 
-## Affected plugins
+## 受影响插件
 
 {plugins}
 
-## Generated changes
+## 生成的变更
 
 ```text
 {diff_stat}
 ```
 
-## Validation
+## 验证
 
-The sync workflow completed these checks before opening or updating this PR:
+同步工作流在创建或更新本 PR 前完成以下检查：
 
-- Portable source and generated {client} package validation.
-- Package generation and routing regression tests.
+- 可移植源码和生成的 {client} 包验证。
+- 包生成与路由回归测试。
 - {client_validation}
 
-## Traceability
+## 追溯信息
 
-- Source commit: [{source_sha}]({source_url})
-- Workflow run: [Sync client distributions]({run_url})
+- 源提交：[{source_sha}]({source_url})
+- 工作流运行：[客户端发行同步]({run_url})
 
-Generated files are maintained in the source repository. Merge this PR to publish
-the synchronized distribution. After installing updated Codex plugins, start a
-new Codex chat to load the changes.
+生成文件在源仓库维护。合并本 PR 发布同步发行版。安装更新的 Codex 插件后，开启新的 Codex 对话以加载变更。

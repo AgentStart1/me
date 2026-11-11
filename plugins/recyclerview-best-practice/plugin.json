@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "recyclerview-best-practice",
-  "version": "0.3.4-20261030120429",
-  "description": "Android RecyclerView guidance for adapters, diffing, paging, state, prepend anchors, and performance.",
+  "version": "0.3.5-20261107120055",
+  "description": "Android RecyclerView 的 adapter、差异计算、分页、状态、前插锚点和性能指引。",
   "author": {
     "name": "Local Android Practices"
   },
@@ -19,9 +19,9 @@
     "com.openai.codex": {
       "skills": "./skills/",
       "interface": {
-        "displayName": "RecyclerView Best Practice",
-        "shortDescription": "Review and implement robust Android RecyclerView code.",
-        "longDescription": "Guides Codex to prefer diff-capable adapters, correct lifecycle collection, stable binding patterns, item state separation, and focused tests when editing Android RecyclerView code.",
+        "displayName": "RecyclerView 最佳实践",
+        "shortDescription": "审查和实现稳健的 Android RecyclerView 代码。",
+        "longDescription": "指导 Codex 编辑 Android RecyclerView 代码时，优先采用支持差异计算的 adapter、正确的生命周期收集、稳定绑定模式、条目状态分离及聚焦测试。",
         "developerName": "Local Android Practices",
         "category": "Developer Tools",
         "capabilities": [
@@ -30,9 +30,9 @@
           "Android"
         ],
         "defaultPrompt": [
-          "Review this RecyclerView implementation.",
-          "Refactor this adapter to use diffing.",
-          "Add Paging 3 support to this list."
+          "审查此 RecyclerView 实现。",
+          "将此 adapter 重构为差异计算更新。",
+          "为此列表添加 Paging 3 支持。"
         ],
         "brandColor": "#2E7D32"
       }

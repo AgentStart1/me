@@ -1,34 +1,34 @@
-# Plugin implementation and validation
+# 插件实现与验证
 
-Read this only when changing this plugin's runtime, lifecycle, transports, provisioning or status UI. Routine application tests use the selected operational reference; they do not require rebuilding QEMU or running this plugin's regression suites. Full test commands and evidence belong in [DEVELOPMENT.md](../../../DEVELOPMENT.md).
+仅在修改本插件的运行时、生命周期、传输、安装或状态 UI 时阅读。普通应用测试使用选定的操作参考，不需要重建 QEMU 或运行插件回归套件。完整测试命令和证据放在 [DEVELOPMENT.md](../../../DEVELOPMENT.md)。
 
-## Backend ownership and publication
+## 后端归属与发布
 
-- Whole-operation leases also protect setup and VM clients from concurrent lifecycle changes. Do not bypass a busy lease. After forced termination, confirm all plugin lifecycle/client processes have exited before removing interrupted `run/vm-operation.lock`, `vm-state.guard` or a helper `.control.lock`; preserve process records until both owned processes are confirmed stopped.
-- Cleanup verifies QEMU/gvproxy native executable and creation time before signalling. Healthy repeated starts check forwarding rules, SSH, Docker and the publish pool. For Windows provisioning and legacy shell records, use the launching Bash runtime for path/PID conversion; normal native starts keep their original PIDs; bypass HTTP proxies explicitly for `127.0.0.1` instead of passing a wildcard to curl.
-- Missing PID pointers do not prove QEMU exit. Recover partial publication through the pending launch PID and native identity; retain networking and reservations when publication or inspection remains unknown. See the configuration and recovery reference for profile lifecycle options.
-- Follow the lifecycle snapshot's phase and reservation generation. Before creation, clean only this launch's resources; after creation, verify QEMU exit before stopping its helper. Never adopt existing helper ownership or bypass a recovery-required reservation. A completed ready VM survives cancellation of the already-completed start; a cancelled stop can be resumed with another owned stop.
-- Resource creation and cleanup share one cancellation handoff rule: defer handled signals through handle assignment or definitive failure rollback. Failed initial metadata publication removes only the guard created by that call. Helper cancellation joins the owned process before removing pending state; failed kill/join retains evidence. Never apply this rollback to a pre-existing guard or helper reservation.
-- For CLI-to-Shell claims, generate the token and install matching cleanup before acquisition. Join the native creator before cancellation rollback, retain custom cleanup traps, and release only the same owner/token. Use the shared shell facade; the internal begin/guard-acquire CLI requires a caller-known token. Failed delivery does not authorize removal of an existing unknown lease or guard.
-- Render provisioning configuration from `templates/*.tpl` with the shared `render_template` helper; keep scripts limited to runtime values and orchestration.
+- 整体操作租约也保护安装流程和虚拟机客户端，防止并发生命周期修改。不绕过忙碌租约。强制终止后，在移除中断的 `run/vm-operation.lock`、`vm-state.guard` 或辅助工具 `.control.lock` 前，确认所有插件生命周期和客户端进程已退出；确认两个受管进程都停止前，保留进程记录。
+- 清理发信号前验证 QEMU、gvproxy 原生可执行文件和创建时间。对健康实例重复启动时，检查转发规则、SSH、Docker 和发布端口池。Windows 安装和旧 Shell 记录使用启动它们的 Bash 运行时转换路径、PID；普通原生启动保留原 PID。显式绕过 `127.0.0.1` 的 HTTP 代理，不向 curl 传通配符。
+- PID 指针缺失不证明 QEMU 已退出。通过待发布启动 PID 和原生身份恢复部分发布；发布或检查仍未知时保留网络及预留。配置生命周期选项见配置与恢复参考。
+- 遵循生命周期快照的阶段及预留代次。创建前，只清理本次启动资源；创建后，确认 QEMU 退出再停止辅助进程。不得接管已有辅助工具归属或绕过需要恢复的预留。已完成启动的就绪虚拟机，不因之后取消该启动而停止；被取消的停止操作可由另一次有归属的停止继续。
+- 资源创建和清理遵循同一取消交接规则：将已处理信号推迟到句柄赋值完成，或明确失败回滚之后。首次元数据发布失败只移除本调用创建的 guard。辅助工具取消时，等待受管进程结束，再移除待定状态；终止或等待失败则保留证据。不得将此回滚用于已有 guard 或辅助工具预留。
+- CLI 向 Shell 交接归属时，在获取之前生成令牌并安装匹配清理。取消回滚前等待原生创建者结束，保留自定义清理 trap，只释放相同归属和令牌。使用共享 Shell 外观层；内部 begin、guard-acquire CLI 要求调用方已知令牌。交付失败不授予删除已有未知租约或 guard 的权限。
+- 通过共享 `render_template` 从 `templates/*.tpl` 渲染安装配置；脚本只负责运行值与编排。
 
-## Managed Windows runtime
+## Windows 受管运行时
 
-Keep each build bound to its single immutable BuildSnapshot through cache selection, compilation, packaged inputs, manifest and verification. Changes to source templates/patches belong to later invocations; never re-fingerprint or relabel an in-flight build. Inspect remaining build processes before clearing an interrupted build lock. Validate guest boot-time changes, four guest-visible processors and unchanged QEMU native identity with `tests/validate-whpx-reboots.py`, then authenticated Appium readiness and concurrent work-guest acceptance. Each reboot must also recover the interactive Appium service within the same cycle deadline; SSH returning first is not acceptance. Cold supervisor relaunches do not count as warm reboot success. Legacy explicit system-runtime profiles may retain a bounded `install_reboots` budget; never mistake those for the default managed path. Do not generalize the result to Windows 10, other CPU models or UEFI installations without testing them.
+每次构建从缓存选择、编译、打包输入、清单到验证，都绑定同一不可变 BuildSnapshot。源码模板或补丁变化供后续调用使用；不得重新计算或改标正在运行的构建指纹。清除中断构建锁前检查遗留构建进程。使用 `tests/validate-whpx-reboots.py` 验证客户机启动时间变化、客户机可见的四个处理器和保持不变的 QEMU 原生身份，再验证认证后的 Appium 就绪及并发工作客户机验收。每次重启还必须在同一周期截止时间内恢复交互 Appium 服务；SSH 先返回不构成验收。监督进程冷启动重拉不算热重启成功。旧显式系统运行时配置可保留有限 `install_reboots` 预算，但不能将其误认为默认受管路径。未经测试，不将结果推广到 Windows 10、其他 CPU 模型或 UEFI 安装。
 
-## Initialization and test orchestration
+## 初始化与测试编排
 
-Use TestEnvironmentOwner for the lease and all guest-test resources. Persist retention at the resource failure boundary before other cleanup runs; later exceptions must never unlock an uncertain environment. Use the immutable initialization snapshot for requirements, script bytes, fingerprint, preflight and seed generation. Never re-read hook paths during seed assembly, mutate detached views to change a captured install, or serialize script bytes into the VM metadata record. Verify these contracts with the isolated owner/snapshot suites; leave native QEMU smoke disabled unless explicitly authorized.
+租约和全部客户机测试资源使用 TestEnvironmentOwner 管理。在资源失败边界、其他清理开始前，持久记录保留要求；后续异常绝不能解锁归属不确定的环境。需求、脚本字节、指纹、预检和 seed 生成使用不可变初始化快照。seed 组装期间不得重读钩子路径，不修改脱离快照的视图来改变已捕获安装，也不将脚本字节序列化到虚拟机元数据。通过隔离的归属和快照套件验证；未明确授权时保持原生 QEMU 冒烟关闭。
 
-GuestTransport owns its SSH children: attempt every child stop before reporting aggregate cleanup failures. Preserve cancellation after draining cleanup and retain the environment lease on failure. Verify with tests/test-transport-cleanup.py using mocks; never start existing VMs for this regression.
+GuestTransport 管理其 SSH 子进程：报告聚合清理失败之前，尝试停止每个子进程。完成清理后保留取消语义，失败时保留环境租约。通过带 mock 的 tests/test-transport-cleanup.py 验证，不为此回归启动已有虚拟机。
 
-Configured test execution must share one CancellationRequest between CLI, TestEnvironmentOwner and transports. Follow the three invariants in DEVELOPMENT.md: only the main thread commits cancellation/phase/lease state; workers publish reliable events and sticky cleanup failures; release and terminal publication require closed admission, confirmed resource-worker completion and final event collection. Signals only enqueue requests. Workers read committed snapshots at checkpoints and never construct or replace shared cancellation. Keep main-thread cleanup shields context-local. Report stop failures before HTTP conversion and worker completion, retaining them even if a later retry succeeds. Reject worker attempts to mutate owner/CLI state. Preserve existing assertions and the documented cancellation priority, including the identity of an accepted interruption. Never reintroduce frame inspection, asynchronous signal exceptions, handoff retries or nested handler replacement. Preserve the documented lifecycle contracts when changing test orchestration; deliberate changes to the shared process runtime or VM-management commands need their own affected regression checks.
+配置式测试执行必须在 CLI、TestEnvironmentOwner 和传输之间共享一个 CancellationRequest。遵循 DEVELOPMENT.md 的三条不变量：只有主线程提交取消、阶段和租约状态；worker 发布可靠事件和不可被后续成功清除的清理失败；释放和终态发布要求关闭新工作准入、确认资源 worker 完成并收集最终事件。信号只入队请求。worker 在检查点读取已提交快照，不构造或替换共享取消对象。主线程清理屏蔽保持上下文本地。HTTP 转换和 worker 完成前报告停止失败，即使后续重试成功也保留失败。拒绝 worker 修改 owner 或 CLI 状态。保留已有断言和规定的取消优先级，包括已接受中断的身份。不得重新引入栈帧检查、异步信号异常、交接重试或嵌套处理器替换。修改测试编排时保留已有生命周期约定；有意修改共享进程运行时或虚拟机管理命令时，另行运行其受影响回归检查。
 
-Publish one immutable CliResult/CleanupReport after worker reports and all cleanup have been accounted for. Emit fixed failure categories/counts and the accurate acquired-lease recovery hint, never raw cleanup exceptions, commands, paths or credentials. Unconfirmed workers or failed retention publication must preserve ownership evidence. Verify tests/test-worker-protocol.py plus the existing cancellation, CLI, owner, transport and relay suites with QEMU_TEST_ACCEL unset. Use mocks/local fixtures; do not start, stop or repair existing VMs for these regressions.
+worker 报告和全部清理均已纳入后，发布一份不可变 CliResult/CleanupReport。输出固定失败类别、数量及准确的已获取租约恢复提示，不输出原始清理异常、命令、路径或凭据。worker 未确认结束或保留状态发布失败时，必须保留归属证据。验证 tests/test-worker-protocol.py，以及已有取消、CLI、owner、传输和中继套件，保持 QEMU_TEST_ACCEL 未设置。使用 mock 和本地夹具；不为这些回归启动、停止或修复已有虚拟机。
 
-## Offline checks and live acceptance
+## 离线检查与真实验收
 
-Run regression suites from the plugin directory in the `me` source checkout; these need the repository test helpers. For affected backend helpers, the following suites use fixtures rather than a live VM:
+在 `me` 源码检出目录中，从插件目录运行回归套件；它们需要仓库测试辅助工具。受影响后端工具可使用以下夹具套件，无需真实虚拟机：
 
 ```bash
 python ./tests/test-apk-mirror-selection.py
@@ -38,6 +38,6 @@ python ./tests/test-sync-workspace.py
 python ./tests/test-build-docker-proxy.py
 ```
 
-`build-docker-proxy.sh` is a separate live backend operation that can install Go and compile code. It is not part of the offline suite above. Native boot, reboot, UI and Testcontainers acceptance are separate scoped runs on fresh isolated resources; do not start or repair existing VMs merely to validate documentation or mocked regressions.
+`build-docker-proxy.sh` 是单独的真实后端操作，可能安装 Go 并编译代码，不属于上述离线套件。原生启动、重启、UI 和 Testcontainers 验收在全新隔离资源上另行限定范围执行；不为验证文档或 mock 回归就启动、修复已有虚拟机。
 
-On Windows, the status collector translates Git Bash/MSYS PIDs before verifying the native QEMU process and accelerator. A missing process is stopped; failed inspection remains unknown. Rebuild the panel with Node on Windows or Linux after UI changes.
+Windows 状态收集器在验证原生 QEMU 进程和加速器前，转换 Git Bash/MSYS PID。进程不存在表示已停止；检查失败仍是未知。UI 修改后，在 Windows 或 Linux 上使用 Node 重建面板。

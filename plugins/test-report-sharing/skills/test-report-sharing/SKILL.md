@@ -1,98 +1,87 @@
 ---
 name: test-report-sharing
-description: Use when collecting existing test reports into a browsable site, previewing reports, or sharing a report URL. Supports JUnit XML and HTML output from tools such as Gradle and Maven. Do not trigger merely because tests are being run or failures analyzed.
+description: 将已有测试报告收集为可浏览站点、预览报告或分享报告 URL 时使用。支持 Gradle、Maven 等工具的 JUnit XML 和 HTML 输出。不因运行测试或分析失败就触发。
 ---
 
-# Test Report Sharing
+# 测试报告分享
 
-Use existing test outputs for a report request. Running tests, diagnosing failures, or changing test-report generation is a separate task unless the user also requests it.
+报告请求使用已有测试输出。除非用户同时要求，否则运行测试、诊断失败或修改报告生成流程属于独立任务。
 
-## Project independence
+## 使用项目的独立性
 
-Consume the project's existing JUnit/XML/HTML outputs without making its build or tests invoke this AI plugin's collector, viewer or tunnel scripts. Keep helper paths, credentials, sharing configuration and server state outside the project, and use the report cache by default. Standard test-report/coverage Gradle plugins remain normal project dependencies. Preserve user-requested output destinations; adding project-owned report generation or persistent sharing integration must be within the requested task.
+读取项目已有 JUnit、XML 和 HTML 输出，不让构建或测试调用本 AI 插件的收集、查看或隧道脚本。辅助工具路径、凭据、分享配置和服务状态留在项目外，默认使用报告缓存。标准测试报告或覆盖率 Gradle 插件仍是正常项目依赖。保留用户指定的输出位置；添加项目自有报告生成或持久分享集成必须在请求范围内。
 
-## Required Behavior
+## 必需行为
 
-- Accept `--project-dir DIR` on collection, site assembly and serving, defaulting to the calling directory. Resolve report searches and relative custom report directories from that project; use it for cache identity.
-- Exclude registered submodule directories from searches and copied report trees, including explicitly supplied roots.
-- Collect reports from standard project locations (build/reports, test output folders).
-- Assemble the collected artifacts into a static HTML report site.
-- For a local preview or an unspecified audience, serve with `--local-only`; use ngrok when public sharing is requested. Saved credentials alone do not select public sharing.
-- Return the actual public or local URL and report count; no collected reports does not imply passing tests.
-- Resolve scripts from the installed plugin root and run them by absolute path
-  from the target project; relative Quick Start paths are for the source checkout.
+- 收集、站点组装和服务命令均接受 `--project-dir DIR`，默认调用目录。报告搜索和相对自定义报告目录以该项目解析，并据此确定缓存标识。
+- 搜索和复制的报告目录树排除已注册子模块，包括显式指定的根目录。
+- 从标准项目位置收集报告，例如 build/reports 和测试输出目录。
+- 将收集的产物组装成静态 HTML 报告站点。
+- 本地预览或未明确受众时使用 `--local-only`；用户要求公开分享时使用 ngrok。仅有已保存凭据不能决定公开分享。
+- 返回实际公开或本地 URL 和报告数量；未收集到报告不代表测试通过。
+- 从已安装插件根目录定位脚本，在目标项目中通过绝对路径运行；快速示例的相对路径用于源码检出目录。
 
-## Runtime
+## 运行时
 
-All control logic runs in Python 3.10+ using its standard library. Existing `.sh` commands are thin launchers; each also has a same-named `.py` entrypoint for direct native execution. Use the same `--project-dir` throughout the workflow. Resolve explicit relative output paths from the original calling directory without changing the caller working directory. GNU text utilities and jq are not runtime requirements.
+全部控制逻辑使用 Python 3.10+ 标准库。已有 `.sh` 是轻量启动入口，每个都有同名 `.py` 供原生直接执行。全流程使用相同 `--project-dir`。显式相对输出路径以原调用目录解析，不改变调用者工作目录。运行时不依赖 GNU 文本工具或 jq。
 
-## Quick Start
+## 快速开始
 
-Use the bundled scripts for manual execution:
+手动执行可使用随包脚本：
 
 ```bash
-# Collect reports
+# 收集报告
 plugins/test-report-sharing/scripts/collect-test-results.sh
 
-# Generate the full report site
+# 生成完整报告站点
 plugins/test-report-sharing/scripts/generate-report-site.sh
 
-# Start a local preview
+# 启动本地预览
 plugins/test-report-sharing/scripts/start-ngrok.sh --local-only
 ```
 
-## Configuration
+## 配置
 
-- `--project-dir DIR`: Project directory for every command (default: current directory)
+- `--project-dir DIR`：每个命令的项目目录，默认当前目录。
+- `REPORT_OUTPUT_DIR`：生成报告目录，默认 `~/.cache/test-reports/<project-hash>`。
+- `TEST_RESULT_DIRS`：兼容旧版的冒号分隔扫描目录；`REPORT_DIRS` 仍是别名。Windows 盘符路径优先使用重复的 `--test-dir DIR`。
+- `NGROK_AUTHTOKEN`：令牌覆盖值，也支持已认证的保存配置。
+- `NGROK_PORT`：对外提供的本地端口，默认 8080。
+- `PYTHON_COMMAND`：每个命令使用的明确可用 Python 3.10+ 可执行文件；否则依次尝试 `python3`、`python`。
+- `start-ngrok.sh --local-only`：回环地址预览，不尝试公开隧道。
 
-- `REPORT_OUTPUT_DIR`: Directory for generated reports (default: `~/.cache/test-reports/<project-hash>`)
-- `TEST_RESULT_DIRS`: Legacy colon-separated directories to scan; `REPORT_DIRS` remains an alias. Prefer repeated `--test-dir DIR` for Windows drive paths
-- `NGROK_AUTHTOKEN`: token override; authenticated saved configuration is also supported
-- `NGROK_PORT`: Local port to expose (default: 8080)
-- `PYTHON_COMMAND`: explicit working Python 3.10+ executable for every command; otherwise try `python3`, then `python`
-- `start-ngrok.sh --local-only`: loopback preview without attempting a public tunnel
+## 支持的输入格式
 
-## Supported Input Formats
+### 报告
 
-### Reports
-- JUnit XML reports (`*-tests.xml`, `TEST-*.xml`)
-- HTML test reports (`*.html` in test output directories)
-- Gradle/Maven test output directories (`build/reports/`)
+- JUnit XML 报告（`*-tests.xml`、`TEST-*.xml`）。
+- HTML 测试报告（测试输出目录中的 `*.html`）。
+- Gradle、Maven 测试输出目录（`build/reports/`）。
 
-## Bundled Resources
+## 随包资源
 
-- `scripts/collect-test-results.sh`: Collects reports from standard locations
-- `scripts/generate-report-site.sh`: Assembles static HTML report site
-- `scripts/start-ngrok.sh`: Serves a local preview or starts a public ngrok tunnel.
-- `templates/report-site.html`: Placeholder-based report index template
-- `templates/style.css`: Report index stylesheet
+- `scripts/collect-test-results.sh`：从标准位置收集报告。
+- `scripts/generate-report-site.sh`：组装静态 HTML 报告站点。
+- `scripts/start-ngrok.sh`：提供本地预览或启动公开 ngrok 隧道。
+- `templates/report-site.html`：基于占位符的报告索引模板。
+- `templates/style.css`：报告索引样式表。
 
-## Failure Handling
+## 失败处理
 
-- If no reports are found, generate a report indicating no results were collected.
-- If ngrok is not installed or configured, fall back to a local HTTP server.
-- Public tunnels need working credentials from environment or saved configuration;
-  do not claim anonymous free-tier access. Keep the loopback launcher alive while
-  its URL is in use, then stop only its own children. Preserve existing report services.
-- Collection supports nested JUnit XML within the bounded scan, deduplicates
-  overlapping report roots and gives same-named XML from different paths distinct
-  output names. Failed copies must not count as collected results. Keep output
-  outside a report being copied to avoid recursive self-collection.
+- 未找到报告时，生成说明未收集到结果的报告。
+- ngrok 未安装或未配置时，回退到本地 HTTP 服务。
+- 公开隧道需要来自环境变量或已保存配置的有效凭据，不声称支持匿名免费访问。URL 使用期间保持回环服务启动器运行，结束后只停止其子进程，保留已有报告服务。
+- 在有限扫描范围内支持嵌套 JUnit XML，对重叠报告根目录去重，为不同路径下的同名 XML 分配不同输出名。复制失败不能计入已收集数量。输出应位于被复制报告之外，避免递归收集自身。
 
-## Upstream improvement feedback
+## 快照发布
 
-- Report actionable plugin bugs or reusable improvements to [storytellerF/me](https://github.com/storytellerF/me/issues), identifying the plugin and skill. Exclude project-only problems without evidence of a plugin defect. Finish the primary task before non-blocking feedback work.
-- Before searching or posting, reduce evidence to a minimal privacy-safe summary or synthetic reproduction. Never disclose raw conversations, private code, logs, screenshots, credentials, personal/account data, or private paths/URLs. Keep findings local if safe disclosure is impossible.
-- Search open and closed issues and read likely matches and resolutions. Reuse matching reports; a distinct regression or uncovered case may need a linked new issue. Posting a new issue or a materially useful comment requires existing user authorization; this rule grants none. Without authorization, prepare an unsubmitted draft.
-- Include the plugin/skill version, observed and expected behavior, reproduction or proposal, and duplicate-search results; prefix new issue titles with the plugin name. On access or submission failure, retain the draft and explain the blocker. After an uncertain submission, check whether it succeeded before retrying. Return the report link or clearly label the draft as unsubmitted.
+每次收集发布包含站点的完整替换快照。重复收集不会让当前视图重复报告；源报告删除后，下一快照不再包含它。收集失败保留旧版本。启动器 URL 打开最新快照，已打开页面保留原资源。旧代次继续保留，因此只有服务和读取者结束后，才移除专用报告缓存。
 
+链接资源在发布时复制并物化到每个快照，后续源变化不改变已打开报告。目录循环会使收集失败，复制失败保留上次发布；不保留指向源的实时链接。
 
-Each collection publishes a complete replacement snapshot, including its site.
-Repeating collection does not duplicate reports in the current view; removed
-source reports disappear from the next snapshot. Failed collection leaves the
-previous version available. Use the launcher URL for the latest snapshot; open
-pages keep their original assets. Older generations are retained, so remove the
-dedicated report cache only after its servers and readers have finished.
+## 上游改进反馈
 
-Materialize linked assets when publishing a snapshot. Reject directory cycles and
-retain the previous publication on copy failure; do not keep live source links.
+- 发现有明确改进方向的插件缺陷或可复用的改进建议时，向 [storytellerF/me](https://github.com/storytellerF/me/issues) 反馈，并注明插件和 skill。若问题仅属于当前项目，且没有插件缺陷的证据，则不在此范围内。先完成主要任务，再处理不影响当前工作的反馈。
+- 搜索或发布之前，将证据整理为不含隐私的最小摘要或合成复现案例。不得泄露原始对话、私有代码、日志、截图、凭据、个人或账户信息，以及私有路径和 URL。如果无法安全披露，就只在本地保留发现。
+- 搜索已打开和已关闭的 issue，阅读可能匹配的报告及其解决方案。优先复用已有报告；如果是不同的回归问题或尚未覆盖的场景，可另建 issue 并关联原报告。发布新 issue 或有实质帮助的评论必须已经获得用户授权；本规则本身不授予发布权限。未获授权时，准备一份尚未提交的草稿。
+- 反馈应包含插件和 skill 版本、实际与预期行为、复现步骤或建议，以及重复报告的检索结果。新 issue 的标题应以插件名开头。访问或提交失败时，保留草稿并说明阻碍。提交结果不确定时，先确认是否已成功，再考虑重试。返回报告链接，或明确标注草稿尚未提交。
