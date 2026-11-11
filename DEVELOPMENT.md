@@ -16,7 +16,7 @@
 | --- | --- |
 | JSON 摘要、有限扫描、重复 XML 内容、HTML 去重、目录别名、空报告、URL 编码和标签转义 | `tests/test-report-python.py`（含 `report_contracts.py`） |
 | Difftastic 配置与载荷、不可用或失败状态、Git 统计、提交和工作区模式、子模块排除 | `tests/test-report-python.py` |
-| 实际渲染片段与上下文、安全特殊字符、渲染器和布局切换、Git 回退 | `tests/test-report-browser.py` |
+| 实际渲染片段与上下文、安全特殊字符、渲染器和布局切换、Git 回退、系统主题首次加载/动态切换/重载与文字对比度 | `tests/test-report-browser.py` |
 | 原子发布失败、重叠快照和不可变链接资源 | `tests/test-report-snapshots.py` |
 | 回环服务与隧道生命周期、取消 | `tests/test-report-launchers.py` |
 | Shell 目标脚本、准确参数边界、退出状态传播 | `tests/test-report-python.py`（`ShellContracts`，使用记录解释器夹具） |

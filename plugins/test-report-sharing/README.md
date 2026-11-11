@@ -71,3 +71,5 @@ python /path/to/plugin/scripts/start-ngrok.py --project-dir /path/to/project --l
 ## 改进反馈
 
 插件问题向 [storytellerF/me issues](https://github.com/storytellerF/me/issues) 反馈。报告前，skill 要求检索已打开和已关闭的 issue，使用脱敏或合成示例，并遵循用户已有的发布授权。优先复用已有报告；无法访问时，保留尚未提交的草稿。
+
+独立报告页面默认跟随系统浅色或深色偏好，打开期间切换系统主题也会即时更新。收集的第三方测试报告保留原始样式。

@@ -5,7 +5,20 @@ case "$1" in
     get-state) echo device;;
     shell)
         if [ "${FAIL_REMOTE_RM:-0}" = 1 ] && [[ "${2:-}" == 'rm -rf '* ]]; then exit 1; fi
-        shift; command="${*//\/data\/local\/tmp/$FAKE_DEVICE_ROOT}"; bash -c "$command";;
+        shift; command="${*//\/data\/local\/tmp/$FAKE_DEVICE_ROOT}"
+        if [[ "$command" == 'mkdir '* ]]; then
+            # Model the device guard's atomic create-or-fail contract. Host mkdir
+            # (including uutils 0.10.0) can let concurrent creators both succeed.
+            python3 -c '
+import os, shlex, subprocess, sys
+_, path = shlex.split(sys.argv[1])
+if os.name == "nt":
+    path = subprocess.check_output(["cygpath", "-w", path], text=True).strip()
+os.mkdir(path)
+' "$command"
+        else
+            bash -c "$command"
+        fi;;
     push)
         [ "${FAIL_PUSH:-0}" != 1 ] || exit 1
         source="$2"

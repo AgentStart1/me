@@ -1,3 +1,33 @@
+/* The system preference owns the theme, including live changes. */
+:root {
+    color-scheme: light dark;
+    --page: #f5f5f5;
+    --surface: #fff;
+    --text: #253347;
+    --muted: #526174;
+    --border: #c8d0da;
+    --header: #344a80;
+    --link: #165caa;
+    --button: #165caa;
+    --hover: #104780;
+    --add: #196b35;
+    --remove: #ad2430;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --page: #141922;
+        --surface: #202938;
+        --text: #e6edf5;
+        --muted: #b4c0d0;
+        --border: #526174;
+        --header: #293c69;
+        --link: #90c5ff;
+        --button: #235e9e;
+        --hover: #2b6cb0;
+        --add: #a8ff60;
+        --remove: #ff9292;
+    }
+}
 * {
     margin: 0;
     padding: 0;
@@ -7,8 +37,8 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     line-height: 1.6;
-    color: #333;
-    background: #f5f5f5;
+    color: var(--text);
+    background: var(--page);
 }
 
 .container {
@@ -18,7 +48,7 @@ body {
 }
 
 .header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--header);
     color: white;
     padding: 40px 20px;
     border-radius: 8px;
@@ -32,11 +62,11 @@ body {
 }
 
 .header p {
-    opacity: 0.9;
+    opacity: 1;
 }
 
 .section {
-    background: white;
+    background: var(--surface);
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 20px;
@@ -44,30 +74,30 @@ body {
 }
 
 .section h2 {
-    color: #2c3e50;
+    color: var(--text);
     margin-bottom: 15px;
     padding-bottom: 10px;
-    border-bottom: 2px solid #eee;
+    border-bottom: 2px solid var(--border);
 }
 
 .no-data {
-    color: #999;
+    color: var(--muted);
     font-style: italic;
 }
 
 .insertions {
-    color: #27ae60;
+    color: var(--add);
     font-weight: bold;
 }
 
 .deletions {
-    color: #e74c3c;
+    color: var(--remove);
     font-weight: bold;
 }
 
 .btn {
     display: inline-block;
-    background: #3498db;
+    background: var(--button);
     color: white;
     padding: 10px 20px;
     border-radius: 4px;
@@ -77,7 +107,7 @@ body {
 }
 
 .btn:hover {
-    background: #2980b9;
+    background: var(--hover);
 }
 
 ul {
@@ -90,7 +120,7 @@ li {
 }
 
 li a {
-    color: #3498db;
+    color: var(--link);
     text-decoration: none;
 }
 
@@ -101,6 +131,11 @@ li a:hover {
 .footer {
     text-align: center;
     padding: 20px;
-    color: #666;
+    color: var(--muted);
     font-size: 0.9rem;
+}
+
+a:focus-visible, select:focus-visible {
+    outline: 3px solid var(--link);
+    outline-offset: 3px;
 }

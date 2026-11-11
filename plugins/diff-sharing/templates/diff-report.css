@@ -1,3 +1,53 @@
+/* The system preference owns the theme, including live changes. */
+:root {
+    color-scheme: light dark;
+    --page: #f5f5f5;
+    --surface: #fff;
+    --text: #253347;
+    --muted: #526174;
+    --border: #c8d0da;
+    --header: #344a80;
+    --link: #165caa;
+    --add: #196b35;
+    --remove: #ad2430;
+    --code: #f7f9fc;
+    --code-text: #253347;
+    --code-header: #e7edf5;
+    --code-border: #c8d0da;
+    --code-muted: #526174;
+    --add-bg: #e4f4e8;
+    --remove-bg: #fce8e8;
+    --info-bg: #e9edff;
+    --info: #3d438e;
+    --file: #665500;
+    --change-add: #196b35;
+    --change-remove: #ad2430;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --page: #141922;
+        --surface: #202938;
+        --text: #e6edf5;
+        --muted: #b4c0d0;
+        --border: #526174;
+        --header: #293c69;
+        --link: #90c5ff;
+        --add: #a8ff60;
+        --remove: #ff9292;
+        --code: #1e1e1e;
+        --code-text: #d4d4d4;
+        --code-header: #2d2d2d;
+        --code-border: #535353;
+        --code-muted: #aaa;
+        --add-bg: #1e3a1e;
+        --remove-bg: #3a1e1e;
+        --info-bg: #1e1e3a;
+        --info: #b4b4ff;
+        --file: #f4e66a;
+        --change-add: #8fe234;
+        --change-remove: #ff9292;
+    }
+}
 * {
     margin: 0;
     padding: 0;
@@ -6,20 +56,20 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     line-height: 1.6;
-    color: #333;
-    background: #f5f5f5;
+    color: var(--text);
+    background: var(--page);
     padding: 20px;
 }
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    background: white;
+    background: var(--surface);
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     overflow: hidden;
 }
 .header {
-    background: #2c3e50;
+    background: var(--header);
     color: white;
     padding: 20px;
 }
@@ -46,14 +96,14 @@ body {
 }
 .stat-label {
     font-size: 0.85rem;
-    opacity: 0.8;
+    opacity: 1;
 }
 .content {
     padding: 20px;
 }
 .diff-container {
-    background: #1e1e1e;
-    color: #d4d4d4;
+    background: var(--code);
+    color: var(--code-text);
     border-radius: 4px;
     overflow-x: auto;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
@@ -61,9 +111,9 @@ body {
     line-height: 1.5;
 }
 .diff-header {
-    background: #2d2d2d;
+    background: var(--code-header);
     padding: 10px 15px;
-    border-bottom: 1px solid #404040;
+    border-bottom: 1px solid var(--code-border);
     font-weight: bold;
 }
 .diff-line {
@@ -71,19 +121,19 @@ body {
     white-space: pre;
 }
 .diff-add {
-    background: #1e3a1e;
-    color: #a8ff60;
+    background: var(--add-bg);
+    color: var(--add);
 }
 .diff-remove {
-    background: #3a1e1e;
-    color: #ff6060;
+    background: var(--remove-bg);
+    color: var(--remove);
 }
 .diff-context {
-    color: #999;
+    color: var(--code-muted);
 }
 .diff-info {
-    background: #1e1e3a;
-    color: #9696ff;
+    background: var(--info-bg);
+    color: var(--info);
 }
 .view-controls {
     display: flex;
@@ -93,12 +143,13 @@ body {
 }
 .view-controls select {
     padding: 8px 12px;
-    border: 1px solid #bbb;
+    border: 1px solid var(--border);
     border-radius: 4px;
-    background: white;
+    background: var(--surface);
+    color: var(--text);
 }
 .view-note {
-    color: #666;
+    color: var(--muted);
     font-size: 0.9rem;
 }
 .diff-view[hidden] {
@@ -113,21 +164,21 @@ body {
     white-space: pre;
 }
 .structural-file {
-    border-bottom: 1px solid #404040;
+    border-bottom: 1px solid var(--code-border);
 }
 .structural-file:last-child {
     border-bottom: 0;
 }
 .structural-file-header {
     padding: 10px 15px;
-    background: #2d2d2d;
-    color: #f4e66a;
+    background: var(--code-header);
+    color: var(--file);
     font-weight: 700;
 }
 .structural-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    border-top: 1px solid #303030;
+    border-top: 1px solid var(--code-border);
 }
 .structural-cell {
     display: flex;
@@ -135,11 +186,11 @@ body {
     padding: 5px 10px;
 }
 .structural-cell + .structural-cell {
-    border-left: 1px solid #404040;
+    border-left: 1px solid var(--code-border);
 }
 .structural-line-number {
     flex: 0 0 3.25em;
-    color: #777;
+    color: var(--code-muted);
     text-align: right;
     padding-right: 12px;
     user-select: none;
@@ -149,39 +200,44 @@ body {
     overflow-wrap: anywhere;
 }
 .structural-change-remove {
-    color: #ff5f5f;
+    color: var(--change-remove);
     font-weight: 700;
 }
 .structural-change-add {
-    color: #8fe234;
+    color: var(--change-add);
     font-weight: 700;
 }
 .structural-gap {
-    color: #777;
+    color: var(--code-muted);
     padding: 0 0.35em;
 }
 .structural-inline-row {
-    border-top: 1px solid #303030;
+    border-top: 1px solid var(--code-border);
 }
 .structural-inline-row .structural-cell {
     width: 100%;
 }
 .structural-separator {
     padding: 2px 15px 2px 5.5em;
-    color: #777;
-    border-top: 1px solid #303030;
+    color: var(--code-muted);
+    border-top: 1px solid var(--code-border);
 }
 .no-diff {
     text-align: center;
     padding: 40px;
-    color: #666;
+    color: var(--code-muted);
 }
 .back-link {
     display: inline-block;
     margin-top: 20px;
-    color: #3498db;
+    color: var(--link);
     text-decoration: none;
 }
 .back-link:hover {
     text-decoration: underline;
+}
+
+a:focus-visible, select:focus-visible {
+    outline: 3px solid var(--link);
+    outline-offset: 3px;
 }
