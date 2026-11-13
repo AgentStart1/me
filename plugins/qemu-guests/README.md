@@ -208,6 +208,14 @@ bootstrap product package 安装到运行目标时显式加载首次启动服务
 
 准备需要 Apple 工具 `createinstallmedia`、`pkgbuild`、`productbuild`、`hdiutil`。Windows、Linux 运行时可使用生成的 ISO 和包，不能用替代工具构建。安装器版本、固件和启动布局必须匹配；交接中断后保留未完成磁盘，检查 `macos-install.json`。不自动擦除部分安装客户机。随包渲染及控制测试不能代替所选 macOS 版本安装测试。
 
+### Linux KVM 上的 Intel macOS
+
+使用 [macos-kvm.json](profiles/macos-kvm.json) 准备 Linux/KVM 配置。它显式选择系统 QEMU、KVM 和用于 Sonoma 的 `Haswell-noTSX` 虚拟 CPU，设置 `stepping=3`，并关闭模型中可能不受 AMD KVM 宿主支持的 PCID。[XNU 拒绝早于 C0 的 Haswell 步进](https://github.com/apple-oss-distributions/xnu/blob/xnu-10063.141.1/osfmk/i386/machine_check.c#L86)：省略该步进可能在内核串口输出建立前反复重启。这里的 Intel 指客户机的 x86-64 平台；AMD 宿主也需要按实际虚拟 CPU 和 macOS 版本验证，不能直接套用 AMD 裸机的内核补丁要求。上游 [OSX-KVM 的 Sonoma 记录](https://github.com/kholia/OSX-KVM/blob/master/notes.md#macos-sonoma-support)也记录了 AMD 宿主使用该 CPU 模型的路径。
+
+将示例复制到仓库外，提供已校验的 Apple 安装介质、bootstrap 包及运行包，填写操作者持有的 SMC 参数、匹配的 OVMF code 和已准备的 raw OpenCore 镜像路径。该配置提供 Q35、AHCI `sata` 控制器、USB 键盘与指针、快照 OpenCore 引导盘、VMware SVGA 显示和回环 SSH 转发。首次安装前，在私有 `state_dir` 放入独立可写的 `vars.fd` 固件变量副本；已有环境继续复用其变量和系统盘。固件、OpenCore、账户及 SSH 材料保留在操作者私有目录。
+
+先核对 `/dev/kvm` 访问权限和实际加速器，再按上述安装流程运行。保留现有宿主 MSR 策略；若发生启动 panic，收集客户机串口和宿主 KVM 诊断，定位具体失败后再选择变更，不能自动更改共享宿主的 `ignore_msrs`。启动、认证 SSH、桌面登录、Appium 就绪及使用预构建 WDA 的原生 Mac2 输入验收分别记录。该示例沿用 CPU 帧缓冲路径，GPU 运行时另行配置。已验证版本和运行边界见 [Linux/KVM 桌面验收](DEVELOPMENT.md#linux-kvm-macos-桌面)。
+
 ### Windows 宿主机上的 Ubuntu GPU 运行时
 
 Windows 11 x64 上，`profiles/ubuntu-virgl-whpx.json` 可选择 `qemu_runtime: "virgl-whpx"` 加速 Ubuntu OpenGL。受管运行时使用随包补丁构建固定版本 QEMU 11.1.2 和 VirGLrenderer 1.3.0，验证可执行文件、固件及 DLL，保持系统 QEMU 不变。需要 Python 3.12+、MSYS2 UCRT64、WHPX，以及已登录且原生 OpenGL 驱动可用的 Windows 桌面。隐藏 SDL 仍需要该桌面；宿主注销、会话 0 和宿主开机自动启动未验证。

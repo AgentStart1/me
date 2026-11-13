@@ -6,7 +6,9 @@
 
 Intel macOS 使用已准备的 Apple 安装介质和 bootstrap product package：通过有限 OCR 等待 Recovery，键盘自动化打开 Terminal，挂载脚本对显式配置的空客户机磁盘调用 `startosinstall`（选择序列号时按序列号匹配）。包的 postinstall 钩子只在运行中的目标上显式加载首次启动任务。首次启动配置用户、已有 SSH 访问组成员关系、用户设置偏好及 Appium 用户级 LaunchAgent，将标准仿真 USB 键盘预设为 ANSI，在启用持久自动登录前清除安装器一次性自动登录标记，然后重启。使用 macOS 准备脚本构建私有 product package 和 ISO。不声称支持 Apple Silicon IPSW 或任意版本。自定义系统仍需明确自动化与验收。不以点击安装器替代无人值守安装，准确报告缺失前提。
 
-Windows 可通过 OpenCore macrecovery 工具下载 Apple Recovery 镜像，并对照 Apple 签名 chunklist 验证；下载 Recovery 不要求已有 Mac。须区分 Recovery 下载与当前适配器所需的完整安装应用、ISO 及私有 product package。macOS 示例现显式选择 WHPX，但 CPU 参数和私有 OpenCore、固件仍依具体版本而定。
+Windows 可通过 OpenCore macrecovery 工具下载 Apple Recovery 镜像，并对照 Apple 签名 chunklist 验证；下载 Recovery 不要求已有 Mac。须区分 Recovery 下载与当前适配器所需的完整安装应用、ISO 及私有 product package。Windows 示例显式选择 WHPX；Linux 使用 `profiles/macos-kvm.json` 的系统运行时和 KVM。CPU 参数和私有 OpenCore、固件仍依具体版本而定。
+
+Linux/KVM 的准备边界见 README 的 [Linux KVM 上的 Intel macOS](../../../README.md#linux-kvm-上的-intel-macos)。Intel 在此描述客户机平台，不能据此排除 AMD KVM 宿主，也不能直接套用 AMD 裸机内核补丁。先验证选定虚拟 CPU，依据串口和宿主 KVM 诊断定位实际失败；不自动修改共享宿主 MSR 策略。保留原始固件与系统盘，使用独立副本验证桌面及预构建 WDA 的原生输入。
 
 历史 Sonoma、CPUID 缓存和 Mac2 探测记录在[开发证据](../../../DEVELOPMENT.md#whpx-上的实验性-macos-recovery)中。它们不能证明其他版本兼容，也不能证明源码适配器完整无人值守运行。不用实验二进制替换受管运行时，不悄悄回退 TCG，不将 Recovery 下载报告为安装完成。
 

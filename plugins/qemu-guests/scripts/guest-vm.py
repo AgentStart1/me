@@ -73,6 +73,18 @@ def arguments(config, home, installing, first_boot=True):
     return command
 
 
+def child_owns_listeners(child, ports):
+    """An exited child is not ready; inspection failures of a live child stay fatal."""
+    try:
+        return owns_listeners(child.pid, ports)
+    except OSError:
+        # Linux may revoke access to /proc/PID/fd between poll() and the scan
+        # during exit. Reap our child to prove exit, never infer it from errno.
+        if child.poll() is None:
+            raise
+        return False
+
+
 def acceptance(config, home):
     if config['acceptance']:
         return [v.replace('{state}', str(home)).replace('{ssh_port}', str(config['ssh_port']))
@@ -236,7 +248,7 @@ def supervise(config, home, installing):
                 if not stopping and not accepted and time.monotonic() > deadline:
                     raise RuntimeError('Guest readiness timed out; installation is retained for run/resume')
                 if (not stopping and config.get('qmp_port') and time.monotonic() >= next_machine_probe
-                        and owns_listeners(child.pid, {config['qmp_port']})):
+                        and child_owns_listeners(child, {config['qmp_port']})):
                     from guest_screen import Qmp
                     try:
                         client = Qmp(config['qmp_port'])
@@ -254,7 +266,7 @@ def supervise(config, home, installing):
                 if not stopping and record['phase'] == 'booting':
                     if macos_driver is not None:
                         macos_driver.tick()
-                    if time.monotonic() >= next_probe and owns_listeners(child.pid, {config['ssh_port']}):
+                    if time.monotonic() >= next_probe and child_owns_listeners(child, {config['ssh_port']}):
                         try:
                             with open(home / 'acceptance.log', 'ab') as log:
                                 result = subprocess.run(acceptance(config, home), stdout=log, stderr=log, timeout=15)

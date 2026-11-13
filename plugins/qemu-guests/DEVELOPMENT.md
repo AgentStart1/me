@@ -87,9 +87,11 @@ Windows Docker CLI 代理通过虚拟机 Go 测试与原生构建，并构建 Li
 
 `guest_config.py` 独立于 Alpine shell profile 验证 JSON profile。`guest_seed.py` 使用 pycdlib 从 `templates/guests/` 渲染私有无人值守介质。`guest-vm.py` 以状态目录租约监督前台原生 QEMU 进程，信号延迟处理覆盖进程创建与记录发布。停止请求携带会话 token；清理失败保留归属证据。工作虚拟机不获取 Alpine 后端预留。
 
+监听检查绑定受监督的 `Popen` 子进程。Linux 正常退出期间可能在前次 `poll()` 与 `/proc/PID/fd` 扫描之间失去描述符访问权限；只有重新 `poll()` 确认该子进程已结束，才将扫描异常解释为未就绪，让主循环按真实退出码处理。活进程的访问错误仍向上传播，不据此猜测退出或放宽归属核验。`tests/test-work-guests.py` 覆盖退出竞态和活进程权限错误。
+
 安装 `scripts/requirements-guests.txt`，再运行 `python tests/test-work-guests.py`。套件检查 Ubuntu／Windows 介质生成、拒绝校验和不符、转发、不完整磁盘保留及重复会话互斥。安装原生 QEMU 后，可并发运行两个暂停的 QEMU 实例，验证独立停止和清理。该进程冒烟中的受控验收不能证明操作系统安装成功。实际 OS 和 Docker／Testcontainers 验收需要相应镜像、后端、目标代理和适配器配置。
 
-默认验收检查虚拟机 SSH 与 Docker 服务器访问，Ubuntu 还检查 cloud-init 完成。自定义适配器自行负责安装和验收。状态 MCP App 还读取工作虚拟机注册表，暴露独立的仅应用可用 PNG 捕获工具。所有生成文件必须放在私有状态目录，绝不写入本仓库。后端改名后保留旧存储路径。显式代理 target 写入 OS／架构子目录，保留用户级构建租约。
+默认验收检查认证后的 SSH 与客户机会话中的 Appium 服务，Ubuntu 还检查 cloud-init 完成；原生应用 UI 另行验收。自定义适配器自行负责安装和验收。状态 MCP App 还读取工作虚拟机注册表，暴露独立的仅应用可用 PNG 捕获工具。所有生成文件必须放在私有状态目录，绝不写入本仓库。后端改名后保留旧存储路径。显式代理 target 写入 OS／架构子目录，保留用户级构建租约。
 
 ## 图形虚拟机与 macOS 安装
 
@@ -97,13 +99,21 @@ Windows Docker CLI 代理通过虚拟机 Go 测试与原生构建，并构建 Li
 
 运行 `python tests/test-guest-panel.py`、`npm test --prefix ui`、`npm run build --prefix ui` 和已有状态协议／浏览器套件。原生测试执行实际暂停 QEMU 的屏幕捕获与清理，浏览器测试检查虚拟机行、无头屏幕入口抑制和帧轮询。`tests/validate-work-guests.py --profile /path/ubuntu.json --profile /path/windows.json --report /private/report.json` 是按需真实验收：要求独立虚拟机已就绪，并发构建虚拟机本地 Docker context，验证回环 API 与已发布 HTTP，捕获图形屏幕，只移除自己标记的容器和镜像。所有虚拟机共享同一守护进程，因此发布端口须不同。
 
-macOS 准备在一台准备用 Mac 上使用 Apple 工具。`macos_install.py` 运行时控制器仅在有界 OCR 后打开 Recovery 终端，发送固定 seed 脚本路径。持久交接标记防止破坏性重试；seed 脚本拒绝已分区目标磁盘。产品包 payload 通过首次启动 LaunchDaemon 配置账户、SSH 和 Docker。测试验证生成脚本与控制事件；实际安装器兼容性须使用匹配固件和介质检查。缺少准备用 Mac 时，准备脚本及安装包尚未在 macOS 执行，不能仅凭渲染测试就声称已安装或验证。
+macOS 准备在一台准备用 Mac 上使用 Apple 工具。`macos_install.py` 运行时控制器仅在有界 OCR 后打开 Recovery 终端，发送固定 seed 脚本路径。持久交接标记防止破坏性重试；seed 脚本拒绝已分区目标磁盘。产品包 payload 通过首次启动 LaunchDaemon 配置账户、SSH 和 Appium 用户级 LaunchAgent。测试验证生成脚本与控制事件；实际安装器兼容性须使用匹配固件和介质检查。缺少准备用 Mac 时，准备脚本及安装包尚未在 macOS 执行，不能仅凭渲染测试就声称已安装或验证。
 
 ## 工作虚拟机集成依据
 
 Windows 11 build 26200 配合 QEMU 11.0.1／WHPX，并发运行三个独立工作虚拟机：Ubuntu 24.04 XFCE／LightDM、无头 Ubuntu 24.04 和 Windows Server 2025 Desktop Experience。每台都构建私有 Docker context，访问共享 Linux daemon API，获取自己的已发布 HTTP 响应。两个图形虚拟机返回真实 PNG 帧，无头虚拟机没有屏幕端点。停止一个工作虚拟机不影响其余虚拟机和后端。修正原生 SSH 防火墙规则仅 Private profile 的问题后，全新 Windows 安装通过两次受监督冷启动完成无人值守安装。
 
 历史 Windows WHPX 对比：QEMU 11.0.1 忽略 CPU-model 参数，四 vCPU 停滞，一 vCPU 可启动。QEMU 11.1 配合 `Westmere,-vmx,-svm` 能以虚拟机可见四处理器冷启动保留的 Windows 磁盘，default 和 host 模型失败。虚拟机热重置仍在 BIOS 启动时产生 VP exit code 4，禁用中断控制器也不能提供可用替代。新的 Windows 默认值改为使用下述受管理 partition-reset 构建和四 vCPU。显式旧 system-runtime profile 可保留干净退出的冷启动预算。意外退出不重试，也不回退加速器。图形 supervisor 观察 QMP paused 状态，避免仍存活但已暂停的原生进程继续标为 ready；暂停屏幕仍可查看。
+
+### Linux KVM macOS 桌面
+
+`profiles/macos-kvm.json` 使用系统 QEMU 和 KVM，提供独立的 Linux 配置。Haswell 必须显式选择 C0 或更新步进：QEMU 7.2 的默认 `Haswell-noTSX` 声明 stepping 1，Sonoma 的 XNU 在建立内核串口输出前就会拒绝它。只看到 OpenCore 交接后重启时，先保留失败状态，核对 CPU 模型、步进和私有诊断；不能直接归因于 AMD、MSR 策略或磁盘。示例设置 `stepping=3`，显式关闭宿主未提供的 PCID，保留 KVM 加速和原始 EFI，不注入 AMD 裸机内核补丁，也不更改共享宿主 `ignore_msrs`。
+
+实际验收使用 Linux x86-64 AMD/KVM、系统 QEMU 7.2.22、四 vCPU、4096 MiB 和 VMware SVGA。一个已初始化的 Sonoma 14.8.9（23J631）独立副本完成启动、自动登录及 Appium 3.2.2 就绪。复用预构建的 Mac2 4.5.0／Xcode 16.2 环境，通过 Finder 窗口创建、键盘输入读回、640×480 与 800×600 原生窗口几何、1920×1080 截图，并确认只关闭新建窗口、删除会话及释放转发；已有窗口保持不变。正常客户机内关机后，确认原生进程退出，再冷启动并重复同一原生验收；最终正常关机、监督器成功退出和磁盘结构检查也通过。虚拟机内未进行构建，宿主 `ignore_msrs` 始终为关闭状态。系统安装介质、固件、账户、代码身份清单及诊断留在私有目录。
+
+此记录验证的是现有客户机在 Linux/KVM 上的桌面运行路径，不覆盖全新安装、其他 macOS 版本、GPU 加速或透明 JVM 代理。
 
 ### WHPX 四 vCPU Windows 重启
 

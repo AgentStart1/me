@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qemu-guests",
-  "version": "0.10.3-20261107120055",
+  "version": "0.11.0-20261111214135",
   "description": "通过可复用 QEMU 客户机和独立后端，协调桌面、跨宿主环境及 Docker 测试。",
   "author": {
     "name": "QEMU Guests Maintainers",

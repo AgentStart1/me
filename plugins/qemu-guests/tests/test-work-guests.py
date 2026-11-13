@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -45,6 +45,21 @@ class GuestTests(unittest.TestCase):
     def config(self, **changes):
         self.profile.write_text(json.dumps({**self.data, **changes}))
         return guest_config.load(self.profile)
+
+    def test_listener_scan_racing_child_exit_cannot_report_ready(self):
+        for exit_code in (0, 1):
+            with self.subTest(exit_code=exit_code):
+                child = Mock(pid=123)
+                child.poll.return_value = exit_code
+                with patch.object(vm, 'owns_listeners', side_effect=PermissionError('exiting process')):
+                    self.assertFalse(vm.child_owns_listeners(child, {2230}))
+
+    def test_live_child_listener_inspection_failure_is_not_hidden(self):
+        child = Mock(pid=123)
+        child.poll.return_value = None
+        with patch.object(vm, 'owns_listeners', side_effect=PermissionError('live process')):
+            with self.assertRaises(PermissionError):
+                vm.child_owns_listeners(child, {2230})
 
     def test_appium_tunnel_is_authenticated_loopback_only(self):
         spec = importlib.util.spec_from_file_location('connect_appium', SCRIPTS / 'connect-appium.py')

@@ -37,7 +37,7 @@ skill 负责选择安装、运行时准备、连接、执行和清理流程；�
 | 任务 | 所需指引 |
 | --- | --- |
 | 准备或安装 Windows、Ubuntu 工作客户机，配置 Appium 或选择 GPU 运行时 | [工作客户机准备](references/work-guests.md) |
-| 安装 Intel macOS，或准备、恢复其 Appium 桌面或 GPU 运行时 | [Intel macOS 准备](references/macos.md)，以及共同的[工作客户机准备](references/work-guests.md#安装与连接) |
+| 安装 Intel macOS（含 Linux/KVM 宿主），或准备、恢复其 Appium 桌面或 GPU 运行时 | [Intel macOS 准备](references/macos.md)，以及共同的[工作客户机准备](references/work-guests.md#安装与连接) |
 | 初始化可移植项目运行需求、执行宿主机驱动测试或收集结果 | [宿主机驱动测试](references/test-execution.md) |
 | 准备或使用独立 Alpine Docker 后端，或构建其 CLI 代理 | [Alpine Docker 后端](references/docker-backend.md) |
 | 修改 Alpine 配置、端口、指标或恢复保留后端状态 | [配置与恢复](references/configuration-and-recovery.md) |
